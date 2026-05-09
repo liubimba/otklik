@@ -1,0 +1,12 @@
+packages:
+  - 'apps/*'
+
+allowBuilds:
+  esbuild: set this to true or false
+
+# Packages whose install scripts are allowed to run.
+# pnpm 11 blocks install scripts by default for security; whitelist what we trust.
+# (esbuild is widely used; @tauri-apps/cli downloads the tauri binary)
+onlyBuiltDependencies:
+  - esbuild
+  - '@tauri-apps/cli'

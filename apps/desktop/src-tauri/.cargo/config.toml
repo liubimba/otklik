@@ -1,0 +1,11 @@
+# Project-level cargo config.
+# Reason: user's environment proxies HTTPS through a single channel; cargo's
+# default HTTP/2 multiplexing causes ECONNRESET on the proxy.
+[http]
+multiplexing = false
+timeout = 60
+low-speed-limit = 5
+
+[net]
+retry = 5
+git-fetch-with-cli = true

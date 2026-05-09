@@ -1,0 +1,13 @@
+{
+	"name": "headhunter-ai",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Desktop app that automates hh.ru applications with AI-generated cover letters",
+	"engines": {
+		"node": ">=20"
+	},
+	"packageManager": "pnpm@9.15.4",
+	"pnpm": {
+		"onlyBuiltDependencies": ["esbuild", "@tauri-apps/cli"]
+	}
+}

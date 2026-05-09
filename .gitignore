@@ -1,1 +1,67 @@
+# Tooling state
 .qodo
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+.pnpm-store/
+.svelte-kit/
+.vite/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Rust / Tauri
+target/
+**/*.rs.bk
+src-tauri/gen/schemas/
+
+# Secrets / Local
+.env
+.env.local
+.env.*.local
+
+# Obsidian (personal workspace state — keep app.json/appearance.json/core-plugins.json
+# committed if the team wants shared config; ignore everything that's user-specific)
+description/.obsidian/workspace*.json
+description/.obsidian/graph.json
+description/.obsidian/cache
+
+# Project local data (SQLite, etc.)
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm

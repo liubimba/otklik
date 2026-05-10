@@ -1,7 +1,8 @@
 <script lang="ts">
 import { invoke } from "@tauri-apps/api/core";
 
-const name = $state("");
+// biome-ignore lint/style/useConst: bound via `bind:value` in template
+let name = $state("");
 let greetMsg = $state("");
 
 async function greet(event: Event) {

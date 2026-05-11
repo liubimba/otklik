@@ -1,0 +1,21 @@
+{
+	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+	"files": {
+		"ignore": [
+			"apps/desktop/src/lib/components/ui/**",
+			"apps/desktop/.svelte-kit/**",
+			"apps/desktop/build/**",
+			"apps/desktop/src-tauri/target/**",
+			"**/node_modules/**",
+			"**/dist/**"
+		]
+	},
+	"formatter": {
+		"indentStyle": "tab"
+	},
+	"linter": {
+		"rules": {
+			"recommended": true
+		}
+	}
+}

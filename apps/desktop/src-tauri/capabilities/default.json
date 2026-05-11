@@ -3,5 +3,21 @@
 	"identifier": "default",
 	"description": "Capability for the main window",
 	"windows": ["main"],
-	"permissions": ["core:default", "opener:default"]
+	"permissions": [
+		"core:default",
+		"opener:default",
+		"log:default",
+		"core:window:allow-close",
+		{
+			"identifier": "fs:scope",
+			"allow": [
+				{ "path": "$HOME/.headhunter_ai" },
+				{ "path": "$HOME/.headhunter_ai/*" }
+			]
+		},
+		"fs:allow-write-text-file",
+		"fs:allow-read-text-file",
+		"fs:allow-mkdir",
+		"fs:allow-exists"
+	]
 }

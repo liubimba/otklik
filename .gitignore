@@ -65,3 +65,7 @@ description/.obsidian/cache
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Obsidian (personal workspace state — keep app.json/appearance.json/core-plugins.json
+# committed if the team wants shared config; ignore everything that's user-specific)
+description/.obsidian/

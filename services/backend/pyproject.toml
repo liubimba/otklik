@@ -7,7 +7,11 @@ authors = [
     { name = "bimba", email = "bimba@flashphoner.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "patchright>=1.59.1",
+    "rich>=15.0.0",
+    "structlog>=25.5.0",
+]
 
 [project.scripts]
 headhunter-backend = "headhunter_backend:main"
@@ -30,5 +34,5 @@ files = ["src"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-q"
+addopts = "-q -s"
 asyncio_mode = "auto"

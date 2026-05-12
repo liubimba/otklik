@@ -70,13 +70,22 @@ jobs:
           cache-dependency-glob: services/backend/uv.lock
       - name: Install Python deps
         run: uv sync
+      - name: Install xvfb(Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Install chromium for patchright
+        run: uv run patchright install --with-deps chromium
       - name: mypy (types)
         run: uv run mypy
       - name: pytest (unit)
         shell: bash
         run: |
           if find . -type f \( -name "test_*.py" -o -name "*_test.py" \) -not -path "./.venv/*" | grep -q .; then
-            uv run pytest
+            if [ "$RUNNER_OS" = "Linux" ]; then
+              xvfb-run -a uv run pytest
+            else
+              uv run pytest
+            fi
           else
             echo "No backend tests yet — skipping pytest"
           fi

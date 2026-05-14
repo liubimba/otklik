@@ -11,10 +11,12 @@ dependencies = [
     "patchright>=1.59.1",
     "rich>=15.0.0",
     "structlog>=25.5.0",
+    "fastapi[standard]>=0.119",
+    "uvicorn[standard]>=0.38"
 ]
 
 [project.scripts]
-headhunter-backend = "headhunter_backend:main"
+headhunter-backend = "headhunter_backend.api.app:run"
 
 [build-system]
 requires = ["uv_build>=0.11.12,<0.12.0"]

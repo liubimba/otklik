@@ -1,8 +1,14 @@
+import asyncio
+
 from patchright.async_api import async_playwright
 from pathlib import Path
 from headhunter_backend.log import get_logger
+from headhunter_backend.api.schemas import AuthStatus
 from .page import BrowserPage
-from patchright.async_api import BrowserContext, Playwright, Page
+from patchright.async_api import BrowserContext, Playwright, Page, Cookie
+
+AUTH_COOKIE_NAME = "hhrole"
+AUTHENTICATED_ROLES = frozenset({"applicant", "employer"})
 
 
 class BrowserCore:
@@ -18,6 +24,7 @@ class BrowserCore:
         self.base_url = base_url
         self._context: BrowserContext | None = None
         self._playwright: Playwright | None = None
+        self._auth_status = AuthStatus.unauthorized()
 
     async def start(self) -> None:
         self.logger.info(
@@ -38,17 +45,37 @@ class BrowserCore:
             await self._playwright.stop()
         self._context = None
         self._playwright = None
+        self._auth_status = AuthStatus.unauthorized()
 
-    async def is_authenticated(self) -> bool:
-        self.logger.info("Checking authentication status")
+    async def get_auth_status(self) -> AuthStatus:
+        if self._auth_status.status == "authorizing":
+            return self._auth_status
+        self._auth_status = AuthStatus.from_boolean(
+            authenticated=await self._is_authorized()
+        )
+        return self._auth_status
+
+    async def wait_for_login(self, poll_interval: float = 1.0) -> None:
+        self.logger.info("Waiting for user to log in")
         if self._context is None:
             self.logger.error("BrowserCore is not started")
             raise RuntimeError("BrowserCore is not started")
-        page: BrowserPage = await self.new_page("{}/{}".format(self.base_url, "login"))
-        is_authenticated = page.get_url().find("/login") == -1
-        await page.close()
-        self.logger.info("Authentication status: ", is_authenticated=is_authenticated)
-        return is_authenticated
+        self.logger.info("Waiting for user to log in")
+        if await self._is_authorized():
+            self.logger.info("User is already authenenticated")
+            self._auth_status = AuthStatus.authorized()
+            return
+        page: BrowserPage = await self.new_page(f"{self.base_url}/login")
+        await page.bring_to_front()
+        self._auth_status = AuthStatus.authorizing()
+        try:
+            while not await self._is_authorized():
+                self.logger.info("User is not authenticated yet, waiting...")
+                await asyncio.sleep(poll_interval)
+            self._auth_status = AuthStatus.authorized()
+            self.logger.info("User has logged in")
+        finally:
+            await page.close()
 
     async def new_page(self, url: str) -> BrowserPage:
         self.logger.info("Opening page: ", url=url)
@@ -58,3 +85,21 @@ class BrowserCore:
         page: Page = await self._context.new_page()
         await page.goto(url)
         return BrowserPage(page)
+
+    async def _is_authorized(self) -> bool:
+        self.logger.info("Checking authentication status")
+        if self._context is None:
+            self.logger.error("BrowserCore is not started")
+            raise RuntimeError("BrowserCore is not started")
+        cookies: list[Cookie] = await self._context.cookies(self.base_url)
+        for cookie in cookies:
+            if cookie["name"] == AUTH_COOKIE_NAME:
+                role = cookie["value"]
+                if role in AUTHENTICATED_ROLES:
+                    self.logger.info("User is authenticated with role: ", role=role)
+                    return True
+                else:
+                    self.logger.warning(
+                        "User has unrecognized role in auth cookie: ", role=role
+                    )
+        return False

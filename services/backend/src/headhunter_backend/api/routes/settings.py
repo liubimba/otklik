@@ -9,12 +9,12 @@ _settings: Settings = Settings(
 )
 
 
-@settings_router.get("/")
+@settings_router.get("")
 def get_settings() -> Settings:
     return _settings
 
 
-@settings_router.put("/")
+@settings_router.put("")
 def update_settings(new_settings: Settings) -> Settings:
     global _settings
     _settings = new_settings

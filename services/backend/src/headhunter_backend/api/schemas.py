@@ -1,4 +1,4 @@
-from typing import Optional, Self
+from typing import Optional, Self, Literal
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -49,3 +49,27 @@ class Settings(BaseModel):
     letter_style: str
     resume_text: str
     rate_limits: RateLimits
+
+
+## Auth
+class AuthStatus(BaseModel):
+    status: Literal["authorized", "unauthorized", "authorizing"]
+
+    def is_authorized(self) -> bool:
+        return self.status == "authorized"
+
+    @classmethod
+    def authorized(cls) -> Self:
+        return cls(status="authorized")
+
+    @classmethod
+    def unauthorized(cls) -> Self:
+        return cls(status="unauthorized")
+
+    @classmethod
+    def authorizing(cls) -> Self:
+        return cls(status="authorizing")
+
+    @classmethod
+    def from_boolean(cls, authenticated: bool) -> Self:
+        return cls.authorized() if authenticated else cls.unauthorized()

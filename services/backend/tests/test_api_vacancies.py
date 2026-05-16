@@ -5,7 +5,7 @@ from headhunter_backend.api.schemas import ResponseStatus, SearchResponse
 
 
 def test_vacancies_get(client):
-    response: Response = client.get("/api/v1/vacancies/")
+    response: Response = client.get("/api/v1/vacancies")
     assert response.status_code == 200
     payload = response.json()
     assert isinstance(payload, list)

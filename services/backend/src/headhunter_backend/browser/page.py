@@ -17,3 +17,7 @@ class BrowserPage:
     async def close(self) -> None:
         self._logger.info("Closing page")
         await self._context.close()
+
+    async def bring_to_front(self) -> None:
+        self._logger.info("Bringing page to front")
+        await self._context.bring_to_front()

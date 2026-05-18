@@ -1,5 +1,6 @@
 from headhunter_backend.log import get_logger
-from patchright.async_api import Page
+from patchright.async_api import Page, ElementHandle
+from typing import List
 
 
 class BrowserPage:
@@ -21,3 +22,40 @@ class BrowserPage:
     async def bring_to_front(self) -> None:
         self._logger.info("Bringing page to front")
         await self._context.bring_to_front()
+
+    async def content(self) -> str:
+        return await self._context.content()
+
+    async def wait_for_selector(
+        self, selector: str | None, timeout: float | None = None
+    ) -> ElementHandle | None:
+        if selector is None:
+            return None
+        return await self._context.wait_for_selector(selector=selector, timeout=timeout)
+
+    async def set_viewport_size(self, width: int, height: int) -> None:
+        old_width: int | None = (
+            None
+            if self._context.viewport_size is None
+            else self._context.viewport_size.get("width")
+        )
+        old_height: int | None = (
+            None
+            if self._context.viewport_size is None
+            else self._context.viewport_size.get("height")
+        )
+
+        self._logger.info(
+            "Change viewport: ",
+            old_width=old_width,
+            new_width=width,
+            old_height=old_height,
+            new_height=height,
+        )
+        await self._context.set_viewport_size({"width": width, "height": height})
+
+    async def query_selector(self, selector: str) -> ElementHandle | None:
+        return await self._context.query_selector(selector=selector)
+
+    async def query_selector_all(self, selector: str) -> List[ElementHandle]:
+        return await self._context.query_selector_all(selector=selector)

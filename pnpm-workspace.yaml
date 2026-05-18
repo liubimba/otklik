@@ -1,5 +1,6 @@
 packages:
   - 'apps/*'
+  - 'design'
 
 allowBuilds:
   esbuild: set this to true or false

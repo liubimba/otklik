@@ -12,6 +12,7 @@ mock_vacancy: Vacancy = Vacancy(
     created_at=datetime.now(),
     updated_at=datetime.now(),
     link="https://example.com/vacancy/1",
+    work_experience="1 year",
 )
 
 search_filter = SearchFilter(text="software engineer")

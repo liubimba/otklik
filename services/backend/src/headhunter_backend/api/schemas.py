@@ -14,6 +14,7 @@ class Vacancy(BaseModel):
     city: str
     created_at: datetime
     updated_at: datetime
+    work_experience: Optional[str]
     link: str
 
 

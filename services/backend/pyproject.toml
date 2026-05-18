@@ -12,7 +12,8 @@ dependencies = [
     "rich>=15.0.0",
     "structlog>=25.5.0",
     "fastapi[standard]>=0.119",
-    "uvicorn[standard]>=0.38"
+    "uvicorn[standard]>=0.38",
+    "selectolax>=0.4.9",
 ]
 
 [project.scripts]

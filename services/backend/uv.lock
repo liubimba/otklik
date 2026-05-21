@@ -357,6 +357,7 @@ dependencies = [
     { name = "alembic" },
     { name = "fastapi", extra = ["standard"] },
     { name = "patchright" },
+    { name = "python-statemachine" },
     { name = "rich" },
     { name = "selectolax" },
     { name = "sqlalchemy" },
@@ -377,6 +378,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.18.4" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.119" },
     { name = "patchright", specifier = ">=1.59.1" },
+    { name = "python-statemachine", specifier = ">=3.1.2" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "selectolax", specifier = ">=0.4.9" },
     { name = "sqlalchemy", specifier = ">=2.0.49" },
@@ -921,6 +923,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/82/54/a85eb421fbdd5007bc5af39d0f4ed9fa609e0fedbfdc2adcf0b34526870e/python_multipart-0.0.28.tar.gz", hash = "sha256:8550da197eac0f7ab748961fc9509b999fa2662ea25cef857f05249f6893c0f8", size = 45314, upload-time = "2026-05-10T11:05:16.596Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f3/a2/43bbc5860b5034e2af4ef99a0e04d726ff329c43e192ef3abaa8d7ecfce5/python_multipart-0.0.28-py3-none-any.whl", hash = "sha256:10faac07eb966c3f48dc415f9dee46c04cb10d58d30a35677db8027c825ed9b6", size = 29438, upload-time = "2026-05-10T11:05:15.052Z" },
+]
+
+[[package]]
+name = "python-statemachine"
+version = "3.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/af/e2/dcc389e9855f65a3e54c859499dd409341d5ba561da74af22ce824bc4964/python_statemachine-3.1.2.tar.gz", hash = "sha256:3a64c4ae91d628eb256580f328c68b16e472f25794d2c478e91f2f1dfb8b0668", size = 710648, upload-time = "2026-05-19T00:13:12.495Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f2/f5/fe9072bfc9d245138561c09bf05b841bf6d92b4ce93d44dbfa18d96e498e/python_statemachine-3.1.2-py3-none-any.whl", hash = "sha256:89dcdbcbf7b197adade16138c75bee4f32e0c98b7eeb18d30aeb1c830dbbdd62", size = 126113, upload-time = "2026-05-19T00:13:10.854Z" },
 ]
 
 [[package]]

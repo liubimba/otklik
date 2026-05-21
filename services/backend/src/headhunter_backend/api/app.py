@@ -5,6 +5,8 @@ from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.routes import settings, ws, vacancies, auth
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.log import configure_logging, get_logger
+from headhunter_backend.orchestrator.queue import Orchestrator
+from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
 from typing import Any
 
 
@@ -15,6 +17,13 @@ async def lifespan(app: FastAPI) -> Any:
     logger.info("Starting Headhunter AI Backend API")
     app.state.browser = BrowserCore()
     app.state.broadcaster = EventBroadcaster()
+    app.state.orchestrator = Orchestrator()
+    async with session_maker() as session:
+        recovered_count: int = await app.state.orchestrator.recover_from_db(
+            session=session
+        )
+        logger.info(f"Recovered {recovered_count} applications from the database.")
+    apply_sqlite_pragmas(target_engine=engine)
     await app.state.browser.start()
     try:
         yield

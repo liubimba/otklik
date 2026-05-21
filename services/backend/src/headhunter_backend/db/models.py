@@ -1,7 +1,9 @@
-from sqlalchemy import JSON
+from sqlalchemy import JSON, Enum, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
+from datetime import datetime
 
 from headhunter_backend.db.base import Base
+from headhunter_backend.domain.enums import ProcessingState
 
 
 class Vacancy(Base):
@@ -23,3 +25,20 @@ class Vacancy(Base):
 
     work_formats: Mapped[list[str]] = mapped_column(JSON)
     employment_types: Mapped[list[str]] = mapped_column(JSON)
+
+
+class Application(Base):
+    __tablename__ = "applications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    vacancy_id: Mapped[int] = mapped_column(
+        ForeignKey("vacancies.id"), index=True, unique=True
+    )
+    status: Mapped[ProcessingState] = mapped_column(Enum(ProcessingState), index=True)
+    retry_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    error_message: Mapped[str | None]
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, default=None, onupdate=datetime.now
+    )

@@ -29,7 +29,9 @@ def _set_sqlite_params(dbapi_connection: Any, connection_record: Any) -> None:
         cursor.close()
 
 
-event.listen(engine.sync_engine, "connect", _set_sqlite_params)
+def apply_sqlite_pragmas(target_engine: AsyncEngine) -> None:
+    event.listen(target_engine.sync_engine, "connect", _set_sqlite_params)
+
 
 session_maker = async_sessionmaker(engine, expire_on_commit=False)
 

@@ -1,13 +1,7 @@
-import pytest
-from pathlib import Path
-from typing import AsyncIterator
 from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     AsyncSession,
-    AsyncEngine,
-    create_async_engine,
 )
-from headhunter_backend.db.base import Base
 from headhunter_backend.domain.models import VacancyModel
 from headhunter_backend.db.models import Vacancy
 from headhunter_backend.db.converters import vacancy_to_model, vacancy_to_orm
@@ -19,22 +13,6 @@ from headhunter_backend.db.crud import (
     list_vacancies,
     delete_vacancy,
 )
-
-
-@pytest.fixture
-async def session_factory(
-    tmp_path: Path,
-) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    engine: AsyncEngine = create_async_engine(
-        f"sqlite+aiosqlite:///{tmp_path / "test.sqlite"}"
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    try:
-        yield async_sessionmaker(engine, expire_on_commit=False)
-    finally:
-        await engine.dispose()
 
 
 async def test_vacancy_crud(session_factory: async_sessionmaker[AsyncSession]) -> None:

@@ -1,9 +1,24 @@
-from sqlalchemy import JSON, Enum, ForeignKey, DateTime
+from sqlalchemy import JSON, Enum, ForeignKey, DateTime, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 
 from headhunter_backend.db.base import Base
 from headhunter_backend.domain.enums import ProcessingState
+
+
+class SettingsORM(Base):
+    __tablename__ = "settings"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_settings_singleton"),)
+
+    id: Mapped[int] = mapped_column(autoincrement=False, primary_key=True, default=1)
+
+    letter_style: Mapped[str]
+    resume_text: Mapped[str]
+
+    daily_limit: Mapped[int]
+    hourly_limit: Mapped[int]
+    min_delay_ms: Mapped[int]
+    delay_jitter_ms: Mapped[int]
 
 
 class Vacancy(Base):
@@ -42,3 +57,16 @@ class Application(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=None, onupdate=datetime.now
     )
+
+
+class CoverLetter(Base):
+    __tablename__ = "cover_letters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    application_id: Mapped[int] = mapped_column(
+        ForeignKey("applications.id"), index=True
+    )
+    version: Mapped[int] = mapped_column(default=1, server_default="1")
+    text: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

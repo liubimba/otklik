@@ -1,6 +1,31 @@
-from headhunter_backend.db.models import Vacancy
+from headhunter_backend.db.models import Vacancy, SettingsORM
 from headhunter_backend.domain.enums import EmploymentType, WorkFormat
 from headhunter_backend.domain.models import VacancyModel
+from headhunter_backend.api.schemas import Settings, RateLimits
+
+
+def settings_to_orm(model: Settings) -> SettingsORM:
+    return SettingsORM(
+        letter_style=model.letter_style,
+        resume_text=model.resume_text,
+        daily_limit=model.rate_limits.daily_limit,
+        hourly_limit=model.rate_limits.hourly_limit,
+        min_delay_ms=model.rate_limits.min_delay_ms,
+        delay_jitter_ms=model.rate_limits.delay_jitter_ms,
+    )
+
+
+def settings_to_model(orm: SettingsORM) -> Settings:
+    return Settings(
+        letter_style=orm.letter_style,
+        resume_text=orm.resume_text,
+        rate_limits=RateLimits(
+            daily_limit=orm.daily_limit,
+            hourly_limit=orm.hourly_limit,
+            min_delay_ms=orm.min_delay_ms,
+            delay_jitter_ms=orm.delay_jitter_ms,
+        ),
+    )
 
 
 def vacancy_to_orm(model: VacancyModel) -> Vacancy:

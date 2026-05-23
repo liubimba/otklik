@@ -1,21 +1,6 @@
-from typing import Optional, Self, Literal
-from datetime import datetime
-from pydantic import BaseModel
-
-
-## Vacancies
-class Vacancy(BaseModel):
-    vacancy_id: int
-    name: str
-    description: str
-    salary: Optional[int]
-    company_id: int
-    company_name: str
-    city: str
-    created_at: datetime
-    updated_at: datetime
-    work_experience: Optional[str]
-    link: str
+from typing import Self, Literal
+from pydantic import BaseModel, Field
+from headhunter_backend.domain.enums import ProcessingState
 
 
 class SearchFilter(BaseModel):
@@ -26,16 +11,13 @@ class SearchResponse(BaseModel):
     search_id: str
 
 
-class WriteRequest(BaseModel):
+class ApplicationStatusResponse(BaseModel):
+    vacancy_id: int
+    status: ProcessingState
+
+
+class CoverLetterRequest(BaseModel):
     text: str
-
-
-class ResponseStatus(BaseModel):
-    success: bool
-
-    @classmethod
-    def ok(cls) -> Self:
-        return cls(success=True)
 
 
 ## Settings
@@ -47,9 +29,9 @@ class RateLimits(BaseModel):
 
 
 class Settings(BaseModel):
-    letter_style: str
-    resume_text: str
-    rate_limits: RateLimits
+    letter_style: str = ""
+    resume_text: str = ""
+    rate_limits: RateLimits = Field(default_factory=RateLimits)
 
 
 ## Auth

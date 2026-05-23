@@ -1,21 +1,22 @@
 from fastapi import APIRouter
-from headhunter_backend.api.schemas import RateLimits, Settings
+from headhunter_backend.api.schemas import Settings
+from headhunter_backend.api.dependencies import SessionDep
+from headhunter_backend.db.converters import settings_to_model, settings_to_orm
+from headhunter_backend.db.models import SettingsORM
+from headhunter_backend.db.crud import get_settings, update_settings
 
 settings_router: APIRouter = APIRouter(prefix="/settings", tags=["settings"])
-_settings: Settings = Settings(
-    letter_style="formal",
-    resume_text="Experienced software engineer with a strong background in Python and FastAPI.",
-    rate_limits=RateLimits(),
-)
 
 
 @settings_router.get("")
-def get_settings() -> Settings:
-    return _settings
+async def get_settings_api(session: SessionDep) -> Settings:
+    settings: SettingsORM = await get_settings(session=session)
+    return settings_to_model(orm=settings)
 
 
 @settings_router.put("")
-def update_settings(new_settings: Settings) -> Settings:
-    global _settings
-    _settings = new_settings
-    return _settings
+async def update_settings_api(session: SessionDep, new_settings: Settings) -> Settings:
+    settings: SettingsORM = await update_settings(
+        session=session, new_settings=settings_to_orm(new_settings)
+    )
+    return settings_to_model(orm=settings)

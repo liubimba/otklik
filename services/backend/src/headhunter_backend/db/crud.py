@@ -1,15 +1,40 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from headhunter_backend.db.models import Vacancy, Application
+from headhunter_backend.db.models import Vacancy, Application, CoverLetter, SettingsORM
+from headhunter_backend.api.schemas import Settings
 from collections.abc import Sequence
 from headhunter_backend.log import get_logger
 from headhunter_backend.domain.enums import ProcessingState
+from headhunter_backend.db.converters import settings_to_orm
 from headhunter_backend.orchestrator.state_machine import (
     ProcessingStateMachine,
     ApplicationEvent,
 )
 
 logger = get_logger(__name__)
+
+
+async def get_settings(session: AsyncSession) -> SettingsORM:
+    settings: SettingsORM | None = await session.get(SettingsORM, 1)
+    if settings is None:
+        settings = settings_to_orm(model=Settings())
+        session.add(settings)
+        await session.commit()
+    return settings
+
+
+async def update_settings(
+    session: AsyncSession, new_settings: SettingsORM
+) -> SettingsORM:
+    settings: SettingsORM = await get_settings(session=session)
+    settings.daily_limit = new_settings.daily_limit
+    settings.delay_jitter_ms = new_settings.delay_jitter_ms
+    settings.hourly_limit = new_settings.hourly_limit
+    settings.letter_style = new_settings.letter_style
+    settings.resume_text = new_settings.resume_text
+    settings.min_delay_ms = new_settings.min_delay_ms
+    await session.commit()
+    return settings
 
 
 async def create_vacancy(session: AsyncSession, vacancy: Vacancy) -> Vacancy:
@@ -69,6 +94,15 @@ async def get_application_by_id(
     return application
 
 
+async def get_application_by_vacancy_id(
+    session: AsyncSession, vacancy_id: int
+) -> Application | None:
+    result = await session.execute(
+        select(Application).where(Application.vacancy_id == vacancy_id).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def transition_application(
     session: AsyncSession, application_id: int, to_state: ApplicationEvent
 ) -> Application | None:
@@ -100,3 +134,33 @@ async def list_active_applications(session: AsyncSession) -> Sequence[Applicatio
         )
     )
     return result.scalars().all()
+
+
+async def create_cover_letter(
+    session: AsyncSession, application_id: int, text: str
+) -> CoverLetter:
+    latest_cover_letter: CoverLetter | None = await get_latest_cover_letter(
+        session=session, application_id=application_id
+    )
+    version_cover_letter: int = (
+        1 if latest_cover_letter is None else latest_cover_letter.version + 1
+    )
+    cover_letter: CoverLetter = CoverLetter(
+        application_id=application_id, text=text, version=version_cover_letter
+    )
+    session.add(cover_letter)
+    await session.commit()
+    return cover_letter
+
+
+async def get_latest_cover_letter(
+    session: AsyncSession, application_id: int
+) -> CoverLetter | None:
+    stmt = (
+        select(CoverLetter)
+        .where(CoverLetter.application_id == application_id)
+        .order_by(CoverLetter.version.desc())
+        .limit(1)
+    )
+    result = await session.execute(statement=stmt)
+    return result.scalar_one_or_none()

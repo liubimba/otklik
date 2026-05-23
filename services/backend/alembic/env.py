@@ -4,11 +4,11 @@ from logging.config import fileConfig
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
 from alembic import context
 
 from headhunter_backend.db.base import Base
 from headhunter_backend.db.session import DATABASE_URL, ensure_db_dir
+from headhunter_backend.db import models  # noqa: F401, E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

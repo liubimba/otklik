@@ -4,6 +4,8 @@ from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.orchestrator.queue import Orchestrator
 from starlette.requests import HTTPConnection
+from sqlalchemy.ext.asyncio import AsyncSession
+from headhunter_backend.db.session import get_session
 
 
 def get_browser(request: HTTPConnection) -> BrowserCore:
@@ -21,3 +23,4 @@ def get_orchestrator(request: HTTPConnection) -> Orchestrator:
 BrowserDep = Annotated[BrowserCore, Depends(get_browser)]
 BroadcasterDep = Annotated[EventBroadcaster, Depends(get_broadcaster)]
 OrchestratorDep = Annotated[Orchestrator, Depends(get_orchestrator)]
+SessionDep = Annotated[AsyncSession, Depends(get_session)]

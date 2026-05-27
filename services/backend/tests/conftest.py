@@ -6,6 +6,8 @@ from headhunter_backend.api.dependencies import (
     get_broadcaster,
     get_browser,
     get_session,
+    get_orchestrator,
+    get_writer,
 )
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.schemas import AuthStatus
@@ -19,13 +21,36 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     create_async_engine,
 )
+from pydantic import BaseModel
 from pathlib import Path
 import pytest
+import asyncio
 from headhunter_backend.domain.models import VacancyModel
 from headhunter_backend.db.session import apply_sqlite_pragmas
+from headhunter_backend.browser.writer import SubmitResult
 from headhunter_backend.db.crud import create_vacancy
+from headhunter_backend.browser.selectors import Selectors
 
 configure_logging()
+
+
+async def wait_until(predicate, timeout: float = 2.0, interval: float = 0.02) -> None:
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        if await predicate() if asyncio.iscoroutinefunction(predicate) else predicate():
+            return
+        await asyncio.sleep(interval)
+    raise TimeoutError("Condition not met within timeout")
+
+
+class RecordingBroadcaster(EventBroadcaster):
+    def __init__(self) -> None:
+        super().__init__()
+        self.events: list[BaseModel] = []
+
+    async def publish(self, event: BaseModel) -> None:
+        self.events.append(event)
+        await super().publish(event=event)
 
 
 class FakeBrowser:
@@ -39,14 +64,49 @@ class FakeBrowser:
         self._authenticated = AuthStatus.authorized()
 
 
+class FakeWriter:
+    def __init__(self, results: list[SubmitResult] | None = None) -> None:
+        self._results: list[SubmitResult] = list(results) if results else []
+        self.calls: list[dict[str, str]] = []
+        self.invoked: asyncio.Event = asyncio.Event()
+
+    def queue(self, *results: SubmitResult) -> None:
+        self._results.extend(results)
+
+    async def submit(
+        self, vacancy_url: str, letter_text: str, selectors: Selectors
+    ) -> SubmitResult:
+        self.calls.append({"uri": vacancy_url, "text": letter_text})
+        self.invoked.set()
+        if self._results:
+            return self._results.pop(0)
+        return SubmitResult.submitted()
+
+
 @pytest.fixture
-def fake_broadcaster() -> EventBroadcaster:
-    return EventBroadcaster()
+def authenticated_browser(fake_browser: FakeBrowser) -> FakeBrowser:
+    fake_browser._authenticated = AuthStatus.authorized()
+    return fake_browser
+
+
+@pytest.fixture
+def recording_broadcaster() -> RecordingBroadcaster:
+    return RecordingBroadcaster()
+
+
+@pytest.fixture
+def fake_orchestrator() -> Orchestrator:
+    return Orchestrator()
 
 
 @pytest.fixture
 def fake_browser() -> FakeBrowser:
     return FakeBrowser()
+
+
+@pytest.fixture
+def fake_writer() -> FakeWriter:
+    return FakeWriter()
 
 
 @pytest.fixture
@@ -69,7 +129,9 @@ async def session_factory(
 @pytest.fixture
 async def client(
     fake_browser: FakeBrowser,
-    fake_broadcaster: EventBroadcaster,
+    recording_broadcaster: RecordingBroadcaster,
+    fake_orchestrator: Orchestrator,
+    fake_writer: FakeWriter,
     vacancy_model: VacancyModel,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> TestClient:
@@ -79,8 +141,9 @@ async def client(
 
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[get_browser] = lambda: fake_browser
-    app.dependency_overrides[get_broadcaster] = lambda: fake_broadcaster
-
+    app.dependency_overrides[get_broadcaster] = lambda: recording_broadcaster
+    app.dependency_overrides[get_orchestrator] = lambda: fake_orchestrator
+    app.dependency_overrides[get_writer] = lambda: fake_writer
     async with session_factory() as session:
         await create_vacancy(session=session, vacancy=vacancy_to_orm(vacancy_model))
 
@@ -88,11 +151,6 @@ async def client(
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def fake_orchestrator() -> Orchestrator:
-    return Orchestrator()
 
 
 @pytest.fixture

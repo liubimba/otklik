@@ -16,12 +16,14 @@ from headhunter_backend.db.crud import (
     transition_application,
     create_application,
 )
-from headhunter_backend.api.dependencies import SessionDep
+from headhunter_backend.api.dependencies import SessionDep, OrchestratorDep
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from statemachine.exceptions import TransitionNotAllowed
+from headhunter_backend.log import get_logger
 from typing import Sequence
 
 vacancies_router = APIRouter(prefix="/vacancies", tags=["vacancies"])
+log = get_logger(__name__)
 
 
 @vacancies_router.get(
@@ -52,7 +54,9 @@ async def find_by_id(vacancy_id: int, session: SessionDep) -> VacancyModel:
 @vacancies_router.post(
     "/{vacancy_id}/submit", status_code=status.HTTP_200_OK, summary="Submit vacancy"
 )
-async def submit(vacancy_id: int, session: SessionDep) -> ApplicationStatusResponse:
+async def submit(
+    vacancy_id: int, session: SessionDep, orchestrator: OrchestratorDep
+) -> ApplicationStatusResponse:
     vacancy: Vacancy | None = await get_vacancy(session=session, vacancy_id=vacancy_id)
     if vacancy is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
@@ -76,6 +80,7 @@ async def submit(vacancy_id: int, session: SessionDep) -> ApplicationStatusRespo
         )
     if application is None:
         raise HTTPException(status_code=500, detail="Server error")
+    await orchestrator.enqueue(application_id=application.id)
     return ApplicationStatusResponse(vacancy_id=vacancy_id, status=application.status)
 
 
@@ -148,4 +153,32 @@ async def cover_letter(
     await create_cover_letter(
         session=session, application_id=application.id, text=letter.text
     )
+    return ApplicationStatusResponse(vacancy_id=vacancy_id, status=application.status)
+
+
+@vacancies_router.post("/{vacancy_id}/retry")
+async def retry(vacancy_id: int, session: SessionDep) -> ApplicationStatusResponse:
+    vacancy: Vacancy | None = await get_vacancy(session=session, vacancy_id=vacancy_id)
+    if vacancy is None:
+        raise HTTPException(status_code=404, detail="Vacancy not found")
+    application: Application | None = await get_application_by_vacancy_id(
+        session=session, vacancy_id=vacancy_id
+    )
+    if application is None:
+        raise HTTPException(
+            status_code=409, detail="Vacancy is not queued for a cover letter"
+        )
+    try:
+        application = await transition_application(
+            session=session,
+            application_id=application.id,
+            to_state=ApplicationEvent.RETRY,
+        )
+    except TransitionNotAllowed as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Unavailable state for to submit cover letter. Error: {e}",
+        )
+    if application is None:
+        raise HTTPException(status_code=500, detail="Server error")
     return ApplicationStatusResponse(vacancy_id=vacancy_id, status=application.status)

@@ -13,6 +13,7 @@ class VacancyModel(BaseModel):
     apply_link: str
     description: str
 
+    response_link: Optional[str] = None
     company_stars: Optional[str] = None
     salary: Optional[str] = None
     company_name: Optional[str] = None

@@ -25,8 +25,21 @@ class Selectors:
         work_experience: str
         employment_type: str
 
+    @dataclass(frozen=True)
+    class VacancyResponsePage:
+        respond_button: str
+        open_letter_textarea_button: str
+        letter_textarea: str
+        success_marker: str | None = None  # TODO Need to determine selector
+
+    @dataclass(frozen=True)
+    class Captcha:
+        marker: str | None = None  # TODO Need to determine selector
+
     search: SearchPage
     vacancy: VacancyPage
+    response: VacancyResponsePage
+    captcha: Captcha
 
 
 HHRU_SELECTORS = Selectors(
@@ -48,4 +61,10 @@ HHRU_SELECTORS = Selectors(
         work_experience='[data-qa="work-experience-text"]',
         employment_type='[data-qa="common-employment-text"]',
     ),
+    response=Selectors.VacancyResponsePage(
+        respond_button='[data-qa="vacancy-response-submit-popup"]',
+        letter_textarea='[data-qa="vacancy-response-popup-form-letter-input"]',
+        open_letter_textarea_button='[data-qa="vacancy-response-letter-toggle"]',
+    ),
+    captcha=Selectors.Captcha(),
 )

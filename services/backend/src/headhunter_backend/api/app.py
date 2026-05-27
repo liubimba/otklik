@@ -2,12 +2,15 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import asynccontextmanager
 from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.routes import settings, ws, vacancies, auth
+from headhunter_backend.api.routes import settings, ws, vacancies, auth, orchestrator
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.log import configure_logging, get_logger
 from headhunter_backend.orchestrator.queue import Orchestrator
 from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
+from headhunter_backend.browser.writer import BrowserWriter
+from headhunter_backend.browser.selectors import HHRU_SELECTORS
 from typing import Any
+import asyncio
 
 
 @asynccontextmanager
@@ -18,6 +21,9 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.browser = BrowserCore()
     app.state.broadcaster = EventBroadcaster()
     app.state.orchestrator = Orchestrator()
+    app.state.writer = BrowserWriter(
+        core=app.state.browser, min_delay_ms=800, jitter_delay_ms=400
+    )
     async with session_maker() as session:
         recovered_count: int = await app.state.orchestrator.recover_from_db(
             session=session
@@ -25,9 +31,25 @@ async def lifespan(app: FastAPI) -> Any:
         logger.info(f"Recovered {recovered_count} applications from the database.")
     apply_sqlite_pragmas(target_engine=engine)
     await app.state.browser.start()
+
+    consumer_task = asyncio.create_task(
+        app.state.orchestrator.consume(
+            writer=app.state.writer,
+            session_maker=session_maker,
+            browser=app.state.browser,
+            broadcaster=app.state.broadcaster,
+            selectors=HHRU_SELECTORS,
+        )
+    )
+
     try:
         yield
     finally:
+        consumer_task.cancel()
+        try:
+            await consumer_task
+        except asyncio.CancelledError:
+            pass
         await app.state.browser.stop()
     logger.info("Shutting down Headhunter AI Backend API")
 
@@ -36,6 +58,7 @@ router = APIRouter(prefix="/api/v1")
 router.include_router(vacancies.vacancies_router)
 router.include_router(settings.settings_router)
 router.include_router(auth.auth_router)
+router.include_router(orchestrator.orchestrator_router)
 
 app = FastAPI(title="Headhunter Backend API", version="0.0.1", lifespan=lifespan)
 app.include_router(router)

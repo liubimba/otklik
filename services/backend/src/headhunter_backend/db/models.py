@@ -6,6 +6,14 @@ from headhunter_backend.db.base import Base
 from headhunter_backend.domain.enums import ProcessingState
 
 
+class RateLimitEventORM(Base):
+    __tablename__ = "rate_limits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
 class SettingsORM(Base):
     __tablename__ = "settings"
     __table_args__ = (CheckConstraint("id = 1", name="ck_settings_singleton"),)
@@ -30,6 +38,7 @@ class Vacancy(Base):
     apply_link: Mapped[str] = mapped_column(unique=True, index=True)
     description: Mapped[str]
 
+    response_link: Mapped[str | None]
     company_stars: Mapped[str | None]
     salary: Mapped[str | None]
     company_name: Mapped[str | None]

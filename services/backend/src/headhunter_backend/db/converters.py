@@ -43,6 +43,7 @@ def vacancy_to_orm(model: VacancyModel) -> Vacancy:
         work_experience=model.work_experience,
         work_formats=[wf.value for wf in model.work_formats],
         employment_types=[et.value for et in model.employment_types],
+        response_link=model.response_link,
     )
 
 
@@ -61,4 +62,5 @@ def vacancy_to_model(row: Vacancy) -> VacancyModel:
         work_experience=row.work_experience,
         work_formats=[WorkFormat(v) for v in row.work_formats],
         employment_types=[EmploymentType(v) for v in row.employment_types],
+        response_link=row.response_link,
     )

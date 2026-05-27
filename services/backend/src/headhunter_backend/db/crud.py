@@ -1,6 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from headhunter_backend.db.models import Vacancy, Application, CoverLetter, SettingsORM
+from sqlalchemy import select, func
+from headhunter_backend.db.models import (
+    Vacancy,
+    Application,
+    CoverLetter,
+    SettingsORM,
+    RateLimitEventORM,
+)
 from headhunter_backend.api.schemas import Settings
 from collections.abc import Sequence
 from headhunter_backend.log import get_logger
@@ -10,8 +16,22 @@ from headhunter_backend.orchestrator.state_machine import (
     ProcessingStateMachine,
     ApplicationEvent,
 )
+from datetime import datetime
 
 logger = get_logger(__name__)
+
+
+async def log_submission(session: AsyncSession) -> None:
+    session.add(RateLimitEventORM())
+    await session.commit()
+
+
+async def count_submissions_since(session: AsyncSession, since: datetime) -> int:
+    stmt = select(func.count(RateLimitEventORM.id)).where(
+        RateLimitEventORM.occurred_at > since
+    )
+    result = await session.execute(statement=stmt)
+    return result.scalar_one()
 
 
 async def get_settings(session: AsyncSession) -> SettingsORM:
@@ -117,6 +137,9 @@ async def transition_application(
     state_machine.send(to_state.value)
     application.status = ProcessingState(state_machine.current_state_value)
     await session.commit()
+    logger.info(
+        "Transited application state", application_id=application_id, to_state=to_state
+    )
     return application
 
 

@@ -21,10 +21,10 @@ class WorkFormat(str, Enum):
 
 
 class EmploymentType(str, Enum):
-    FULL_TIME = "full_time"  # Полная занятость
-    ROTATIONAL = "rotational"  # Вахта
-    PART_TIME = "part_time"  # Частичная занятость
-    SIDE_JOB = "side_job"  # Подработка
-    CONTRACT = "contract"  # Оформление по ГПХ или по совместительству
-    INTERNSHIP = "internship"  # Стажировка
+    FULL_TIME = "full_time"
+    ROTATIONAL = "rotational"
+    PART_TIME = "part_time"
+    SIDE_JOB = "side_job"
+    CONTRACT = "contract"
+    INTERNSHIP = "internship"
     UNKNOWN = "unknown"

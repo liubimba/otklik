@@ -203,6 +203,9 @@ class Parser:
             title=title,
             apply_link=href,
             description=description,
+            response_link=self._extract_text(
+                page_parser, selectors.search.response_link
+            ),
             company_stars=self._extract_text(
                 page_parser, selectors.vacancy.company_stars
             ),

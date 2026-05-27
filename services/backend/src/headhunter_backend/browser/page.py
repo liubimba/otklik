@@ -19,12 +19,25 @@ class BrowserPage:
         self._logger.info("Closing page")
         await self._context.close()
 
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        self._logger.info("Click", selector=selector, timeout=timeout)
+        await self._context.click(selector=selector, timeout=timeout)
+
+    async def fill(
+        self, selector: str, text: str, timeout: float | None = None
+    ) -> None:
+        self._logger.info("Fill", selector=selector, text=text, timeout=timeout)
+        await self._context.fill(selector=selector, value=text, timeout=timeout)
+
     async def bring_to_front(self) -> None:
         self._logger.info("Bringing page to front")
         await self._context.bring_to_front()
 
     async def content(self) -> str:
         return await self._context.content()
+
+    async def text_content(self, selector: str) -> str | None:
+        return await self._context.text_content(selector=selector)
 
     async def wait_for_selector(
         self, selector: str | None, timeout: float | None = None

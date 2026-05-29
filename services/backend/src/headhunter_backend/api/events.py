@@ -4,6 +4,18 @@ from headhunter_backend.domain.models import VacancyModel
 from headhunter_backend.api.schemas import AuthStatus
 
 
+class SearchData(BaseModel):
+    search_id: str
+    parsed_vacancies: int
+    parsed_pages: int
+    status: str
+
+
+class SearchEvent(BaseModel):
+    type: Literal["search_event"] = "search_event"
+    data: SearchData
+
+
 class CaptchaData(BaseModel):
     vacancy_id: int
     application_id: int

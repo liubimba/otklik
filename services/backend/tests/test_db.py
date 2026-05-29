@@ -1,9 +1,14 @@
-from sqlalchemy.ext.asyncio import (
-    async_sessionmaker,
-    AsyncSession,
-)
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+from headhunter_backend.db.crud import upsert_vacancy
+from headhunter_backend.db.models import VacancyORM
 from headhunter_backend.domain.models import VacancyModel
-from headhunter_backend.db.models import Vacancy, Application, CoverLetter
+from headhunter_backend.db.models import (
+    ApplicationORM,
+    CoverLetterORM,
+    SearchHistoryORM,
+)
 from headhunter_backend.db.converters import vacancy_to_model, vacancy_to_orm
 from headhunter_backend.db.crud import (
     create_vacancy,
@@ -14,24 +19,28 @@ from headhunter_backend.db.crud import (
     create_cover_letter,
     get_latest_cover_letter,
     create_application,
+    create_search_history,
+    list_search_history,
+    complete_search_history,
 )
+from headhunter_backend.api.schemas import SearchStatusAPISchema
 
 
 async def test_vacancy_crud(
     session_factory: async_sessionmaker[AsyncSession], vacancy_model: VacancyModel
 ) -> None:
     async with session_factory() as session:
-        created: Vacancy = await create_vacancy(
+        created: VacancyORM = await create_vacancy(
             session=session, vacancy=vacancy_to_orm(model=vacancy_model)
         )
         vacancy_id: int = created.id
         assert vacancy_id is not None
 
     async with session_factory() as session:
-        by_id: Vacancy = await get_vacancy(session=session, vacancy_id=vacancy_id)
+        by_id: VacancyORM = await get_vacancy(session=session, vacancy_id=vacancy_id)
         assert by_id is not None
 
-        by_link: Vacancy = await get_vacancy_by_apply_link(
+        by_link: VacancyORM = await get_vacancy_by_apply_link(
             session=session, apply_link=vacancy_model.apply_link
         )
         assert by_link is not None
@@ -53,18 +62,18 @@ async def test_cover_letter_crud(
     session_factory: async_sessionmaker[AsyncSession], vacancy_model: VacancyModel
 ) -> None:
     async with session_factory() as session:
-        created_vacancy: Vacancy = await create_vacancy(
+        created_vacancy: VacancyORM = await create_vacancy(
             session=session, vacancy=vacancy_to_orm(model=vacancy_model)
         )
         vacancy_id: int = created_vacancy.id
 
-        created_application: Application = await create_application(
+        created_application: ApplicationORM = await create_application(
             session=session, vacancy_id=vacancy_id
         )
         application_id: int = created_application.id
 
         text: str = "Test"
-        first_created: CoverLetter = await create_cover_letter(
+        first_created: CoverLetterORM = await create_cover_letter(
             session=session, application_id=application_id, text=text
         )
         first_created_id: int = first_created.id
@@ -75,7 +84,7 @@ async def test_cover_letter_crud(
         assert first_created.version == 1
 
         text = text * 2
-        second_created: CoverLetter = await create_cover_letter(
+        second_created: CoverLetterORM = await create_cover_letter(
             session=session, application_id=application_id, text=text
         )
 
@@ -85,7 +94,7 @@ async def test_cover_letter_crud(
         assert second_created.version == 2
         assert second_created.text == text
 
-        latest: CoverLetter = await get_latest_cover_letter(
+        latest: CoverLetterORM = await get_latest_cover_letter(
             session=session, application_id=application_id
         )
 
@@ -94,3 +103,170 @@ async def test_cover_letter_crud(
         assert (
             await get_latest_cover_letter(session=session, application_id=999) is None
         )
+
+
+async def test_upsert_inserts_new_vacancy(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        v = await upsert_vacancy(
+            session=session,
+            vacancy=VacancyModel(
+                title="Junior Dev",
+                apply_link="https://hh.ru/vacancy/1",
+                description="desc",
+            ),
+        )
+        await session.commit()
+
+        count = (await session.execute(select(func.count(VacancyORM.id)))).scalar_one()
+        assert count == 1
+        assert v.title == "Junior Dev"
+
+
+async def test_upsert_updates_existing_vacancy(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    apply_link = "https://hh.ru/vacancy/42"
+    async with session_factory() as session:
+        await upsert_vacancy(
+            session=session,
+            vacancy=VacancyModel(
+                title="old",
+                apply_link=apply_link,
+                description="old",
+                salary="100k",
+            ),
+        )
+        await session.commit()
+
+        await upsert_vacancy(
+            session=session,
+            vacancy=VacancyModel(
+                title="new",
+                apply_link=apply_link,
+                description="new",
+                salary="150k",
+            ),
+        )
+        await session.commit()
+
+        count = (await session.execute(select(func.count(VacancyORM.id)))).scalar_one()
+        assert count == 1
+
+        row = (
+            await session.execute(
+                select(VacancyORM).where(VacancyORM.apply_link == apply_link)
+            )
+        ).scalar_one()
+        assert row.title == "new"
+        assert row.description == "new"
+        assert row.salary == "150k"
+
+
+async def test_upsert_preserves_id_and_apply_link(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    apply_link = "https://hh.ru/vacancy/100"
+    async with session_factory() as session:
+        first = await upsert_vacancy(
+            session=session,
+            vacancy=VacancyModel(title="A", apply_link=apply_link, description="a"),
+        )
+        await session.commit()
+        original_id = first.id
+
+        second = await upsert_vacancy(
+            session=session,
+            vacancy=VacancyModel(title="B", apply_link=apply_link, description="b"),
+        )
+        await session.commit()
+
+        assert second.id == original_id
+        assert second.apply_link == apply_link
+
+
+async def test_create_search_history(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        search_id: str = "test"
+        max_pages: int = 2
+        max_vacancies: int = 4
+        search_status: SearchStatusAPISchema = SearchStatusAPISchema.PENDING
+        url: str = "hh.ru"
+        search_history: SearchHistoryORM = await create_search_history(
+            session=session,
+            search_id=search_id,
+            url=url,
+            search_status=search_status,
+            max_vacancies=max_vacancies,
+            max_pages=max_pages,
+        )
+        assert search_history.id == search_id
+        assert max_pages == search_history.max_pages
+        assert max_vacancies == search_history.max_vacancies
+        assert search_status == search_history.status
+        assert url == search_history.url
+
+
+async def test_complete_search_history(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        search_id: str = "test"
+        max_pages: int = 2
+        max_vacancies: int = 4
+        parsed_pages: int = 1
+        parsed_vacancies: int = 3
+        search_status: SearchStatusAPISchema = SearchStatusAPISchema.PENDING
+        complete_status: SearchStatusAPISchema = SearchStatusAPISchema.FAILED
+        error: str = "error"
+        url: str = "hh.ru"
+        await create_search_history(
+            session=session,
+            search_id=search_id,
+            url=url,
+            search_status=search_status,
+            max_vacancies=max_vacancies,
+            max_pages=max_pages,
+        )
+        complete_history: SearchHistoryORM | None = await complete_search_history(
+            session=session,
+            search_id=search_id,
+            parsed_pages=parsed_pages,
+            parsed_vacancies=parsed_vacancies,
+            search_status=complete_status,
+            error=error,
+        )
+        assert complete_history is not None
+        assert search_id == complete_history.id
+        assert max_pages == complete_history.max_pages
+        assert max_vacancies == complete_history.max_vacancies
+        assert parsed_pages == complete_history.parsed_pages
+        assert parsed_vacancies == complete_history.parsed_vacancies
+        assert complete_status == complete_history.status
+        assert error == complete_history.error
+        assert url == complete_history.url
+
+
+async def test_list_search_history(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        search_id: str = "test"
+        max_pages: int = 2
+        max_vacancies: int = 4
+        search_status: SearchStatusAPISchema = SearchStatusAPISchema.PENDING
+        url: str = "hh.ru"
+        search_history: SearchHistoryORM = await create_search_history(
+            session=session,
+            search_id=search_id,
+            url=url,
+            search_status=search_status,
+            max_vacancies=max_vacancies,
+            max_pages=max_pages,
+        )
+        result = await list_search_history(session=session)
+        assert len(result) == 1
+        assert result[0] == search_history

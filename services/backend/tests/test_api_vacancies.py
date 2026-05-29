@@ -1,17 +1,18 @@
 from fastapi import Response
 from headhunter_backend.domain.models import VacancyModel
-from headhunter_backend.db.models import CoverLetter, Application
+from headhunter_backend.db.models import CoverLetterORM, ApplicationORM
 from headhunter_backend.api.schemas import (
-    SearchResponse,
-    ApplicationStatusResponse,
+    SearchResponseAPISchema,
+    ApplicationStatusResponseAPISchema,
     CoverLetterRequest,
+    SearchRequestAPISchema,
 )
 from headhunter_backend.domain.enums import ProcessingState
 from headhunter_backend.db.crud import (
     get_latest_cover_letter,
     get_application_by_vacancy_id,
 )
-import headhunter_backend.api.mock as mock
+from pydantic import HttpUrl
 
 
 def test_vacancies_get(client):
@@ -39,11 +40,20 @@ def test_vacancies_get_by_id_not_found(client):
 
 def test_vacancies_search(client):
     response: Response = client.post(
-        "/api/v1/vacancies/search", json=mock.search_filter.model_dump()
+        "/api/v1/vacancies/search",
+        json=SearchRequestAPISchema(url=HttpUrl("http://hh.ru")).model_dump(
+            mode="json"
+        ),
     )
     assert response.status_code == 200
     payload = response.json()
-    SearchResponse.model_validate(payload)
+    search_response: SearchResponseAPISchema = SearchResponseAPISchema.model_validate(
+        payload
+    )
+    response = client.get(f"/api/v1/vacancies/search/{search_response.search_id}")
+    assert response.status_code == 200
+    payload = response.json()
+    SearchResponseAPISchema.model_validate(payload)
 
 
 def test_vacancies_submit(client):
@@ -59,7 +69,7 @@ def test_vacancies_submit(client):
     response = client.post("/api/v1/vacancies/1/submit")
     assert response.status_code == 200
     payload = response.json()
-    ApplicationStatusResponse.model_validate(payload)
+    ApplicationStatusResponseAPISchema.model_validate(payload)
     response: Response = client.post("/api/v1/vacancies/999/submit")
     assert response.status_code == 404
 
@@ -68,8 +78,8 @@ async def test_vacancies_queue_for_letter(client):
     response: Response = client.post("/api/v1/vacancies/1/queue_for_letter")
     assert response.status_code == 200
     payload = response.json()
-    status: ApplicationStatusResponse = ApplicationStatusResponse.model_validate(
-        payload
+    status: ApplicationStatusResponseAPISchema = (
+        ApplicationStatusResponseAPISchema.model_validate(payload)
     )
     assert status.vacancy_id == 1
     assert status.status == ProcessingState.LETTER_PENDING
@@ -91,18 +101,18 @@ async def test_vacancies_cover_letter(client, session_factory):
     )
     assert response.status_code == 200
     payload = response.json()
-    status: ApplicationStatusResponse = ApplicationStatusResponse.model_validate(
-        payload
+    status: ApplicationStatusResponseAPISchema = (
+        ApplicationStatusResponseAPISchema.model_validate(payload)
     )
     assert status.vacancy_id == 1
     assert status.status == ProcessingState.LETTER_READY
 
     async with session_factory() as session:
-        application: Application | None = await get_application_by_vacancy_id(
+        application: ApplicationORM | None = await get_application_by_vacancy_id(
             session=session, vacancy_id=status.vacancy_id
         )
         assert application is not None
-        letter: CoverLetter | None = await get_latest_cover_letter(
+        letter: CoverLetterORM | None = await get_latest_cover_letter(
             session=session, application_id=application.id
         )
         assert letter is not None
@@ -115,8 +125,8 @@ async def test_vacancies_status(client):
     response: Response = client.get("/api/v1/vacancies/1/status")
     assert response.status_code == 200
     payload = response.json()
-    status: ApplicationStatusResponse = ApplicationStatusResponse.model_validate(
-        payload
+    status: ApplicationStatusResponseAPISchema = (
+        ApplicationStatusResponseAPISchema.model_validate(payload)
     )
     assert status.status == ProcessingState.LETTER_PENDING
     client.post(
@@ -126,14 +136,14 @@ async def test_vacancies_status(client):
     response = client.get("/api/v1/vacancies/1/status")
     assert response.status_code == 200
     payload = response.json()
-    status: ApplicationStatusResponse = ApplicationStatusResponse.model_validate(
-        payload
+    status: ApplicationStatusResponseAPISchema = (
+        ApplicationStatusResponseAPISchema.model_validate(payload)
     )
     assert status.status == ProcessingState.LETTER_READY
     response = client.post("/api/v1/vacancies/1/submit")
     assert response.status_code == 200
     payload = response.json()
-    status: ApplicationStatusResponse = ApplicationStatusResponse.model_validate(
-        payload
+    status: ApplicationStatusResponseAPISchema = (
+        ApplicationStatusResponseAPISchema.model_validate(payload)
     )
     assert status.status == ProcessingState.LETTER_SENDING

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from headhunter_backend.api.schemas import Settings
+from headhunter_backend.api.schemas import SettingsAPISchema
 from headhunter_backend.api.dependencies import SessionDep
 from headhunter_backend.db.converters import settings_to_model, settings_to_orm
 from headhunter_backend.db.models import SettingsORM
@@ -9,13 +9,15 @@ settings_router: APIRouter = APIRouter(prefix="/settings", tags=["settings"])
 
 
 @settings_router.get("")
-async def get_settings_api(session: SessionDep) -> Settings:
+async def get_settings_api(session: SessionDep) -> SettingsAPISchema:
     settings: SettingsORM = await get_settings(session=session)
     return settings_to_model(orm=settings)
 
 
 @settings_router.put("")
-async def update_settings_api(session: SessionDep, new_settings: Settings) -> Settings:
+async def update_settings_api(
+    session: SessionDep, new_settings: SettingsAPISchema
+) -> SettingsAPISchema:
     settings: SettingsORM = await update_settings(
         session=session, new_settings=settings_to_orm(new_settings)
     )

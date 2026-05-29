@@ -8,6 +8,7 @@ from headhunter_backend.api.dependencies import (
     get_session,
     get_orchestrator,
     get_writer,
+    get_search_service,
 )
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.schemas import AuthStatus
@@ -24,12 +25,15 @@ from sqlalchemy.ext.asyncio import (
 from pydantic import BaseModel
 from pathlib import Path
 import pytest
+import uuid
 import asyncio
 from headhunter_backend.domain.models import VacancyModel
 from headhunter_backend.db.session import apply_sqlite_pragmas
 from headhunter_backend.browser.writer import SubmitResult
 from headhunter_backend.db.crud import create_vacancy
 from headhunter_backend.browser.selectors import Selectors
+from headhunter_backend.orchestrator.search import SearchAlreadyRunning, SearchTask
+from headhunter_backend.api.schemas import SearchRequestAPISchema
 
 configure_logging()
 
@@ -62,6 +66,31 @@ class FakeBrowser:
 
     async def wait_for_login(self, poll_interval: float = 1.0) -> None:
         self._authenticated = AuthStatus.authorized()
+
+
+class FakeSearchService:
+    def __init__(self) -> None:
+        self._queue: dict[str, SearchTask] = {}
+
+    def start_search(self, request: SearchRequestAPISchema) -> SearchTask:
+        if len(self._queue) > 0:
+            raise SearchAlreadyRunning()
+        search_id: str = str(uuid.uuid4())
+        task = SearchTask(id=search_id, task=None)  # type: ignore[arg-type]
+        self._queue[search_id] = task
+        return task
+
+    async def cancel_search(self, search_id: str) -> bool:
+        if search_id in self._queue:
+            del self._queue[search_id]
+            return True
+        return False
+
+    def get_search_task(self, search_id: str) -> SearchTask | None:
+        return self._queue.get(search_id)
+
+    async def shutdown(self) -> None:
+        self._queue.clear()
 
 
 class FakeWriter:
@@ -110,6 +139,11 @@ def fake_writer() -> FakeWriter:
 
 
 @pytest.fixture
+def fake_search_service() -> FakeSearchService:
+    return FakeSearchService()
+
+
+@pytest.fixture
 async def session_factory(
     tmp_path: Path,
 ) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
@@ -134,6 +168,7 @@ async def client(
     fake_writer: FakeWriter,
     vacancy_model: VacancyModel,
     session_factory: async_sessionmaker[AsyncSession],
+    fake_search_service: FakeSearchService,
 ) -> TestClient:
     async def override_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
@@ -144,6 +179,8 @@ async def client(
     app.dependency_overrides[get_broadcaster] = lambda: recording_broadcaster
     app.dependency_overrides[get_orchestrator] = lambda: fake_orchestrator
     app.dependency_overrides[get_writer] = lambda: fake_writer
+    app.dependency_overrides[get_search_service] = lambda: fake_search_service
+
     async with session_factory() as session:
         await create_vacancy(session=session, vacancy=vacancy_to_orm(vacancy_model))
 

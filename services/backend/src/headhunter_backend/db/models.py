@@ -4,6 +4,21 @@ from datetime import datetime
 
 from headhunter_backend.db.base import Base
 from headhunter_backend.domain.enums import ProcessingState
+from headhunter_backend.api.schemas import SearchStatusAPISchema
+
+
+class SearchHistoryORM(Base):
+    __tablename__ = "searches"
+    id: Mapped[str] = mapped_column(primary_key=True)
+    url: Mapped[str]
+    max_vacancies: Mapped[int]
+    max_pages: Mapped[int]
+    status: Mapped[SearchStatusAPISchema] = mapped_column(Enum(SearchStatusAPISchema))
+    parsed_vacancies: Mapped[int] = mapped_column(default=0)
+    parsed_pages: Mapped[int] = mapped_column(default=0)
+    started_at: Mapped[datetime] = mapped_column(default=datetime.now)
+    finished_at: Mapped[datetime | None] = mapped_column(default=None)
+    error: Mapped[str | None] = mapped_column(default=None)
 
 
 class RateLimitEventORM(Base):
@@ -29,7 +44,7 @@ class SettingsORM(Base):
     delay_jitter_ms: Mapped[int]
 
 
-class Vacancy(Base):
+class VacancyORM(Base):
     __tablename__ = "vacancies"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -51,7 +66,7 @@ class Vacancy(Base):
     employment_types: Mapped[list[str]] = mapped_column(JSON)
 
 
-class Application(Base):
+class ApplicationORM(Base):
     __tablename__ = "applications"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -68,7 +83,7 @@ class Application(Base):
     )
 
 
-class CoverLetter(Base):
+class CoverLetterORM(Base):
     __tablename__ = "cover_letters"
 
     id: Mapped[int] = mapped_column(primary_key=True)

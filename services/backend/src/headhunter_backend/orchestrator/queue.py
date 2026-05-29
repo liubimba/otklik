@@ -11,7 +11,7 @@ from headhunter_backend.db.crud import (
     transition_application,
     log_submission,
 )
-from headhunter_backend.db.models import Application, CoverLetter, Vacancy
+from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.writer import (
     BrowserWriter,
@@ -64,7 +64,7 @@ class Orchestrator:
         return self._queue.qsize()
 
     async def recover_from_db(self, session: AsyncSession) -> int:
-        applications: Sequence[Application] = await list_active_applications(session)
+        applications: Sequence[ApplicationORM] = await list_active_applications(session)
         for application in applications:
             await self.enqueue(application_id=application.id)
         return len(applications)
@@ -118,7 +118,7 @@ class Orchestrator:
         rate_limit_backoff_sec: float,
     ) -> None:
         async with session_maker() as session:
-            app: Application | None = await get_application_by_id(
+            app: ApplicationORM | None = await get_application_by_id(
                 session=session, application_id=application_id
             )
             if app is None:
@@ -160,7 +160,7 @@ class Orchestrator:
                 return
 
             # 3 Get cover letter
-            letter: CoverLetter | None = await get_latest_cover_letter(
+            letter: CoverLetterORM | None = await get_latest_cover_letter(
                 session=session, application_id=app.id
             )
             if letter is None:
@@ -179,7 +179,7 @@ class Orchestrator:
                 )
                 return
 
-            vacancy: Vacancy | None = await get_vacancy(
+            vacancy: VacancyORM | None = await get_vacancy(
                 session=session, vacancy_id=app.vacancy_id
             )
             if vacancy is None:

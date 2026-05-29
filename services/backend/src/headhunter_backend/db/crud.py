@@ -1,22 +1,26 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from headhunter_backend.db.models import (
-    Vacancy,
-    Application,
-    CoverLetter,
+    VacancyORM,
+    ApplicationORM,
+    CoverLetterORM,
     SettingsORM,
     RateLimitEventORM,
+    SearchHistoryORM,
 )
-from headhunter_backend.api.schemas import Settings
+from headhunter_backend.api.schemas import SettingsAPISchema
 from collections.abc import Sequence
 from headhunter_backend.log import get_logger
 from headhunter_backend.domain.enums import ProcessingState
+from headhunter_backend.domain.models import VacancyModel
 from headhunter_backend.db.converters import settings_to_orm
 from headhunter_backend.orchestrator.state_machine import (
     ProcessingStateMachine,
     ApplicationEvent,
 )
 from datetime import datetime
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from headhunter_backend.api.schemas import SearchStatusAPISchema
 
 logger = get_logger(__name__)
 
@@ -37,7 +41,7 @@ async def count_submissions_since(session: AsyncSession, since: datetime) -> int
 async def get_settings(session: AsyncSession) -> SettingsORM:
     settings: SettingsORM | None = await session.get(SettingsORM, 1)
     if settings is None:
-        settings = settings_to_orm(model=Settings())
+        settings = settings_to_orm(model=SettingsAPISchema())
         session.add(settings)
         await session.commit()
     return settings
@@ -57,7 +61,7 @@ async def update_settings(
     return settings
 
 
-async def create_vacancy(session: AsyncSession, vacancy: Vacancy) -> Vacancy:
+async def create_vacancy(session: AsyncSession, vacancy: VacancyORM) -> VacancyORM:
     logger.info(f"Insert into DB vacancy: {vacancy.id}")
     session.add(vacancy)
     logger.info("Commiting insertion")
@@ -65,28 +69,57 @@ async def create_vacancy(session: AsyncSession, vacancy: Vacancy) -> Vacancy:
     return vacancy
 
 
-async def get_vacancy(session: AsyncSession, vacancy_id: int) -> Vacancy | None:
+async def upsert_vacancy(session: AsyncSession, vacancy: VacancyModel) -> VacancyORM:
+    stmt = sqlite_insert(VacancyORM).values(**vacancy.model_dump(mode="json"))
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[VacancyORM.apply_link],
+        set_={
+            col: stmt.excluded[col]
+            for col in [
+                "title",
+                "description",
+                "salary",
+                "company_stars",
+                "work_location",
+                "updated_at",
+                "published_at",
+                "work_experience",
+                "work_formats",
+                "employment_types",
+            ]
+        },
+    )
+    await session.execute(stmt)
+    result = await session.execute(
+        select(VacancyORM).where(VacancyORM.apply_link == vacancy.apply_link)
+    )
+    return result.scalar_one()
+
+
+async def get_vacancy(session: AsyncSession, vacancy_id: int) -> VacancyORM | None:
     logger.info(f"Get vacancy by id: {vacancy_id}")
-    return await session.get(Vacancy, vacancy_id)
+    return await session.get(VacancyORM, vacancy_id)
 
 
 async def get_vacancy_by_apply_link(
     session: AsyncSession, apply_link: str
-) -> Vacancy | None:
+) -> VacancyORM | None:
     logger.info(f"Get vacancy by apply link: {apply_link}")
-    stmt = select(Vacancy).where(Vacancy.apply_link == apply_link)
+    stmt = select(VacancyORM).where(VacancyORM.apply_link == apply_link)
     result = await session.execute(statement=stmt)
     return result.scalar_one_or_none()
 
 
-async def list_vacancies(session: AsyncSession) -> Sequence[Vacancy]:
+async def list_vacancies(session: AsyncSession) -> Sequence[VacancyORM]:
     logger.info("List vacancies")
-    result = await session.execute(select(Vacancy))
+    result = await session.execute(select(VacancyORM))
     return result.scalars().all()
 
 
 async def delete_vacancy(session: AsyncSession, vacancy_id: int) -> bool:
-    vacancy: Vacancy | None = await get_vacancy(session=session, vacancy_id=vacancy_id)
+    vacancy: VacancyORM | None = await get_vacancy(
+        session=session, vacancy_id=vacancy_id
+    )
     if vacancy is None:
         logger.error(f"Failed to delete vacancy by id: {vacancy_id}. Error: not found")
         return False
@@ -97,9 +130,9 @@ async def delete_vacancy(session: AsyncSession, vacancy_id: int) -> bool:
     return True
 
 
-async def create_application(session: AsyncSession, vacancy_id: int) -> Application:
+async def create_application(session: AsyncSession, vacancy_id: int) -> ApplicationORM:
     logger.info(f"Create new application for vacancy id: {vacancy_id}")
-    application: Application = Application(
+    application: ApplicationORM = ApplicationORM(
         vacancy_id=vacancy_id, status=ProcessingState.PARSED
     )
     session.add(application)
@@ -109,24 +142,26 @@ async def create_application(session: AsyncSession, vacancy_id: int) -> Applicat
 
 async def get_application_by_id(
     session: AsyncSession, application_id: int
-) -> Application | None:
-    application: Application | None = await session.get(Application, application_id)
+) -> ApplicationORM | None:
+    application: ApplicationORM | None = await session.get(
+        ApplicationORM, application_id
+    )
     return application
 
 
 async def get_application_by_vacancy_id(
     session: AsyncSession, vacancy_id: int
-) -> Application | None:
+) -> ApplicationORM | None:
     result = await session.execute(
-        select(Application).where(Application.vacancy_id == vacancy_id).limit(1)
+        select(ApplicationORM).where(ApplicationORM.vacancy_id == vacancy_id).limit(1)
     )
     return result.scalar_one_or_none()
 
 
 async def transition_application(
     session: AsyncSession, application_id: int, to_state: ApplicationEvent
-) -> Application | None:
-    application: Application | None = await get_application_by_id(
+) -> ApplicationORM | None:
+    application: ApplicationORM | None = await get_application_by_id(
         session=session, application_id=application_id
     )
     if application is None:
@@ -143,15 +178,15 @@ async def transition_application(
     return application
 
 
-async def list_applications(session: AsyncSession) -> Sequence[Application]:
-    result = await session.execute(select(Application))
+async def list_applications(session: AsyncSession) -> Sequence[ApplicationORM]:
+    result = await session.execute(select(ApplicationORM))
     return result.scalars().all()
 
 
-async def list_active_applications(session: AsyncSession) -> Sequence[Application]:
+async def list_active_applications(session: AsyncSession) -> Sequence[ApplicationORM]:
     result = await session.execute(
-        select(Application).where(
-            Application.status.not_in(
+        select(ApplicationORM).where(
+            ApplicationORM.status.not_in(
                 [ProcessingState.SKIPPED, ProcessingState.LETTER_SENT]
             )
         )
@@ -161,14 +196,14 @@ async def list_active_applications(session: AsyncSession) -> Sequence[Applicatio
 
 async def create_cover_letter(
     session: AsyncSession, application_id: int, text: str
-) -> CoverLetter:
-    latest_cover_letter: CoverLetter | None = await get_latest_cover_letter(
+) -> CoverLetterORM:
+    latest_cover_letter: CoverLetterORM | None = await get_latest_cover_letter(
         session=session, application_id=application_id
     )
     version_cover_letter: int = (
         1 if latest_cover_letter is None else latest_cover_letter.version + 1
     )
-    cover_letter: CoverLetter = CoverLetter(
+    cover_letter: CoverLetterORM = CoverLetterORM(
         application_id=application_id, text=text, version=version_cover_letter
     )
     session.add(cover_letter)
@@ -178,12 +213,60 @@ async def create_cover_letter(
 
 async def get_latest_cover_letter(
     session: AsyncSession, application_id: int
-) -> CoverLetter | None:
+) -> CoverLetterORM | None:
     stmt = (
-        select(CoverLetter)
-        .where(CoverLetter.application_id == application_id)
-        .order_by(CoverLetter.version.desc())
+        select(CoverLetterORM)
+        .where(CoverLetterORM.application_id == application_id)
+        .order_by(CoverLetterORM.version.desc())
         .limit(1)
     )
     result = await session.execute(statement=stmt)
     return result.scalar_one_or_none()
+
+
+async def create_search_history(
+    session: AsyncSession,
+    search_id: str,
+    url: str,
+    max_vacancies: int,
+    max_pages: int,
+    search_status: SearchStatusAPISchema,
+) -> SearchHistoryORM:
+    search_history: SearchHistoryORM = SearchHistoryORM(
+        id=search_id,
+        url=url,
+        max_vacancies=max_vacancies,
+        max_pages=max_pages,
+        status=search_status,
+    )
+    session.add(search_history)
+    await session.commit()
+    return search_history
+
+
+async def complete_search_history(
+    session: AsyncSession,
+    search_id: str,
+    parsed_pages: int,
+    parsed_vacancies: int,
+    search_status: SearchStatusAPISchema,
+    error: str | None = None,
+) -> SearchHistoryORM | None:
+    result = await session.execute(
+        select(SearchHistoryORM).where(SearchHistoryORM.id == search_id).limit(1)
+    )
+    search_history: SearchHistoryORM | None = result.scalar_one_or_none()
+    if search_history is None:
+        return None
+    search_history.finished_at = datetime.now()
+    search_history.parsed_pages = parsed_pages
+    search_history.parsed_vacancies = parsed_vacancies
+    search_history.error = error
+    search_history.status = search_status
+    await session.commit()
+    return search_history
+
+
+async def list_search_history(session: AsyncSession) -> Sequence[SearchHistoryORM]:
+    result = await session.execute(select(SearchHistoryORM))
+    return result.scalars().all()

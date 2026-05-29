@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional
 from .enums import WorkFormat, EmploymentType
+from datetime import datetime
+from headhunter_backend.api.schemas import SearchStatusAPISchema
 
 
 class SalaryRange(BaseModel):
@@ -25,7 +27,14 @@ class VacancyModel(BaseModel):
     work_experience: Optional[str] = None
 
 
-class SearchModel(BaseModel):
-    text: str
-    region: Optional[str] = None
-    salary: Optional[SalaryRange] = None
+class SearchHistoryModel(BaseModel):
+    id: str
+    url: str
+    max_vacancies: int
+    max_pages: int
+    status: SearchStatusAPISchema
+    parsed_vacancies: Optional[int]
+    parsed_pages: Optional[int]
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
+    error: Optional[str]

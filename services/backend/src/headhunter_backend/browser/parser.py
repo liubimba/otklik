@@ -79,8 +79,6 @@ class Parser:
                         self._logger.error(
                             f"Skipped vacancy link {vacancy_link}: {error}"
                         )
-
-                await self._open_next_page(search_page)
         finally:
             if vacancy_page is not None:
                 self._logger.info("Parsing finished, closing vacancy page")
@@ -238,27 +236,6 @@ class Parser:
             return None
         node = parser.css_first(selector)
         return node.text() if node is not None else None
-
-    async def _open_next_page(self, search_page: BrowserPage) -> None:
-        """Navigate the search page to the next page of results."""
-        parsed_url = urllib.parse.urlparse(search_page.get_url())
-        query: dict[str, list[str]] = urllib.parse.parse_qs(parsed_url.query)
-
-        next_page = int(query["page"][0]) + 1 if "page" in query else 1
-        query["page"] = [str(next_page)]
-
-        next_url = urllib.parse.urlunparse(
-            (
-                parsed_url.scheme,
-                parsed_url.netloc,
-                parsed_url.path,
-                parsed_url.params,
-                urllib.parse.urlencode(query, doseq=True),
-                parsed_url.fragment,
-            )
-        )
-        self._logger.info(f"Opening next search page: {next_url}")
-        await search_page.goto(next_url)
 
     async def _sleep_before_next_parse(self) -> None:
         """Sleep a short randomized delay to avoid a regular request cadence."""

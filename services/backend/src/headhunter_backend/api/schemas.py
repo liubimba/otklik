@@ -1,17 +1,38 @@
 from typing import Self, Literal
-from pydantic import BaseModel, Field
+from enum import Enum
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from headhunter_backend.domain.enums import ProcessingState
 
 
-class SearchFilter(BaseModel):
-    text: str
+class SearchStatusAPISchema(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    CANCELED = "canceled"
+    FINISHED = "exited"
+    FAILED = "failed"
 
 
-class SearchResponse(BaseModel):
+class SearchRequestAPISchema(BaseModel):
+    url: HttpUrl
+    max_pages: int = 5
+    max_vacancies: int = 50
+
+    @field_validator("url")
+    @classmethod
+    def _only_hh_ru(cls, v: HttpUrl) -> HttpUrl:
+        if v.host is None or not v.host.endswith("hh.ru"):
+            raise ValueError("URL must be on hh.ru")
+        return v
+
+
+class SearchResponseAPISchema(BaseModel):
     search_id: str
+    status: SearchStatusAPISchema
+    parsed_pages: int
+    parsed_vacancies: int
 
 
-class ApplicationStatusResponse(BaseModel):
+class ApplicationStatusResponseAPISchema(BaseModel):
     vacancy_id: int
     status: ProcessingState
 
@@ -21,17 +42,17 @@ class CoverLetterRequest(BaseModel):
 
 
 ## Settings
-class RateLimits(BaseModel):
+class RateLimitsAPISchema(BaseModel):
     daily_limit: int = 30
     hourly_limit: int = 5
     min_delay_ms: int = 800
     delay_jitter_ms: int = 400
 
 
-class Settings(BaseModel):
+class SettingsAPISchema(BaseModel):
     letter_style: str = ""
     resume_text: str = ""
-    rate_limits: RateLimits = Field(default_factory=RateLimits)
+    rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
 
 
 ## Auth

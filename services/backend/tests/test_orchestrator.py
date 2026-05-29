@@ -1,6 +1,6 @@
 from headhunter_backend.orchestrator.queue import Orchestrator
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from headhunter_backend.db.models import Application
+from headhunter_backend.db.models import ApplicationORM
 from headhunter_backend.db.crud import create_application, create_vacancy
 from headhunter_backend.db.converters import vacancy_to_orm
 from headhunter_backend.domain.models import VacancyModel
@@ -28,7 +28,7 @@ from sqlalchemy import select, func
 async def test_recover_from_db_pushes_applications(
     fake_orchestrator: Orchestrator, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
-    applications: list[Application] = []
+    applications: list[ApplicationORM] = []
     async with session_factory() as session:
         for _ in range(4):
             await create_vacancy(
@@ -43,13 +43,13 @@ async def test_recover_from_db_pushes_applications(
         applications.append(await create_application(session=session, vacancy_id=1))
         applications.append(await create_application(session=session, vacancy_id=2))
 
-        application: Application = await create_application(
+        application: ApplicationORM = await create_application(
             session=session, vacancy_id=3
         )
         application.status = ProcessingState.LETTER_SENT
         await session.commit()
 
-        application: Application = await create_application(
+        application: ApplicationORM = await create_application(
             session=session, vacancy_id=4
         )
         application.status = ProcessingState.SKIPPED

@@ -9,6 +9,8 @@ from headhunter_backend.orchestrator.queue import Orchestrator
 from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
 from headhunter_backend.browser.writer import BrowserWriter
 from headhunter_backend.browser.selectors import HHRU_SELECTORS
+from headhunter_backend.orchestrator.search import SearchService
+from headhunter_backend.browser.parser import Parser
 from typing import Any
 import asyncio
 
@@ -23,6 +25,13 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.orchestrator = Orchestrator()
     app.state.writer = BrowserWriter(
         core=app.state.browser, min_delay_ms=800, jitter_delay_ms=400
+    )
+    app.state.search_service = SearchService(
+        core=app.state.browser,
+        parser=Parser(core=app.state.browser),
+        broadcaster=app.state.broadcaster,
+        session_maker=session_maker,
+        selectors=HHRU_SELECTORS,
     )
     async with session_maker() as session:
         recovered_count: int = await app.state.orchestrator.recover_from_db(

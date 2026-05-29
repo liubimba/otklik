@@ -6,6 +6,7 @@ from headhunter_backend.browser.writer import BrowserWriter
 from headhunter_backend.orchestrator.queue import Orchestrator
 from starlette.requests import HTTPConnection
 from sqlalchemy.ext.asyncio import AsyncSession
+from headhunter_backend.orchestrator.search import SearchService
 from headhunter_backend.db.session import get_session
 
 
@@ -25,8 +26,13 @@ def get_writer(request: HTTPConnection) -> BrowserWriter:
     return request.app.state.writer  # type: ignore[no-any-return]
 
 
+def get_search_service(request: HTTPConnection) -> SearchService:
+    return request.app.state.search_service  # type: ignore[no-any-return]
+
+
 BrowserDep = Annotated[BrowserCore, Depends(get_browser)]
 BroadcasterDep = Annotated[EventBroadcaster, Depends(get_broadcaster)]
 OrchestratorDep = Annotated[Orchestrator, Depends(get_orchestrator)]
 WriterDep = Annotated[BrowserWriter, Depends(get_writer)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]

@@ -11,7 +11,10 @@ from headhunter_backend.browser.writer import BrowserWriter
 from headhunter_backend.browser.selectors import HHRU_SELECTORS
 from headhunter_backend.orchestrator.search import SearchService
 from headhunter_backend.browser.parser import Parser
+from headhunter_backend.db.crud import list_search_history, update_search_history
+from headhunter_backend.api.schemas import SearchStatusAPISchema
 from typing import Any
+from datetime import datetime
 import asyncio
 
 
@@ -37,6 +40,15 @@ async def lifespan(app: FastAPI) -> Any:
         recovered_count: int = await app.state.orchestrator.recover_from_db(
             session=session
         )
+        for search_history in await list_search_history(session=session):
+            if search_history.status.is_active():
+                await update_search_history(
+                    session=session,
+                    search_id=search_history.id,
+                    finished_at=datetime.now(),
+                    status=SearchStatusAPISchema.INTERRUPTED,
+                )
+
         logger.info(f"Recovered {recovered_count} applications from the database.")
     apply_sqlite_pragmas(target_engine=engine)
     await app.state.browser.start()

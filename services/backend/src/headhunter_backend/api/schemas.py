@@ -10,6 +10,10 @@ class SearchStatusAPISchema(str, Enum):
     CANCELED = "canceled"
     FINISHED = "exited"
     FAILED = "failed"
+    INTERRUPTED = "interrupted"
+
+    def is_active(self) -> bool:
+        return self in (SearchStatusAPISchema.PENDING, SearchStatusAPISchema.RUNNING)
 
 
 class SearchRequestAPISchema(BaseModel):

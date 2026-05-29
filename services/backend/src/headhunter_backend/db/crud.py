@@ -21,6 +21,7 @@ from headhunter_backend.orchestrator.state_machine import (
 from datetime import datetime
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from headhunter_backend.api.schemas import SearchStatusAPISchema
+from typing import Any
 
 logger = get_logger(__name__)
 
@@ -244,29 +245,23 @@ async def create_search_history(
     return search_history
 
 
-async def complete_search_history(
-    session: AsyncSession,
-    search_id: str,
-    parsed_pages: int,
-    parsed_vacancies: int,
-    search_status: SearchStatusAPISchema,
-    error: str | None = None,
-) -> SearchHistoryORM | None:
-    result = await session.execute(
-        select(SearchHistoryORM).where(SearchHistoryORM.id == search_id).limit(1)
-    )
-    search_history: SearchHistoryORM | None = result.scalar_one_or_none()
-    if search_history is None:
-        return None
-    search_history.finished_at = datetime.now()
-    search_history.parsed_pages = parsed_pages
-    search_history.parsed_vacancies = parsed_vacancies
-    search_history.error = error
-    search_history.status = search_status
-    await session.commit()
-    return search_history
-
-
 async def list_search_history(session: AsyncSession) -> Sequence[SearchHistoryORM]:
     result = await session.execute(select(SearchHistoryORM))
     return result.scalars().all()
+
+
+async def update_search_history(
+    session: AsyncSession,
+    search_id: str,
+    **kwargs: Any,
+) -> SearchHistoryORM | None:
+    row = await session.get(SearchHistoryORM, search_id)
+    if row is None:
+        return None
+    allowed = {"status", "parsed_pages", "parsed_vacancies", "finished_at", "error"}
+    for key, value in kwargs.items():
+        if key not in allowed:
+            raise ValueError(f"Cannot update column: {key}")
+        setattr(row, key, value)
+    await session.commit()
+    return row

@@ -72,7 +72,7 @@ class FakeSearchService:
     def __init__(self) -> None:
         self._queue: dict[str, SearchTask] = {}
 
-    def start_search(self, request: SearchRequestAPISchema) -> SearchTask:
+    async def start_search(self, request: SearchRequestAPISchema) -> SearchTask:
         if len(self._queue) > 0:
             raise SearchAlreadyRunning()
         search_id: str = str(uuid.uuid4())

@@ -4,7 +4,11 @@ from headhunter_backend.browser.parser import Parser
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.browser.selectors import Selectors
 from headhunter_backend.api.schemas import SearchRequestAPISchema, SearchStatusAPISchema
-from headhunter_backend.db.crud import upsert_vacancy
+from headhunter_backend.db.crud import (
+    upsert_vacancy,
+    create_search_history,
+    update_search_history,
+)
 from headhunter_backend.log import get_logger
 import asyncio
 import urllib
@@ -15,6 +19,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from dataclasses import dataclass, field
 from statemachine import StateMachine
 from statemachine.states import States
+from datetime import datetime
 
 
 class SearchStateEvent(str, Enum):
@@ -22,6 +27,7 @@ class SearchStateEvent(str, Enum):
     CANCELED = "canceled"
     FINISHED = "finished"
     FAILED = "failed"
+    INTERRUPTED = "interrupted"
 
 
 class SearchStatusStateMachine(StateMachine):
@@ -32,6 +38,7 @@ class SearchStatusStateMachine(StateMachine):
             SearchStatusAPISchema.CANCELED,
             SearchStatusAPISchema.FINISHED,
             SearchStatusAPISchema.FAILED,
+            SearchStatusAPISchema.INTERRUPTED,
         ],
     )
 
@@ -39,6 +46,7 @@ class SearchStatusStateMachine(StateMachine):
     canceled = _.RUNNING.to(_.CANCELED)
     finished = _.RUNNING.to(_.FINISHED)
     failed = _.RUNNING.to(_.FAILED)
+    interrupt = _.PENDING.to(_.INTERRUPTED) | _.RUNNING.to(_.INTERRUPTED)
 
 
 @dataclass
@@ -75,7 +83,7 @@ class SearchService:
         self._search_id: str | None = None
         self._queue: dict[str, SearchTask] = dict()
 
-    def start_search(self, request: SearchRequestAPISchema) -> SearchTask:
+    async def start_search(self, request: SearchRequestAPISchema) -> SearchTask:
         if len(self._queue) > 0:
             self._log.exception("Search is unavailable due to another is not completed")
             raise SearchAlreadyRunning()
@@ -85,6 +93,15 @@ class SearchService:
         )
         self._queue[search_id] = SearchTask(id=search_id, task=task)
         self._log.info("Queue searching", search_id=search_id, request=request)
+        async with self._session_maker() as session:
+            await create_search_history(
+                session=session,
+                search_id=search_id,
+                url=str(request.url),
+                max_pages=request.max_pages,
+                max_vacancies=request.max_vacancies,
+                search_status=self._queue[search_id].state_machine.current_state_value,
+            )
         return self._queue[search_id]
 
     async def cancel_search(self, search_id: str) -> bool:
@@ -111,6 +128,7 @@ class SearchService:
         self._log.info("Run searching", search_id=search_id, request=request)
         search_task.state_machine.send(SearchStateEvent.RUN.value)
         try:
+            await self._update_search_history(search_task=search_task)
             while True:
                 async for vacancy_model in self._parser.parse(
                     search_page=search_page, selectors=self._selectors
@@ -120,9 +138,11 @@ class SearchService:
                         await session.commit()
                         search_task.parsed_count += 1
                         await self._publish_event(search_task=search_task)
+                        await self._update_search_history(search_task=search_task)
                         if search_task.parsed_count >= request.max_vacancies:
                             break
                 search_task.parsed_pages += 1
+                await self._update_search_history(search_task=search_task)
                 if (
                     search_task.parsed_count >= request.max_vacancies
                     or search_task.parsed_pages >= request.max_pages
@@ -139,10 +159,7 @@ class SearchService:
             search_task.state_machine.send(SearchStateEvent.FAILED.value)
         finally:
             await search_page.close()
-        if (
-            search_task.state_machine.current_state_value
-            == SearchStatusAPISchema.RUNNING
-        ):
+        if search_task.state_machine.current_state_value.is_active():
             search_task.state_machine.send(SearchStateEvent.FINISHED.value)
         self._log.info(
             "Exit from search loop",
@@ -150,6 +167,7 @@ class SearchService:
             parsed_pages=search_task.parsed_pages,
             parsed_count=search_task.parsed_count,
         )
+        await self._update_search_history(search_task=search_task)
         await self._publish_event(search_task=search_task)
 
     async def _publish_event(self, search_task: SearchTask) -> None:
@@ -184,3 +202,24 @@ class SearchService:
         )
         self._log.info(f"Opening next search page: {next_url}")
         await search_page.goto(next_url)
+
+    async def _update_search_history(self, search_task: SearchTask) -> None:
+        async with self._session_maker() as session:
+            if (
+                search_task.state_machine.current_state_value
+                == SearchStatusAPISchema.RUNNING
+            ):
+                await update_search_history(
+                    session=session,
+                    search_id=search_task.id,
+                    parsed_pages=search_task.parsed_pages,
+                    parsed_vacancies=search_task.parsed_count,
+                    status=search_task.state_machine.current_state_value,
+                )
+            else:
+                await update_search_history(
+                    session=session,
+                    search_id=search_task.id,
+                    status=search_task.state_machine.current_state_value,
+                    finished_at=datetime.now(),
+                )

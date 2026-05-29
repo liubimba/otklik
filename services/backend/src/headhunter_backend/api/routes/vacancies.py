@@ -47,7 +47,7 @@ async def search(
     filter: SearchRequestAPISchema, search_service: SearchServiceDep
 ) -> SearchResponseAPISchema:
     try:
-        search_task: SearchTask = search_service.start_search(request=filter)
+        search_task: SearchTask = await search_service.start_search(request=filter)
         return SearchResponseAPISchema(
             search_id=search_task.id,
             parsed_pages=search_task.parsed_pages,

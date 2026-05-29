@@ -21,7 +21,7 @@ from headhunter_backend.db.crud import (
     create_application,
     create_search_history,
     list_search_history,
-    complete_search_history,
+    update_search_history,
 )
 from headhunter_backend.api.schemas import SearchStatusAPISchema
 
@@ -210,46 +210,6 @@ async def test_create_search_history(
         assert url == search_history.url
 
 
-async def test_complete_search_history(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    async with session_factory() as session:
-        search_id: str = "test"
-        max_pages: int = 2
-        max_vacancies: int = 4
-        parsed_pages: int = 1
-        parsed_vacancies: int = 3
-        search_status: SearchStatusAPISchema = SearchStatusAPISchema.PENDING
-        complete_status: SearchStatusAPISchema = SearchStatusAPISchema.FAILED
-        error: str = "error"
-        url: str = "hh.ru"
-        await create_search_history(
-            session=session,
-            search_id=search_id,
-            url=url,
-            search_status=search_status,
-            max_vacancies=max_vacancies,
-            max_pages=max_pages,
-        )
-        complete_history: SearchHistoryORM | None = await complete_search_history(
-            session=session,
-            search_id=search_id,
-            parsed_pages=parsed_pages,
-            parsed_vacancies=parsed_vacancies,
-            search_status=complete_status,
-            error=error,
-        )
-        assert complete_history is not None
-        assert search_id == complete_history.id
-        assert max_pages == complete_history.max_pages
-        assert max_vacancies == complete_history.max_vacancies
-        assert parsed_pages == complete_history.parsed_pages
-        assert parsed_vacancies == complete_history.parsed_vacancies
-        assert complete_status == complete_history.status
-        assert error == complete_history.error
-        assert url == complete_history.url
-
-
 async def test_list_search_history(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -270,3 +230,26 @@ async def test_list_search_history(
         result = await list_search_history(session=session)
         assert len(result) == 1
         assert result[0] == search_history
+
+
+async def test_search_history_update(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        search_id: str = "test"
+        max_pages: int = 2
+        max_vacancies: int = 4
+        search_status: SearchStatusAPISchema = SearchStatusAPISchema.PENDING
+        parsed_vacancies: int = 2
+        url: str = "hh.ru"
+        await create_search_history(
+            session=session,
+            search_id=search_id,
+            url=url,
+            search_status=search_status,
+            max_vacancies=max_vacancies,
+            max_pages=max_pages,
+        )
+        await update_search_history(
+            session=session, search_id=search_id, parsed_vacancies=parsed_vacancies
+        )

@@ -1,8 +1,10 @@
+from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 from headhunter_backend.log import configure_logging
 from headhunter_backend.domain.enums import WorkFormat, EmploymentType
 from headhunter_backend.api.app import app
 from headhunter_backend.api.dependencies import (
+    get_ai_layer,
     get_broadcaster,
     get_browser,
     get_session,
@@ -34,6 +36,8 @@ from headhunter_backend.db.crud import create_vacancy
 from headhunter_backend.browser.selectors import Selectors
 from headhunter_backend.orchestrator.search import SearchAlreadyRunning, SearchTask
 from headhunter_backend.api.schemas import SearchRequestAPISchema
+from headhunter_backend.ai.deployment import LLMDeployment
+from headhunter_backend.ai.layer import AILayer
 
 configure_logging()
 
@@ -161,6 +165,23 @@ async def session_factory(
 
 
 @pytest.fixture
+def make_ai_layer():
+    def _make(deployments: list[LLMDeployment] | None = None) -> AILayer:
+        layer: AILayer = AILayer(deployments=deployments or [])
+        layer._router = AsyncMock()
+        return layer
+
+    return _make
+
+
+@pytest.fixture
+def ai_layer_with_router(make_ai_layer) -> AILayer:
+    return make_ai_layer(
+        [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="test-key")]
+    )
+
+
+@pytest.fixture
 async def client(
     fake_browser: FakeBrowser,
     recording_broadcaster: RecordingBroadcaster,
@@ -169,6 +190,7 @@ async def client(
     vacancy_model: VacancyModel,
     session_factory: async_sessionmaker[AsyncSession],
     fake_search_service: FakeSearchService,
+    ai_layer_with_router: AILayer,
 ) -> TestClient:
     async def override_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
@@ -180,6 +202,7 @@ async def client(
     app.dependency_overrides[get_orchestrator] = lambda: fake_orchestrator
     app.dependency_overrides[get_writer] = lambda: fake_writer
     app.dependency_overrides[get_search_service] = lambda: fake_search_service
+    app.dependency_overrides[get_ai_layer] = lambda: ai_layer_with_router
 
     async with session_factory() as session:
         await create_vacancy(session=session, vacancy=vacancy_to_orm(vacancy_model))

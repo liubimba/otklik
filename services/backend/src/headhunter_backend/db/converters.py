@@ -1,35 +1,44 @@
 from headhunter_backend.db.models import VacancyORM, SettingsORM, SearchHistoryORM
 from headhunter_backend.domain.enums import EmploymentType, WorkFormat
 from headhunter_backend.domain.models import VacancyModel, SearchHistoryModel
-from headhunter_backend.api.schemas import SettingsAPISchema, RateLimitsAPISchema
+from headhunter_backend.api.schemas import (
+    LLMSettingsAPISchema,
+    SettingsAPISchema,
+    RateLimitsAPISchema,
+)
 
 
-def settings_to_orm(model: SettingsAPISchema) -> SettingsORM:
+def settings_to_orm(schema: SettingsAPISchema) -> SettingsORM:
     return SettingsORM(
-        letter_style=model.letter_style,
-        resume_text=model.resume_text,
-        daily_limit=model.rate_limits.daily_limit,
-        hourly_limit=model.rate_limits.hourly_limit,
-        min_delay_ms=model.rate_limits.min_delay_ms,
-        delay_jitter_ms=model.rate_limits.delay_jitter_ms,
+        letter_style=schema.llm.letter_style,
+        resume_text=schema.llm.resume_text,
+        daily_limit=schema.rate_limits.daily_limit,
+        hourly_limit=schema.rate_limits.hourly_limit,
+        min_delay_ms=schema.rate_limits.min_delay_ms,
+        delay_jitter_ms=schema.rate_limits.delay_jitter_ms,
+        llm_deployments=schema.llm.deployments,
+        llm_system_prompt=schema.llm.system_prompt,
     )
 
 
-def settings_to_model(orm: SettingsORM) -> SettingsAPISchema:
+def settings_to_schema(orm: SettingsORM) -> SettingsAPISchema:
     return SettingsAPISchema(
-        letter_style=orm.letter_style,
-        resume_text=orm.resume_text,
         rate_limits=RateLimitsAPISchema(
             daily_limit=orm.daily_limit,
             hourly_limit=orm.hourly_limit,
             min_delay_ms=orm.min_delay_ms,
             delay_jitter_ms=orm.delay_jitter_ms,
         ),
+        llm=LLMSettingsAPISchema(
+            deployments=orm.llm_deployments,
+            system_prompt=orm.llm_system_prompt,
+            letter_style=orm.letter_style,
+            resume_text=orm.resume_text,
+        ),
     )
 
 
 def vacancy_to_orm(model: VacancyModel) -> VacancyORM:
-    """Доменная модель → ORM-строка (без id — его назначит БД)."""
     return VacancyORM(
         title=model.title,
         apply_link=model.apply_link,

@@ -1,10 +1,32 @@
-from sqlalchemy import JSON, Enum, ForeignKey, DateTime, CheckConstraint
+from sqlalchemy import JSON, Enum, ForeignKey, DateTime, CheckConstraint, Dialect
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 from datetime import datetime
+from typing import Any
 
 from headhunter_backend.db.base import Base
 from headhunter_backend.domain.enums import ProcessingState
 from headhunter_backend.api.schemas import SearchStatusAPISchema
+from headhunter_backend.ai.deployment import LLMDeployment
+
+
+class LLMDeploymentList(TypeDecorator[list[LLMDeployment]]):
+    impl = JSON
+    cache_ok = True
+
+    def process_bind_param(
+        self, value: list[LLMDeployment] | None, dialect: Dialect
+    ) -> list[dict[str, Any]] | None:
+        if value is None:
+            return None
+        return [deployment.model_dump(mode="json") for deployment in value]
+
+    def process_result_value(
+        self, value: list[dict[str, Any]] | None, dialect: Dialect
+    ) -> list[LLMDeployment] | None:
+        if value is None:
+            return None
+        return [LLMDeployment(**deployment) for deployment in value]
 
 
 class SearchHistoryORM(Base):
@@ -42,6 +64,11 @@ class SettingsORM(Base):
     hourly_limit: Mapped[int]
     min_delay_ms: Mapped[int]
     delay_jitter_ms: Mapped[int]
+
+    llm_deployments: Mapped[list[LLMDeployment]] = mapped_column(
+        LLMDeploymentList, default=list
+    )
+    llm_system_prompt: Mapped[str | None] = mapped_column(default=None)
 
 
 class VacancyORM(Base):

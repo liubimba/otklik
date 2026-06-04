@@ -1,7 +1,7 @@
 from headhunter_backend.api.schemas import SettingsAPISchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from headhunter_backend.db.crud import get_settings, count_submissions_since
-from headhunter_backend.db.converters import settings_to_model
+from headhunter_backend.db.converters import settings_to_schema
 from datetime import datetime, timedelta
 
 
@@ -14,7 +14,7 @@ class RateLimitExceeded(Exception):
 
 
 async def ensure_within_limits(session: AsyncSession) -> None:
-    settings: SettingsAPISchema = settings_to_model(
+    settings: SettingsAPISchema = settings_to_schema(
         orm=await get_settings(session=session)
     )
     now: datetime = datetime.now()

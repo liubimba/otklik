@@ -42,7 +42,7 @@ async def count_submissions_since(session: AsyncSession, since: datetime) -> int
 async def get_settings(session: AsyncSession) -> SettingsORM:
     settings: SettingsORM | None = await session.get(SettingsORM, 1)
     if settings is None:
-        settings = settings_to_orm(model=SettingsAPISchema())
+        settings = settings_to_orm(schema=SettingsAPISchema())
         session.add(settings)
         await session.commit()
     return settings
@@ -58,6 +58,8 @@ async def update_settings(
     settings.letter_style = new_settings.letter_style
     settings.resume_text = new_settings.resume_text
     settings.min_delay_ms = new_settings.min_delay_ms
+    settings.llm_deployments = new_settings.llm_deployments
+    settings.llm_system_prompt = new_settings.llm_system_prompt
     await session.commit()
     return settings
 

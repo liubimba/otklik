@@ -8,6 +8,7 @@ from starlette.requests import HTTPConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 from headhunter_backend.orchestrator.search import SearchService
 from headhunter_backend.db.session import get_session
+from headhunter_backend.ai.layer import AILayer
 
 
 def get_browser(request: HTTPConnection) -> BrowserCore:
@@ -30,9 +31,14 @@ def get_search_service(request: HTTPConnection) -> SearchService:
     return request.app.state.search_service  # type: ignore[no-any-return]
 
 
+def get_ai_layer(request: HTTPConnection) -> AILayer:
+    return request.app.state.ai_layer  # type: ignore[no-any-return]
+
+
 BrowserDep = Annotated[BrowserCore, Depends(get_browser)]
 BroadcasterDep = Annotated[EventBroadcaster, Depends(get_broadcaster)]
 OrchestratorDep = Annotated[Orchestrator, Depends(get_orchestrator)]
 WriterDep = Annotated[BrowserWriter, Depends(get_writer)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]
+AILayerDep = Annotated[AILayer, Depends(get_ai_layer)]

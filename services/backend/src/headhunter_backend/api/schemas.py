@@ -1,7 +1,22 @@
-from typing import Self, Literal
+from typing import Self, Literal, Optional
 from enum import Enum
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 from headhunter_backend.domain.enums import ProcessingState
+from headhunter_backend.ai.deployment import LLMDeployment
+
+
+class AICoverLetterResponseAPISchema(BaseModel):
+    text: str
+    model_used: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    was_fallback: bool
+    cost_usd: Optional[float] = None
+
+
+class AIHealthStatusAPISchema(BaseModel):
+    status: str
 
 
 class SearchStatusAPISchema(str, Enum):
@@ -53,9 +68,15 @@ class RateLimitsAPISchema(BaseModel):
     delay_jitter_ms: int = 400
 
 
-class SettingsAPISchema(BaseModel):
-    letter_style: str = ""
+class LLMSettingsAPISchema(BaseModel):
     resume_text: str = ""
+    letter_style: str = ""
+    system_prompt: Optional[str] = None
+    deployments: list[LLMDeployment] = Field(default_factory=list)
+
+
+class SettingsAPISchema(BaseModel):
+    llm: LLMSettingsAPISchema = Field(default_factory=LLMSettingsAPISchema)
     rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
 
 

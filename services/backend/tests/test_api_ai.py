@@ -50,7 +50,7 @@ def test_create_cover_letter_409_when_not_ready(
 
 
 def test_create_cover_letter_happy_path(
-    client: TestClient, ai_layer_with_router: AILayer, monkeypatch
+    client: TestClient, ai_layer_with_router: AILayer
 ):
     ai_layer_with_router._router.acompletion.return_value = _fake_model_response(
         content="hello"

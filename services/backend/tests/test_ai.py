@@ -59,7 +59,7 @@ async def test_ai_generate_cover_letter_no_deployments(
 
 
 async def test_ai_generate_cover_letter(
-    make_ai_layer, vacancy_model: VacancyModel, monkeypatch
+    make_ai_layer, vacancy_model: VacancyModel
 ) -> None:
     layer: AILayer = make_ai_layer(
         [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="test-key")]

@@ -1,7 +1,22 @@
 from typing import Literal
 from pydantic import BaseModel
-from headhunter_backend.domain.models import VacancyModel
-from headhunter_backend.api.schemas import AuthStatus
+from headhunter_backend.api.schemas import (
+    AuthStatusAPISchema,
+    ProcessingState,
+    VacancyAPISchema,
+)
+
+
+class ApplicationData(BaseModel):
+    vacancy_id: int
+    application_id: int
+    status: ProcessingState
+    reason: str | None = None
+
+
+class ApplicationWSEvent(BaseModel):
+    type: Literal["application_event"] = "application_event"
+    data: ApplicationData
 
 
 class SearchData(BaseModel):
@@ -11,7 +26,7 @@ class SearchData(BaseModel):
     status: str
 
 
-class SearchEvent(BaseModel):
+class SearchWSEvent(BaseModel):
     type: Literal["search_event"] = "search_event"
     data: SearchData
 
@@ -21,29 +36,17 @@ class CaptchaData(BaseModel):
     application_id: int
 
 
-class CaptchaEvent(BaseModel):
+class CaptchaWSEvent(BaseModel):
     type: Literal["captcha_event"] = "captcha_event"
     data: CaptchaData
 
 
-class VacancyEvent(BaseModel):
+class VacancyWSEvent(BaseModel):
     type: Literal["vacancy_new"] = "vacancy_new"
-    data: VacancyModel
+    data: VacancyAPISchema
     search_id: str | None = None
 
 
-class AuthEvent(BaseModel):
+class AuthWSEvent(BaseModel):
     type: Literal["auth_changed"] = "auth_changed"
-    data: AuthStatus
-
-
-class SubmissionData(BaseModel):
-    vacancy_id: int
-    application_id: int
-    succeeded: bool
-    reason: str | None = None
-
-
-class SubmissionEvent(BaseModel):
-    type: Literal["submission_event"] = "submission_event"
-    data: SubmissionData
+    data: AuthStatusAPISchema

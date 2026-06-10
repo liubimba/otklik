@@ -6,7 +6,7 @@ from litellm import (
     ModelResponse,
 )
 from litellm.router import Router
-from headhunter_backend.domain.models import VacancyModel
+from headhunter_backend.api.schemas import VacancyAPISchema
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.ai.prompts import PromptBuilder
 from headhunter_backend.ai.exceptions import GenerationCoverLetterException
@@ -22,7 +22,7 @@ class AILayer:
 
     async def generate_cover_letter(
         self,
-        vacancy_model: VacancyModel,
+        vacancy_model: VacancyAPISchema,
         resume: str,
         style: str,
         system_prompt: str | None = None,

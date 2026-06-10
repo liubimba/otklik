@@ -9,11 +9,14 @@ from headhunter_backend.orchestrator.search import (
     SearchService,
     SearchAlreadyRunning,
 )
-from headhunter_backend.api.schemas import SearchRequestAPISchema, SearchStatusAPISchema
+from headhunter_backend.api.schemas import (
+    SearchRequestAPISchema,
+    SearchStatusAPISchema,
+    VacancyAPISchema,
+)
 from headhunter_backend.browser.selectors import HHRU_SELECTORS, Selectors
 from headhunter_backend.db.models import VacancyORM
-from headhunter_backend.domain.models import VacancyModel
-from headhunter_backend.api.events import SearchEvent
+from headhunter_backend.api.events import SearchWSEvent, VacancyWSEvent
 
 from tests.conftest import RecordingBroadcaster, wait_until
 
@@ -51,13 +54,13 @@ class FakeBrowserCore:
 class FakeParser:
     """Возвращает разную пачку вакансий на каждом вызове parse() — имитирует страницы."""
 
-    def __init__(self, batches: list[list[VacancyModel]]) -> None:
+    def __init__(self, batches: list[list[VacancyAPISchema]]) -> None:
         self._batches = list(batches)
         self.calls = 0
 
     async def parse(
         self, search_page: FakeBrowserPage, selectors: Selectors
-    ) -> AsyncIterator[VacancyModel]:
+    ) -> AsyncIterator[VacancyAPISchema]:
         idx = self.calls
         self.calls += 1
         if idx >= len(self._batches):
@@ -71,7 +74,7 @@ class SlowParser:
 
     async def parse(
         self, search_page: FakeBrowserPage, selectors: Selectors
-    ) -> AsyncIterator[VacancyModel]:
+    ) -> AsyncIterator[VacancyAPISchema]:
         await asyncio.sleep(10)
         yield _vacancy(0)  # никогда не доходит
 
@@ -79,8 +82,8 @@ class SlowParser:
 # ─ Helpers ───────────────────────────────────────────────────────────
 
 
-def _vacancy(i: int) -> VacancyModel:
-    return VacancyModel(
+def _vacancy(i: int) -> VacancyAPISchema:
+    return VacancyAPISchema(
         title=f"v{i}",
         apply_link=f"https://hh.ru/vacancy/{i}",
         description=f"desc {i}",
@@ -143,10 +146,34 @@ async def test_start_search_persists_and_finishes(
         assert count == 2
 
     search_events = [
-        e for e in recording_broadcaster.events if isinstance(e, SearchEvent)
+        e for e in recording_broadcaster.events if isinstance(e, SearchWSEvent)
     ]
     assert len(search_events) >= 2
     assert search_events[-1].data.status == SearchStatusAPISchema.FINISHED
+
+
+async def test_publishes_vacancy_new_event_per_parsed_vacancy(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """SearchService must publish a VacancyWSEvent after each upsert_vacancy.
+    Without it AutoApplyService never gets triggered and UI VacancyList never
+    refreshes live."""
+    parser = FakeParser([[_vacancy(1), _vacancy(2)]])
+    svc = _make_service(
+        fake_browser_core, parser, recording_broadcaster, session_factory
+    )
+
+    search_task = await svc.start_search(request=_filter(max_pages=1))
+    await search_task.task
+
+    vacancy_events = [
+        e for e in recording_broadcaster.events if isinstance(e, VacancyWSEvent)
+    ]
+    assert len(vacancy_events) == 2
+    apply_links = {e.data.apply_link for e in vacancy_events}
+    assert apply_links == {"https://hh.ru/vacancy/1", "https://hh.ru/vacancy/2"}
 
 
 async def test_second_start_search_raises_already_running(

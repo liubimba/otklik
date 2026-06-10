@@ -6,7 +6,7 @@ from headhunter_backend.db.crud import (
     get_application_by_vacancy_id,
 )
 from headhunter_backend.db.models import VacancyORM, SettingsORM, ApplicationORM
-from headhunter_backend.db.converters import vacancy_to_model
+from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.api.schemas import (
     AICoverLetterResponseAPISchema,
@@ -39,7 +39,7 @@ async def generate_cover_letter(
         )
     settings_orm: SettingsORM = await get_settings(session=session)
     cover_letter: AICoverLetterResult = await ai_layer.generate_cover_letter(
-        vacancy_model=vacancy_to_model(row=vacancy_orm),
+        vacancy_model=vacancy_to_schema(row=vacancy_orm),
         resume=settings_orm.resume_text,
         style=settings_orm.letter_style,
         system_prompt=settings_orm.llm_system_prompt,

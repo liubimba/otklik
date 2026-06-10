@@ -3,13 +3,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from headhunter_backend.db.crud import upsert_vacancy
 from headhunter_backend.db.models import VacancyORM
-from headhunter_backend.domain.models import VacancyModel
+from headhunter_backend.api.schemas import VacancyAPISchema
 from headhunter_backend.db.models import (
     ApplicationORM,
     CoverLetterORM,
     SearchHistoryORM,
 )
-from headhunter_backend.db.converters import vacancy_to_model, vacancy_to_orm
+from headhunter_backend.db.converters import vacancy_to_schema, vacancy_to_orm
 from headhunter_backend.db.crud import (
     create_vacancy,
     get_vacancy,
@@ -27,11 +27,11 @@ from headhunter_backend.api.schemas import SearchStatusAPISchema
 
 
 async def test_vacancy_crud(
-    session_factory: async_sessionmaker[AsyncSession], vacancy_model: VacancyModel
+    session_factory: async_sessionmaker[AsyncSession], vacancy_model: VacancyAPISchema
 ) -> None:
     async with session_factory() as session:
         created: VacancyORM = await create_vacancy(
-            session=session, vacancy=vacancy_to_orm(model=vacancy_model)
+            session=session, vacancy=vacancy_to_orm(schema=vacancy_model)
         )
         vacancy_id: int = created.id
         assert vacancy_id is not None
@@ -50,7 +50,9 @@ async def test_vacancy_crud(
         assert by_id.work_formats == ["remote", "hybrid"]
         assert by_id.employment_types == ["full_time", "part_time"]
 
-        assert vacancy_to_model(row=by_id) == vacancy_model
+        # vacancy_model fixture has no id; the DB row always does.
+        expected = vacancy_model.model_dump(exclude={"id"})
+        assert vacancy_to_schema(row=by_id).model_dump(exclude={"id"}) == expected
 
     async with session_factory() as session:
         assert await delete_vacancy(session=session, vacancy_id=vacancy_id) is True
@@ -59,11 +61,11 @@ async def test_vacancy_crud(
 
 
 async def test_cover_letter_crud(
-    session_factory: async_sessionmaker[AsyncSession], vacancy_model: VacancyModel
+    session_factory: async_sessionmaker[AsyncSession], vacancy_model: VacancyAPISchema
 ) -> None:
     async with session_factory() as session:
         created_vacancy: VacancyORM = await create_vacancy(
-            session=session, vacancy=vacancy_to_orm(model=vacancy_model)
+            session=session, vacancy=vacancy_to_orm(schema=vacancy_model)
         )
         vacancy_id: int = created_vacancy.id
 
@@ -111,7 +113,7 @@ async def test_upsert_inserts_new_vacancy(
     async with session_factory() as session:
         v = await upsert_vacancy(
             session=session,
-            vacancy=VacancyModel(
+            vacancy=VacancyAPISchema(
                 title="Junior Dev",
                 apply_link="https://hh.ru/vacancy/1",
                 description="desc",
@@ -131,7 +133,7 @@ async def test_upsert_updates_existing_vacancy(
     async with session_factory() as session:
         await upsert_vacancy(
             session=session,
-            vacancy=VacancyModel(
+            vacancy=VacancyAPISchema(
                 title="old",
                 apply_link=apply_link,
                 description="old",
@@ -142,7 +144,7 @@ async def test_upsert_updates_existing_vacancy(
 
         await upsert_vacancy(
             session=session,
-            vacancy=VacancyModel(
+            vacancy=VacancyAPISchema(
                 title="new",
                 apply_link=apply_link,
                 description="new",
@@ -171,14 +173,14 @@ async def test_upsert_preserves_id_and_apply_link(
     async with session_factory() as session:
         first = await upsert_vacancy(
             session=session,
-            vacancy=VacancyModel(title="A", apply_link=apply_link, description="a"),
+            vacancy=VacancyAPISchema(title="A", apply_link=apply_link, description="a"),
         )
         await session.commit()
         original_id = first.id
 
         second = await upsert_vacancy(
             session=session,
-            vacancy=VacancyModel(title="B", apply_link=apply_link, description="b"),
+            vacancy=VacancyAPISchema(title="B", apply_link=apply_link, description="b"),
         )
         await session.commit()
 

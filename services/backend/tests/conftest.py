@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 from headhunter_backend.log import configure_logging
-from headhunter_backend.domain.enums import WorkFormat, EmploymentType
+from headhunter_backend.api.schemas import WorkFormat, EmploymentType
 from headhunter_backend.api.app import app
 from headhunter_backend.api.dependencies import (
     get_ai_layer,
@@ -13,7 +13,7 @@ from headhunter_backend.api.dependencies import (
     get_search_service,
 )
 from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.schemas import AuthStatus
+from headhunter_backend.api.schemas import AuthStatusAPISchema
 from headhunter_backend.db.base import Base
 from headhunter_backend.orchestrator.queue import Orchestrator
 from headhunter_backend.db.converters import vacancy_to_orm
@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 import uuid
 import asyncio
-from headhunter_backend.domain.models import VacancyModel
+from headhunter_backend.api.schemas import VacancyAPISchema
 from headhunter_backend.db.session import apply_sqlite_pragmas
 from headhunter_backend.browser.writer import SubmitResult
 from headhunter_backend.db.crud import create_vacancy
@@ -63,13 +63,13 @@ class RecordingBroadcaster(EventBroadcaster):
 
 class FakeBrowser:
     def __init__(self):
-        self._authenticated = AuthStatus.unauthorized()
+        self._authenticated = AuthStatusAPISchema.unauthorized()
 
-    async def get_auth_status(self) -> AuthStatus:
+    async def get_auth_status(self) -> AuthStatusAPISchema:
         return self._authenticated
 
     async def wait_for_login(self, poll_interval: float = 1.0) -> None:
-        self._authenticated = AuthStatus.authorized()
+        self._authenticated = AuthStatusAPISchema.authorized()
 
 
 class FakeSearchService:
@@ -118,7 +118,7 @@ class FakeWriter:
 
 @pytest.fixture
 def authenticated_browser(fake_browser: FakeBrowser) -> FakeBrowser:
-    fake_browser._authenticated = AuthStatus.authorized()
+    fake_browser._authenticated = AuthStatusAPISchema.authorized()
     return fake_browser
 
 
@@ -187,7 +187,7 @@ async def client(
     recording_broadcaster: RecordingBroadcaster,
     fake_orchestrator: Orchestrator,
     fake_writer: FakeWriter,
-    vacancy_model: VacancyModel,
+    vacancy_model: VacancyAPISchema,
     session_factory: async_sessionmaker[AsyncSession],
     fake_search_service: FakeSearchService,
     ai_layer_with_router: AILayer,
@@ -214,8 +214,8 @@ async def client(
 
 
 @pytest.fixture
-def vacancy_model() -> VacancyModel:
-    return VacancyModel(
+def vacancy_model() -> VacancyAPISchema:
+    return VacancyAPISchema(
         title="Python Developer",
         apply_link="https://hh.ru/vacancy/12345",
         description="Build and ship backend services.",

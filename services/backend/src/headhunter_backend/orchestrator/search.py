@@ -4,17 +4,19 @@ from headhunter_backend.browser.parser import Parser
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.browser.selectors import Selectors
 from headhunter_backend.api.schemas import SearchRequestAPISchema, SearchStatusAPISchema
+from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.db.crud import (
     upsert_vacancy,
     create_search_history,
     update_search_history,
 )
+from headhunter_backend.db.models import VacancyORM
 from headhunter_backend.log import get_logger
 import asyncio
 import urllib
 import uuid
 from enum import Enum
-from headhunter_backend.api.events import SearchData, SearchEvent
+from headhunter_backend.api.events import SearchData, SearchWSEvent, VacancyWSEvent
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from dataclasses import dataclass, field
 from statemachine import StateMachine
@@ -130,12 +132,20 @@ class SearchService:
         try:
             await self._update_search_history(search_task=search_task)
             while True:
-                async for vacancy_model in self._parser.parse(
+                async for parsed_vacancy in self._parser.parse(
                     search_page=search_page, selectors=self._selectors
                 ):
                     async with self._session_maker() as session:
-                        await upsert_vacancy(session=session, vacancy=vacancy_model)
+                        vacancy_orm: VacancyORM = await upsert_vacancy(
+                            session=session, vacancy=parsed_vacancy
+                        )
                         await session.commit()
+                        await self._broadcaster.publish(
+                            event=VacancyWSEvent(
+                                data=vacancy_to_schema(row=vacancy_orm),
+                                search_id=search_id,
+                            )
+                        )
                         search_task.parsed_count += 1
                         await self._publish_event(search_task=search_task)
                         await self._update_search_history(search_task=search_task)
@@ -172,7 +182,7 @@ class SearchService:
 
     async def _publish_event(self, search_task: SearchTask) -> None:
         await self._broadcaster.publish(
-            event=SearchEvent(
+            event=SearchWSEvent(
                 data=SearchData(
                     search_id=search_task.id,
                     parsed_vacancies=search_task.parsed_count,

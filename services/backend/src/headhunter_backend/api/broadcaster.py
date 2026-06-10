@@ -1,20 +1,22 @@
-from fastapi import WebSocket
+import asyncio
 from pydantic import BaseModel
 from headhunter_backend.log import get_logger
+from headhunter_backend.api.subscribers import EventSubscriberInterface
 
 
 class EventBroadcaster:
     def __init__(self) -> None:
-        self._subscribers: set[WebSocket] = set()
+        self._subscribers: set[EventSubscriberInterface] = set()
+        self._pending: set[asyncio.Task[None]] = set()
         self._logger = get_logger(self.__class__.__name__)
 
-    def register(self, ws: WebSocket) -> None:
-        self._logger.info(f"Registering WebSocket: {ws.client}")
-        self._subscribers.add(ws)
+    def register(self, subscriber: EventSubscriberInterface) -> None:
+        self._logger.info(f"Registering subscriber: {subscriber}")
+        self._subscribers.add(subscriber)
 
-    def unregister(self, ws: WebSocket) -> None:
-        self._logger.info(f"Unregistering WebSocket: {ws.client}")
-        self._subscribers.discard(ws)
+    def unregister(self, subscriber: EventSubscriberInterface) -> None:
+        self._logger.info(f"Unregistering subscriber: {subscriber}")
+        self._subscribers.discard(subscriber)
 
     async def publish(self, event: BaseModel) -> None:
         if event.model_dump().get("type") is None:
@@ -22,11 +24,20 @@ class EventBroadcaster:
         if event.model_dump().get("data") is None:
             raise ValueError("Event must have a 'data' field")
         self._logger.info(f"Publishing event: {event.model_dump()}")
-        dead: list[WebSocket] = []
-        for ws in self._subscribers:
-            try:
-                await ws.send_text(event.model_dump_json())
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            self.unregister(ws)
+        for subscriber in list(self._subscribers):
+            task = asyncio.create_task(
+                self._deliver(subscriber=subscriber, event=event)
+            )
+            self._pending.add(task)
+            task.add_done_callback(self._pending.discard)
+
+    async def _deliver(
+        self, subscriber: EventSubscriberInterface, event: BaseModel
+    ) -> None:
+        try:
+            await subscriber.accept(event=event)
+        except Exception as e:
+            self._logger.warning(
+                f"Subscriber {subscriber} raised, unregistering: {e!r}"
+            )
+            self.unregister(subscriber=subscriber)

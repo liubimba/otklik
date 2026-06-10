@@ -1,10 +1,19 @@
-from headhunter_backend.db.models import VacancyORM, SettingsORM, SearchHistoryORM
-from headhunter_backend.domain.enums import EmploymentType, WorkFormat
-from headhunter_backend.domain.models import VacancyModel, SearchHistoryModel
+from headhunter_backend.db.models import (
+    VacancyORM,
+    SettingsORM,
+    SearchHistoryORM,
+    ApplicationORM,
+)
 from headhunter_backend.api.schemas import (
+    EmploymentType,
+    WorkFormat,
+    VacancyAPISchema,
+    SearchHistoryAPISchema,
     LLMSettingsAPISchema,
     SettingsAPISchema,
     RateLimitsAPISchema,
+    UserSettingsAPISchema,
+    ApplicationAPISchema,
 )
 
 
@@ -18,6 +27,7 @@ def settings_to_orm(schema: SettingsAPISchema) -> SettingsORM:
         delay_jitter_ms=schema.rate_limits.delay_jitter_ms,
         llm_deployments=schema.llm.deployments,
         llm_system_prompt=schema.llm.system_prompt,
+        auto_submit=schema.user.auto_submit,
     )
 
 
@@ -35,29 +45,31 @@ def settings_to_schema(orm: SettingsORM) -> SettingsAPISchema:
             letter_style=orm.letter_style,
             resume_text=orm.resume_text,
         ),
+        user=UserSettingsAPISchema(auto_submit=orm.auto_submit),
     )
 
 
-def vacancy_to_orm(model: VacancyModel) -> VacancyORM:
+def vacancy_to_orm(schema: VacancyAPISchema) -> VacancyORM:
     return VacancyORM(
-        title=model.title,
-        apply_link=model.apply_link,
-        description=model.description,
-        company_stars=model.company_stars,
-        salary=model.salary,
-        company_name=model.company_name,
-        work_location=model.work_location,
-        updated_at=model.updated_at,
-        published_at=model.published_at,
-        work_experience=model.work_experience,
-        work_formats=[wf.value for wf in model.work_formats],
-        employment_types=[et.value for et in model.employment_types],
-        response_link=model.response_link,
+        title=schema.title,
+        apply_link=schema.apply_link,
+        description=schema.description,
+        company_stars=schema.company_stars,
+        salary=schema.salary,
+        company_name=schema.company_name,
+        work_location=schema.work_location,
+        updated_at=schema.updated_at,
+        published_at=schema.published_at,
+        work_experience=schema.work_experience,
+        work_formats=[wf.value for wf in schema.work_formats],
+        employment_types=[et.value for et in schema.employment_types],
+        response_link=schema.response_link,
     )
 
 
-def vacancy_to_model(row: VacancyORM) -> VacancyModel:
-    return VacancyModel(
+def vacancy_to_schema(row: VacancyORM) -> VacancyAPISchema:
+    return VacancyAPISchema(
+        id=row.id,
         title=row.title,
         apply_link=row.apply_link,
         description=row.description,
@@ -74,8 +86,8 @@ def vacancy_to_model(row: VacancyORM) -> VacancyModel:
     )
 
 
-def search_history_to_model(orm: SearchHistoryORM) -> SearchHistoryModel:
-    return SearchHistoryModel(
+def search_history_to_schema(orm: SearchHistoryORM) -> SearchHistoryAPISchema:
+    return SearchHistoryAPISchema(
         id=orm.id,
         url=orm.url,
         max_vacancies=orm.max_vacancies,
@@ -86,4 +98,16 @@ def search_history_to_model(orm: SearchHistoryORM) -> SearchHistoryModel:
         started_at=orm.started_at,
         finished_at=orm.finished_at,
         error=orm.error,
+    )
+
+
+def application_to_schema(orm: ApplicationORM) -> ApplicationAPISchema:
+    return ApplicationAPISchema(
+        vacancy_id=orm.vacancy_id,
+        retry_count=orm.retry_count,
+        application_id=orm.id,
+        created_at=orm.created_at,
+        status=orm.status,
+        updated_at=orm.updated_at,
+        error_message=orm.error_message,
     )

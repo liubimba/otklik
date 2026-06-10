@@ -3,7 +3,7 @@ import asyncio
 from patchright.async_api import async_playwright
 from pathlib import Path
 from headhunter_backend.log import get_logger
-from headhunter_backend.api.schemas import AuthStatus
+from headhunter_backend.api.schemas import AuthStatusAPISchema
 from .page import BrowserPage
 from patchright.async_api import BrowserContext, Playwright, Page, Cookie
 
@@ -24,7 +24,7 @@ class BrowserCore:
         self.base_url = base_url
         self._context: BrowserContext | None = None
         self._playwright: Playwright | None = None
-        self._auth_status = AuthStatus.unauthorized()
+        self._auth_status = AuthStatusAPISchema.unauthorized()
 
     async def start(self) -> None:
         self.logger.info(
@@ -45,12 +45,12 @@ class BrowserCore:
             await self._playwright.stop()
         self._context = None
         self._playwright = None
-        self._auth_status = AuthStatus.unauthorized()
+        self._auth_status = AuthStatusAPISchema.unauthorized()
 
-    async def get_auth_status(self) -> AuthStatus:
+    async def get_auth_status(self) -> AuthStatusAPISchema:
         if self._auth_status.status == "authorizing":
             return self._auth_status
-        self._auth_status = AuthStatus.from_boolean(
+        self._auth_status = AuthStatusAPISchema.from_boolean(
             authenticated=await self._is_authorized()
         )
         return self._auth_status
@@ -63,16 +63,16 @@ class BrowserCore:
         self.logger.info("Waiting for user to log in")
         if await self._is_authorized():
             self.logger.info("User is already authenenticated")
-            self._auth_status = AuthStatus.authorized()
+            self._auth_status = AuthStatusAPISchema.authorized()
             return
         page: BrowserPage = await self.new_page(f"{self.base_url}/login")
         await page.bring_to_front()
-        self._auth_status = AuthStatus.authorizing()
+        self._auth_status = AuthStatusAPISchema.authorizing()
         try:
             while not await self._is_authorized():
                 self.logger.info("User is not authenticated yet, waiting...")
                 await asyncio.sleep(poll_interval)
-            self._auth_status = AuthStatus.authorized()
+            self._auth_status = AuthStatusAPISchema.authorized()
             self.logger.info("User has logged in")
         finally:
             await page.close()

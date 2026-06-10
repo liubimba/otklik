@@ -8,11 +8,14 @@ from headhunter_backend.db.models import (
     RateLimitEventORM,
     SearchHistoryORM,
 )
-from headhunter_backend.api.schemas import SettingsAPISchema
+from headhunter_backend.api.schemas import (
+    ProcessingState,
+    SearchStatusAPISchema,
+    SettingsAPISchema,
+    VacancyAPISchema,
+)
 from collections.abc import Sequence
 from headhunter_backend.log import get_logger
-from headhunter_backend.domain.enums import ProcessingState
-from headhunter_backend.domain.models import VacancyModel
 from headhunter_backend.db.converters import settings_to_orm
 from headhunter_backend.orchestrator.state_machine import (
     ProcessingStateMachine,
@@ -20,7 +23,6 @@ from headhunter_backend.orchestrator.state_machine import (
 )
 from datetime import datetime
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from headhunter_backend.api.schemas import SearchStatusAPISchema
 from typing import Any
 
 logger = get_logger(__name__)
@@ -60,6 +62,7 @@ async def update_settings(
     settings.min_delay_ms = new_settings.min_delay_ms
     settings.llm_deployments = new_settings.llm_deployments
     settings.llm_system_prompt = new_settings.llm_system_prompt
+    settings.auto_submit = new_settings.auto_submit
     await session.commit()
     return settings
 
@@ -72,8 +75,13 @@ async def create_vacancy(session: AsyncSession, vacancy: VacancyORM) -> VacancyO
     return vacancy
 
 
-async def upsert_vacancy(session: AsyncSession, vacancy: VacancyModel) -> VacancyORM:
-    stmt = sqlite_insert(VacancyORM).values(**vacancy.model_dump(mode="json"))
+async def upsert_vacancy(
+    session: AsyncSession, vacancy: VacancyAPISchema
+) -> VacancyORM:
+    # id is excluded so SQLite autoincrement assigns it on insert and the
+    # on_conflict_do_update path never touches the primary key.
+    values = vacancy.model_dump(mode="json", exclude={"id"})
+    stmt = sqlite_insert(VacancyORM).values(**values)
     stmt = stmt.on_conflict_do_update(
         index_elements=[VacancyORM.apply_link],
         set_={
@@ -182,7 +190,12 @@ async def transition_application(
 
 
 async def list_applications(session: AsyncSession) -> Sequence[ApplicationORM]:
-    result = await session.execute(select(ApplicationORM))
+    result = await session.execute(
+        select(ApplicationORM).order_by(
+            ApplicationORM.updated_at.desc().nulls_last(),
+            ApplicationORM.created_at.desc(),
+        )
+    )
     return result.scalars().all()
 
 

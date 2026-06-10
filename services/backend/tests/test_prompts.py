@@ -1,9 +1,8 @@
 from headhunter_backend.ai.prompts import PromptBuilder
-from headhunter_backend.domain.enums import EmploymentType, WorkFormat
-from headhunter_backend.domain.models import VacancyModel
+from headhunter_backend.api.schemas import EmploymentType, VacancyAPISchema, WorkFormat
 
 
-def _make_vacancy(**overrides) -> VacancyModel:
+def _make_vacancy(**overrides) -> VacancyAPISchema:
     defaults: dict = dict(
         title="Python Developer",
         apply_link="https://hh.ru/vacancy/12345",
@@ -16,7 +15,7 @@ def _make_vacancy(**overrides) -> VacancyModel:
         work_experience="1-3 years",
     )
     defaults.update(overrides)
-    return VacancyModel(**defaults)
+    return VacancyAPISchema(**defaults)
 
 
 def _system(messages) -> str:

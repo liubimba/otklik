@@ -1,8 +1,85 @@
-from typing import Self, Literal, Optional
+from datetime import datetime
 from enum import Enum
+from typing import Optional, Literal, Self, Sequence
+
 from pydantic import BaseModel, Field, HttpUrl, field_validator
-from headhunter_backend.domain.enums import ProcessingState
+
 from headhunter_backend.ai.deployment import LLMDeployment
+
+
+class ProcessingState(str, Enum):
+    PARSED = "parsed"
+    LETTER_PENDING = "letter_pending"
+    LETTER_READY = "letter_ready"
+    LETTER_REVIEWING = "letter_reviewing"
+    LETTER_SENDING = "letter_sending"
+    LETTER_SENT = "letter_sent"
+    ERROR = "error"
+    SKIPPED = "skipped"
+
+
+class WorkFormat(str, Enum):
+    REMOTE = "remote"
+    ONSITE = "onsite"
+    HYBRID = "hybrid"
+    TRAVELING = "traveling"
+    UNKNOWN = "unknown"
+
+
+class EmploymentType(str, Enum):
+    FULL_TIME = "full_time"
+    ROTATIONAL = "rotational"
+    PART_TIME = "part_time"
+    SIDE_JOB = "side_job"
+    CONTRACT = "contract"
+    INTERNSHIP = "internship"
+    UNKNOWN = "unknown"
+
+
+class SearchStatusAPISchema(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    CANCELED = "canceled"
+    FINISHED = "exited"
+    FAILED = "failed"
+    INTERRUPTED = "interrupted"
+
+    def is_active(self) -> bool:
+        return self in (SearchStatusAPISchema.PENDING, SearchStatusAPISchema.RUNNING)
+
+
+class VacancyAPISchema(BaseModel):
+    # Optional because the parser produces a schema before the row is persisted
+    # and the autoincrement id only exists after upsert. Anything returned via
+    # REST or WS always carries a real id (converted from the ORM row).
+    id: Optional[int] = None
+    title: str
+    apply_link: str
+    description: str
+
+    response_link: Optional[str] = None
+    company_stars: Optional[str] = None
+    salary: Optional[str] = None
+    company_name: Optional[str] = None
+    work_location: Optional[str] = None
+    updated_at: Optional[str] = None
+    published_at: Optional[str] = None
+    work_formats: list[WorkFormat] = [WorkFormat.UNKNOWN]
+    employment_types: list[EmploymentType] = [EmploymentType.UNKNOWN]
+    work_experience: Optional[str] = None
+
+
+class SearchHistoryAPISchema(BaseModel):
+    id: str
+    url: str
+    max_vacancies: int
+    max_pages: int
+    status: SearchStatusAPISchema
+    parsed_vacancies: Optional[int]
+    parsed_pages: Optional[int]
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
+    error: Optional[str]
 
 
 class AICoverLetterResponseAPISchema(BaseModel):
@@ -17,18 +94,6 @@ class AICoverLetterResponseAPISchema(BaseModel):
 
 class AIHealthStatusAPISchema(BaseModel):
     status: str
-
-
-class SearchStatusAPISchema(str, Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    CANCELED = "canceled"
-    FINISHED = "exited"
-    FAILED = "failed"
-    INTERRUPTED = "interrupted"
-
-    def is_active(self) -> bool:
-        return self in (SearchStatusAPISchema.PENDING, SearchStatusAPISchema.RUNNING)
 
 
 class SearchRequestAPISchema(BaseModel):
@@ -51,16 +116,26 @@ class SearchResponseAPISchema(BaseModel):
     parsed_vacancies: int
 
 
-class ApplicationStatusResponseAPISchema(BaseModel):
+class ApplicationAPISchema(BaseModel):
     vacancy_id: int
+    retry_count: int
+    application_id: int
     status: ProcessingState
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    error_message: Optional[str] = None
 
 
-class CoverLetterRequest(BaseModel):
+class CoverLetterRequestAPISchema(BaseModel):
     text: str
 
 
-## Settings
+class CoverLetterResponseAPISchema(BaseModel):
+    text: str
+    version: int
+    created_at: datetime
+
+
 class RateLimitsAPISchema(BaseModel):
     daily_limit: int = 30
     hourly_limit: int = 5
@@ -75,13 +150,17 @@ class LLMSettingsAPISchema(BaseModel):
     deployments: list[LLMDeployment] = Field(default_factory=list)
 
 
+class UserSettingsAPISchema(BaseModel):
+    auto_submit: bool = False
+
+
 class SettingsAPISchema(BaseModel):
+    user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
     llm: LLMSettingsAPISchema = Field(default_factory=LLMSettingsAPISchema)
     rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
 
 
-## Auth
-class AuthStatus(BaseModel):
+class AuthStatusAPISchema(BaseModel):
     status: Literal["authorized", "unauthorized", "authorizing"]
 
     def is_authorized(self) -> bool:
@@ -102,3 +181,21 @@ class AuthStatus(BaseModel):
     @classmethod
     def from_boolean(cls, authenticated: bool) -> Self:
         return cls.authorized() if authenticated else cls.unauthorized()
+
+
+class OrchestratorStatusAPISchema(BaseModel):
+    reason: Optional[str] = None
+    paused: bool
+    queue_size: int
+    queue: Sequence[int] = Field(default_factory=list)
+
+
+class RateLimitInfoAPISchema(BaseModel):
+    used: int
+    limit: int
+    resets_at: datetime
+
+
+class RateLimitsBudgetAPISchema(BaseModel):
+    hourly: RateLimitInfoAPISchema
+    daily: RateLimitInfoAPISchema

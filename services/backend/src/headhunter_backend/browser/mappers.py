@@ -1,4 +1,4 @@
-from headhunter_backend.domain.enums import WorkFormat, EmploymentType
+from headhunter_backend.api.schemas import WorkFormat, EmploymentType
 
 
 class WorkFormatMapper:

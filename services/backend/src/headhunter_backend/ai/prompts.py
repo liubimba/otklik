@@ -1,5 +1,4 @@
-from headhunter_backend.domain.models import VacancyModel
-from headhunter_backend.domain.enums import WorkFormat, EmploymentType
+from headhunter_backend.api.schemas import VacancyAPISchema, WorkFormat, EmploymentType
 from litellm import (
     AllMessageValues,
     ChatCompletionUserMessage,
@@ -26,7 +25,7 @@ class PromptBuilder:
 
     def build_cover_letter_prompt(
         self,
-        vacancy_model: VacancyModel,
+        vacancy_model: VacancyAPISchema,
         resume: str,
         style: str,
         system_prompt: str | None = None,
@@ -58,7 +57,7 @@ class PromptBuilder:
         )
         return [system_message, user_message]
 
-    def _render_vacancy_summary(self, vacancy_model: VacancyModel) -> str:
+    def _render_vacancy_summary(self, vacancy_model: VacancyAPISchema) -> str:
         fields: list[tuple[str, str | None]] = [
             ("Position", vacancy_model.title),
             ("Company", vacancy_model.company_name),

@@ -9,7 +9,7 @@ from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.mappers import EmploymentTypeMapper, WorkFormatMapper
 from headhunter_backend.browser.page import BrowserPage
 from headhunter_backend.browser.selectors import Selectors
-from headhunter_backend.domain.models import VacancyModel
+from headhunter_backend.api.schemas import VacancyAPISchema
 from headhunter_backend.log import get_logger
 
 # A hh.ru search result may link through an ad-tracking redirect instead of
@@ -29,7 +29,7 @@ class Parser:
 
     async def parse(
         self, search_page: BrowserPage, selectors: Selectors
-    ) -> AsyncIterator[VacancyModel]:
+    ) -> AsyncIterator[VacancyAPISchema]:
         """Stream every vacancy from an open hh.ru search page, page by page.
 
         The caller hands over a search page with filters already applied and
@@ -163,8 +163,8 @@ class Parser:
         vacancy_page: BrowserPage | None,
         href: str | None,
         selectors: Selectors,
-    ) -> VacancyModel | None:
-        """Parse a single vacancy detail page into a VacancyModel."""
+    ) -> VacancyAPISchema | None:
+        """Parse a single vacancy detail page into a VacancyAPISchema."""
         if vacancy_page is None or href is None:
             return None
 
@@ -197,7 +197,7 @@ class Parser:
         )
 
         self._logger.info(f"Parsed vacancy: {href}")
-        return VacancyModel(
+        return VacancyAPISchema(
             title=title,
             apply_link=href,
             description=description,

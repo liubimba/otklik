@@ -5,8 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from headhunter_backend.db.base import Base
-from headhunter_backend.domain.enums import ProcessingState
-from headhunter_backend.api.schemas import SearchStatusAPISchema
+from headhunter_backend.api.schemas import ProcessingState, SearchStatusAPISchema
 from headhunter_backend.ai.deployment import LLMDeployment
 
 
@@ -64,6 +63,8 @@ class SettingsORM(Base):
     hourly_limit: Mapped[int]
     min_delay_ms: Mapped[int]
     delay_jitter_ms: Mapped[int]
+
+    auto_submit: Mapped[bool] = mapped_column(default=False)
 
     llm_deployments: Mapped[list[LLMDeployment]] = mapped_column(
         LLMDeploymentList, default=list

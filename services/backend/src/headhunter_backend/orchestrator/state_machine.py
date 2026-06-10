@@ -1,6 +1,6 @@
 from statemachine import StateMachine
 from statemachine.states import States
-from headhunter_backend.domain.enums import ProcessingState
+from headhunter_backend.api.schemas import ProcessingState
 from enum import Enum
 
 
@@ -23,7 +23,11 @@ class ProcessingStateMachine(StateMachine):
     )
 
     enqueue_for_letter = _.PARSED.to(_.LETTER_PENDING)
-    letter_generated = _.LETTER_PENDING.to(_.LETTER_READY)
+    letter_generated = (
+        _.LETTER_PENDING.to(_.LETTER_READY)
+        | _.LETTER_READY.to(_.LETTER_READY)
+        | _.LETTER_REVIEWING.to(_.LETTER_REVIEWING)
+    )
     send_for_review = _.LETTER_READY.to(_.LETTER_REVIEWING)
     submit = _.LETTER_READY.to(_.LETTER_SENDING) | _.LETTER_REVIEWING.to(
         _.LETTER_SENDING

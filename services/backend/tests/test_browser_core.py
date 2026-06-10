@@ -1,5 +1,5 @@
 import sys
-from headhunter_backend.api.schemas import AuthStatus
+from headhunter_backend.api.schemas import AuthStatusAPISchema
 from headhunter_backend.browser import BrowserCore
 import pytest
 
@@ -19,7 +19,7 @@ async def test_browser_core_authentication(tmp_path):
     browser_core: BrowserCore = BrowserCore(profile_dir=tmp_path / "test-profile")
     await browser_core.start()
     try:
-        status: AuthStatus = await browser_core.get_auth_status()
+        status: AuthStatusAPISchema = await browser_core.get_auth_status()
         assert (
             not status.is_authorized()
         ), "Expected user to not be authenticated initially"

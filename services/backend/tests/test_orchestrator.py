@@ -3,8 +3,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from headhunter_backend.db.models import ApplicationORM
 from headhunter_backend.db.crud import create_application, create_vacancy
 from headhunter_backend.db.converters import vacancy_to_orm
-from headhunter_backend.domain.models import VacancyModel
-from headhunter_backend.domain.enums import ProcessingState
+from headhunter_backend.api.schemas import ProcessingState, VacancyAPISchema
 from tests.conftest import (
     FakeWriter,
     FakeBrowser,
@@ -21,7 +20,7 @@ from headhunter_backend.db.crud import (
     get_application_by_id,
 )
 from headhunter_backend.db.models import RateLimitEventORM
-from headhunter_backend.api.events import SubmissionEvent, CaptchaEvent
+from headhunter_backend.api.events import CaptchaWSEvent, ApplicationWSEvent
 from sqlalchemy import select, func
 
 
@@ -34,7 +33,7 @@ async def test_recover_from_db_pushes_applications(
             await create_vacancy(
                 session=session,
                 vacancy=vacancy_to_orm(
-                    VacancyModel(
+                    VacancyAPISchema(
                         title="test", apply_link=f"test{_}", description="test"
                     )
                 ),
@@ -83,7 +82,7 @@ async def seed_app_in_letter_sending(
         await create_vacancy(
             session=session,
             vacancy=vacancy_to_orm(
-                VacancyModel(
+                VacancyAPISchema(
                     title="t",
                     apply_link=apply_link,
                     response_link=response_link,
@@ -164,10 +163,10 @@ async def test_consume_submitted_transitions_and_logs(
 
         # событие SubmissionEvent(succeeded=True)
         submissions = [
-            e for e in recording_broadcaster.events if isinstance(e, SubmissionEvent)
+            e for e in recording_broadcaster.events if isinstance(e, ApplicationWSEvent)
         ]
         assert len(submissions) == 1
-        assert submissions[0].data.succeeded is True
+        assert submissions[0].data.status is ProcessingState.LETTER_SENT
         assert submissions[0].data.application_id == app_id
     finally:
         await stop_consumer(task)
@@ -201,10 +200,10 @@ async def test_consume_failed_transitions_to_error(
         await wait_until(status_is_error)
 
         submissions = [
-            e for e in recording_broadcaster.events if isinstance(e, SubmissionEvent)
+            e for e in recording_broadcaster.events if isinstance(e, ApplicationWSEvent)
         ]
         assert len(submissions) == 1
-        assert submissions[0].data.succeeded is False
+        assert submissions[0].data.status is ProcessingState.ERROR
         assert submissions[0].data.reason == "boom"
     finally:
         await stop_consumer(task)
@@ -244,7 +243,7 @@ async def test_consume_captcha_pauses_and_reenqueues(
             assert app.status == ProcessingState.LETTER_SENDING
 
         captchas = [
-            e for e in recording_broadcaster.events if isinstance(e, CaptchaEvent)
+            e for e in recording_broadcaster.events if isinstance(e, CaptchaWSEvent)
         ]
         assert len(captchas) == 1
         assert captchas[0].data.application_id == app_id
@@ -282,7 +281,7 @@ async def test_consume_not_authorized_fails(
         # Writer не должен был вызываться
         assert fake_writer.calls == []
         submissions = [
-            e for e in recording_broadcaster.events if isinstance(e, SubmissionEvent)
+            e for e in recording_broadcaster.events if isinstance(e, ApplicationWSEvent)
         ]
         assert len(submissions) == 1
         assert submissions[0].data.reason == "not authorized"
@@ -337,7 +336,7 @@ async def test_consume_missing_cover_letter_fails(
         await create_vacancy(
             session=session,
             vacancy=vacancy_to_orm(
-                VacancyModel(
+                VacancyAPISchema(
                     title="t",
                     apply_link="https://hh.ru/vacancy/1",
                     response_link="https://hh.ru/applicant/vacancy_response?vacancyId=1",

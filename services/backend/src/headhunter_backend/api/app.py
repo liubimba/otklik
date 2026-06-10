@@ -9,6 +9,8 @@ from headhunter_backend.api.routes import (
     auth,
     orchestrator,
     ai,
+    rate_limits,
+    applications,
 )
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.log import configure_logging, get_logger
@@ -30,6 +32,7 @@ from typing import Any
 from datetime import datetime
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from headhunter_backend.orchestrator.apply_service import AutoApplyService
 
 logger = get_logger(__name__)
 
@@ -65,6 +68,12 @@ async def lifespan(app: FastAPI) -> Any:
         selectors=HHRU_SELECTORS,
     )
     app.state.ai_layer = await bootstrap_ai_layer(maker=session_maker)
+    app.state.apply_service = AutoApplyService(
+        session_maker=session_maker,
+        ai_layer=app.state.ai_layer,
+        orchestrator=app.state.orchestrator,
+    )
+    app.state.apply_service.start(broadcaster=app.state.broadcaster)
     async with session_maker() as session:
         recovered_count: int = await app.state.orchestrator.recover_from_db(
             session=session
@@ -78,6 +87,7 @@ async def lifespan(app: FastAPI) -> Any:
                     status=SearchStatusAPISchema.INTERRUPTED,
                 )
         logger.info(f"Recovered {recovered_count} applications from the database.")
+
     apply_sqlite_pragmas(target_engine=engine)
     await app.state.browser.start()
 
@@ -110,6 +120,8 @@ router.include_router(settings.settings_router)
 router.include_router(auth.auth_router)
 router.include_router(orchestrator.orchestrator_router)
 router.include_router(ai.ai_router)
+router.include_router(rate_limits.rate_limits_router)
+router.include_router(applications.applications_router)
 
 app = FastAPI(title="Headhunter Backend API", version="0.0.1", lifespan=lifespan)
 app.include_router(router)

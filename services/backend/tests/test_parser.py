@@ -6,7 +6,7 @@ import pytest
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.parser import Parser
 from headhunter_backend.browser.selectors import HHRU_SELECTORS
-from headhunter_backend.domain.models import VacancyModel
+from headhunter_backend.api.schemas import VacancyAPISchema
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "linux",
@@ -31,7 +31,7 @@ async def test_parser_returns_fifty_vacancies(tmp_path: Path) -> None:
     browser = BrowserCore(profile_dir=tmp_path / "test-profile")
     await browser.start()
 
-    vacancies: list[VacancyModel] = []
+    vacancies: list[VacancyAPISchema] = []
     try:
         # The caller prepares the search page. Open a blank page first so the
         # search URL loads exactly once, already at the mobile viewport.

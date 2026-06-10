@@ -21,9 +21,9 @@ from headhunter_backend.browser.writer import (
 from headhunter_backend.browser.selectors import Selectors
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.events import (
-    SubmissionEvent,
-    SubmissionData,
-    CaptchaEvent,
+    ApplicationData,
+    ApplicationWSEvent,
+    CaptchaWSEvent,
     CaptchaData,
 )
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
@@ -31,8 +31,7 @@ from headhunter_backend.orchestrator.rate_limiter import (
     ensure_within_limits,
     RateLimitExceeded,
 )
-from headhunter_backend.api.schemas import AuthStatus
-from headhunter_backend.domain.enums import ProcessingState
+from headhunter_backend.api.schemas import AuthStatusAPISchema, ProcessingState
 
 
 class Orchestrator:
@@ -42,17 +41,23 @@ class Orchestrator:
         self._resume_event = asyncio.Event()
         self._resume_event.set()
         self._once = False
+        self._pause_reason: str | None = None
 
-    def pause(self) -> None:
+    def pause(self, reason: str | None = None) -> None:
         self._resume_event.clear()
-        self._log.info("Orchestrator paused")
+        self._pause_reason = reason
+        self._log.info("Orchestrator paused", reason=reason)
 
     def resume(self) -> None:
         self._resume_event.set()
+        self._pause_reason = None
         self._log.info("Orchestrator resumed")
 
     def is_paused(self) -> bool:
         return not self._resume_event.is_set()
+
+    def get_pause_reason(self) -> str | None:
+        return self._pause_reason
 
     async def enqueue(self, application_id: int) -> None:
         await self._queue.put(application_id)
@@ -62,6 +67,9 @@ class Orchestrator:
 
     def qsize(self) -> int:
         return self._queue.qsize()
+
+    def get_application_ids(self) -> Sequence[int]:
+        return list(self._queue._queue)  # type: ignore
 
     async def recover_from_db(self, session: AsyncSession) -> int:
         applications: Sequence[ApplicationORM] = await list_active_applications(session)
@@ -132,14 +140,14 @@ class Orchestrator:
                 return
 
             # 1 Auth
-            auth_status: AuthStatus = await browser.get_auth_status()
+            auth_status: AuthStatusAPISchema = await browser.get_auth_status()
             if not auth_status.is_authorized():
                 self._log.warning(
                     "Not authorized -- fail. Pause until authorized, use resume() to resume orchestrator",
                     application_id=app.id,
                     auth_status=auth_status,
                 )
-                self.pause()
+                self.pause(reason="not authorized")
                 await self.enqueue(application_id=app.id)
                 await self._fail(
                     application_id=app.id,
@@ -168,7 +176,7 @@ class Orchestrator:
                     "Missing cover letter. Pause until restore cover letter, use resume() to resume orchestrator",
                     application_id=app.id,
                 )
-                self.pause()
+                self.pause(reason="missing cover letter")
                 await self.enqueue(application_id=app.id)
                 await self._fail(
                     application_id=app.id,
@@ -212,25 +220,28 @@ class Orchestrator:
             match result.type:
                 case SubmitResultType.SUBMITTED:
                     await log_submission(session=session)
-                    await transition_application(
+                    app = await transition_application(
                         session=session,
                         application_id=app.id,
                         to_state=ApplicationEvent.SUBMISSION_OK,
                     )
+                    if app is None:
+                        self._log.error("Failed to transition to SUBMISSION_OK")
+                        return
                     await broadcaster.publish(
-                        SubmissionEvent(
-                            data=SubmissionData(
+                        event=ApplicationWSEvent(
+                            data=ApplicationData(
                                 vacancy_id=app.vacancy_id,
                                 application_id=app.id,
-                                succeeded=True,
+                                status=app.status,
                             )
                         )
                     )
                 case SubmitResultType.CAPTCHA:
                     await self.enqueue(application_id=app.id)
-                    self.pause()
+                    self.pause(reason="captcha")
                     await broadcaster.publish(
-                        event=CaptchaEvent(
+                        event=CaptchaWSEvent(
                             data=CaptchaData(
                                 vacancy_id=app.vacancy_id, application_id=app.id
                             )
@@ -254,7 +265,7 @@ class Orchestrator:
         broadcaster: EventBroadcaster,
     ) -> None:
         try:
-            await transition_application(
+            application: ApplicationORM | None = await transition_application(
                 session=session,
                 application_id=application_id,
                 to_state=ApplicationEvent.SUBMISSION_FAILED,
@@ -263,12 +274,17 @@ class Orchestrator:
             self._log.exception(
                 "Failed to transition to SUBMISSION_FAILED", error=str(e)
             )
+        if application is None:
+            self._log.error(
+                "Failed to find application to transition to SUBMISSION_FAILED"
+            )
+            return
         await broadcaster.publish(
-            SubmissionEvent(
-                data=SubmissionData(
+            ApplicationWSEvent(
+                data=ApplicationData(
                     vacancy_id=vacancy_id,
                     application_id=application_id,
-                    succeeded=False,
+                    status=application.status,
                     reason=reason,
                 )
             )

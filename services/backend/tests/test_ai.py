@@ -3,7 +3,7 @@ from headhunter_backend.ai.health import AILayerHealthStatus
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.ai.exceptions import GenerationCoverLetterException
 from headhunter_backend.ai.deployment import LLMDeployment
-from headhunter_backend.domain.models import VacancyModel
+from headhunter_backend.api.schemas import VacancyAPISchema
 from litellm import ModelResponse
 import pytest
 
@@ -47,7 +47,7 @@ async def test_ai_health_unhealthy(make_ai_layer) -> None:
 
 
 async def test_ai_generate_cover_letter_no_deployments(
-    make_ai_layer, vacancy_model: VacancyModel
+    make_ai_layer, vacancy_model: VacancyAPISchema
 ) -> None:
     layer: AILayer = make_ai_layer()
     with pytest.raises(
@@ -59,7 +59,7 @@ async def test_ai_generate_cover_letter_no_deployments(
 
 
 async def test_ai_generate_cover_letter(
-    make_ai_layer, vacancy_model: VacancyModel
+    make_ai_layer, vacancy_model: VacancyAPISchema
 ) -> None:
     layer: AILayer = make_ai_layer(
         [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="test-key")]
@@ -74,7 +74,7 @@ async def test_ai_generate_cover_letter(
 
 
 async def test_ai_generate_raises_when_router_fails(
-    make_ai_layer, vacancy_model: VacancyModel
+    make_ai_layer, vacancy_model: VacancyAPISchema
 ) -> None:
     layer: AILayer = make_ai_layer(
         [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="test-key")]

@@ -1,4 +1,15 @@
-from sqlalchemy import JSON, Enum, ForeignKey, DateTime, CheckConstraint, Dialect
+from sqlalchemy import (
+    JSON,
+    Column,
+    CheckConstraint,
+    DateTime,
+    Dialect,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 from datetime import datetime
@@ -7,6 +18,14 @@ from typing import Any
 from headhunter_backend.db.base import Base
 from headhunter_backend.api.schemas import ProcessingState, SearchStatusAPISchema
 from headhunter_backend.ai.deployment import LLMDeployment
+
+
+search_vacancies_table = Table(
+    "search_vacancies",
+    Base.metadata,
+    Column("search_id", String, ForeignKey("searches.id"), primary_key=True),
+    Column("vacancy_id", Integer, ForeignKey("vacancies.id"), primary_key=True),
+)
 
 
 class LLMDeploymentList(TypeDecorator[list[LLMDeployment]]):
@@ -79,9 +98,6 @@ class VacancyORM(Base):
     __tablename__ = "vacancies"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    search_id: Mapped[str] = mapped_column(
-        ForeignKey("searches.id"), index=True, nullable=True
-    )
 
     title: Mapped[str]
     apply_link: Mapped[str] = mapped_column(unique=True, index=True)

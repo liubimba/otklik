@@ -8,7 +8,10 @@ import {
 	currentSearchQueryKey,
 } from "$lib/queries/search";
 import { createSettingsQuery } from "$lib/queries/settings";
-import { createVacanciesQuery } from "$lib/queries/vacancies";
+import {
+	createVacanciesQuery,
+	vacanciesQueryKey,
+} from "$lib/queries/vacancies";
 import { searchPicker } from "$lib/stores/search_picker.svelte";
 import { createMutation, useQueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
@@ -76,6 +79,7 @@ const handleConfirm = async () => {
 	const search = await searchPicker.confirmSession(max_pages, max_vacancies);
 	if (search) {
 		queryClient.setQueryData(currentSearchQueryKey, search);
+		queryClient.invalidateQueries({ queryKey: vacanciesQueryKey });
 	}
 };
 

@@ -58,7 +58,6 @@ def settings_to_schema(orm: SettingsORM) -> SettingsAPISchema:
 
 def vacancy_to_orm(schema: VacancyAPISchema) -> VacancyORM:
     return VacancyORM(
-        search_id=schema.search_id,
         title=schema.title,
         apply_link=schema.apply_link,
         description=schema.description,
@@ -78,7 +77,6 @@ def vacancy_to_orm(schema: VacancyAPISchema) -> VacancyORM:
 def vacancy_to_schema(row: VacancyORM) -> VacancyAPISchema:
     return VacancyAPISchema(
         id=row.id,
-        search_id=row.search_id,
         title=row.title,
         apply_link=row.apply_link,
         description=row.description,

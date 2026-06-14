@@ -13,6 +13,7 @@ from headhunter_backend.db.crud import (
     create_search_history,
     update_search_history,
     get_settings,
+    link_vacancy_to_search,
 )
 from headhunter_backend.db.models import VacancyORM
 from headhunter_backend.log import get_logger
@@ -234,11 +235,15 @@ class SearchService:
                 async for parsed_vacancy in self._parser.parse(
                     search_page=search_page,
                     selectors=self._selectors,
-                    search_id=search_id,
                 ):
                     async with self._session_maker() as session:
                         vacancy_orm: VacancyORM = await upsert_vacancy(
                             session=session, vacancy=parsed_vacancy
+                        )
+                        await link_vacancy_to_search(
+                            session=session,
+                            search_id=search_id,
+                            vacancy_id=vacancy_orm.id,
                         )
                         await session.commit()
                         await self._broadcaster.publish(

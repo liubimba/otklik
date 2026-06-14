@@ -50,7 +50,6 @@ class SearchStatusAPISchema(str, Enum):
 
 class VacancyAPISchema(BaseModel):
     id: Optional[int] = None
-    search_id: Optional[str] = None
 
     title: str
     apply_link: str

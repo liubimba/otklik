@@ -7,6 +7,7 @@ from headhunter_backend.db.models import (
     SettingsORM,
     RateLimitEventORM,
     SearchHistoryORM,
+    search_vacancies_table,
 )
 from headhunter_backend.api.schemas import (
     ProcessingState,
@@ -128,10 +129,28 @@ async def list_vacancies(
     if search_id is None:
         result = await session.execute(select(VacancyORM))
         return result.scalars().all()
-    result = await session.execute(
-        select(VacancyORM).where(VacancyORM.search_id == search_id)
+    stmt = (
+        select(VacancyORM)
+        .join(
+            search_vacancies_table,
+            VacancyORM.id == search_vacancies_table.c.vacancy_id,
+        )
+        .where(search_vacancies_table.c.search_id == search_id)
     )
+    result = await session.execute(stmt)
     return result.scalars().all()
+
+
+async def link_vacancy_to_search(
+    session: AsyncSession, search_id: str, vacancy_id: int
+) -> None:
+    """Idempotently attach a vacancy to a search (M2M)."""
+    stmt = (
+        sqlite_insert(search_vacancies_table)
+        .values(search_id=search_id, vacancy_id=vacancy_id)
+        .on_conflict_do_nothing()
+    )
+    await session.execute(stmt)
 
 
 async def delete_vacancy(session: AsyncSession, vacancy_id: int) -> bool:

@@ -28,7 +28,10 @@ class Parser:
         self._employment_type_mapper = EmploymentTypeMapper()
 
     async def parse(
-        self, search_page: BrowserPage, selectors: Selectors
+        self,
+        search_page: BrowserPage,
+        selectors: Selectors,
+        search_id: str | None = None,
     ) -> AsyncIterator[VacancyAPISchema]:
         """Stream every vacancy from an open hh.ru search page, page by page.
 
@@ -68,7 +71,7 @@ class Parser:
                             href, vacancy_page
                         )
                         vacancy = await self._parse_vacancy_page(
-                            vacancy_page, href, selectors
+                            vacancy_page, href, selectors, search_id
                         )
                         if vacancy is not None:
                             parsed_count += 1
@@ -163,6 +166,7 @@ class Parser:
         vacancy_page: BrowserPage | None,
         href: str | None,
         selectors: Selectors,
+        search_id: str | None,
     ) -> VacancyAPISchema | None:
         """Parse a single vacancy detail page into a VacancyAPISchema."""
         if vacancy_page is None or href is None:
@@ -225,6 +229,7 @@ class Parser:
             employment_types=self._employment_type_mapper.from_raw(
                 employment_type_text
             ),
+            search_id=search_id,
         )
 
     def _extract_text(self, parser: HTMLParser, selector: str | None) -> str | None:

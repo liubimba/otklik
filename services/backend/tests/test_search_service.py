@@ -7,10 +7,10 @@ from pydantic import HttpUrl
 
 from headhunter_backend.orchestrator.search import (
     SearchService,
-    SearchAlreadyRunning,
+    SearchAlreadyRunningError,
 )
 from headhunter_backend.api.schemas import (
-    SearchRequestAPISchema,
+    VacanciesStartSearchRequestAPISchema,
     SearchStatusAPISchema,
     VacancyAPISchema,
 )
@@ -90,8 +90,10 @@ def _vacancy(i: int) -> VacancyAPISchema:
     )
 
 
-def _filter(max_vacancies: int = 50, max_pages: int = 1) -> SearchRequestAPISchema:
-    return SearchRequestAPISchema(
+def _filter(
+    max_vacancies: int = 50, max_pages: int = 1
+) -> VacanciesStartSearchRequestAPISchema:
+    return VacanciesStartSearchRequestAPISchema(
         url=HttpUrl("https://hh.ru/search/vacancy"),
         max_vacancies=max_vacancies,
         max_pages=max_pages,
@@ -189,7 +191,7 @@ async def test_second_start_search_raises_already_running(
     )
 
     await svc.start_search(request=_filter(max_pages=99))
-    with pytest.raises(SearchAlreadyRunning):
+    with pytest.raises(SearchAlreadyRunningError):
         await svc.start_search(request=_filter(max_pages=99))
 
     await svc.shutdown()

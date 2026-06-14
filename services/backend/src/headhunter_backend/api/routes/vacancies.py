@@ -1,23 +1,18 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from headhunter_backend.api.schemas import (
     ApplicationAPISchema,
     CoverLetterRequestAPISchema,
     CoverLetterResponseAPISchema,
     ProcessingState,
-    SearchHistoryAPISchema,
-    SearchRequestAPISchema,
-    SearchResponseAPISchema,
     VacancyAPISchema,
 )
 from headhunter_backend.db.models import (
     VacancyORM,
     ApplicationORM,
-    SearchHistoryORM,
     CoverLetterORM,
 )
 from headhunter_backend.db.converters import (
     vacancy_to_schema,
-    search_history_to_schema,
     application_to_schema,
 )
 from headhunter_backend.db.crud import (
@@ -27,20 +22,18 @@ from headhunter_backend.db.crud import (
     create_cover_letter,
     transition_application,
     create_application,
-    list_search_history,
+    get_latest_search_id,
     get_latest_cover_letter,
 )
 from headhunter_backend.api.dependencies import (
     SessionDep,
     OrchestratorDep,
-    SearchServiceDep,
     BroadcasterDep,
 )
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from statemachine.exceptions import TransitionNotAllowed
 from headhunter_backend.log import get_logger
 from typing import Sequence
-from headhunter_backend.orchestrator.search import SearchAlreadyRunning, SearchTask
 from headhunter_backend.api.events import ApplicationWSEvent, ApplicationData
 
 vacancies_router = APIRouter(prefix="/vacancies", tags=["vacancies"])
@@ -48,61 +41,27 @@ log = get_logger(__name__)
 
 
 @vacancies_router.get(
-    "/", status_code=status.HTTP_200_OK, summary="Find all searched vacancies"
+    "/",
+    status_code=status.HTTP_200_OK,
+    summary="List vacancies (default: current/latest search)",
 )
-async def find_all(session: SessionDep) -> Sequence[VacancyAPISchema]:
-    result: Sequence[VacancyORM] = await list_vacancies(session=session)
-    return list(map(lambda orm: vacancy_to_schema(row=orm), result))
-
-
-@vacancies_router.post(
-    "/search", status_code=status.HTTP_200_OK, summary="Search vacancies by query"
-)
-async def search(
-    filter: SearchRequestAPISchema, search_service: SearchServiceDep
-) -> SearchResponseAPISchema:
-    try:
-        search_task: SearchTask = await search_service.start_search(request=filter)
-        return SearchResponseAPISchema(
-            search_id=search_task.id,
-            parsed_pages=search_task.parsed_pages,
-            parsed_vacancies=search_task.parsed_count,
-            status=search_task.state_machine.current_state_value,
-        )
-    except SearchAlreadyRunning:
-        raise HTTPException(
-            status_code=409,
-            detail="another search is running, wait until it`s done or cancel it",
-        )
-
-
-@vacancies_router.get("/search/{search_id}")
-async def find_search(
-    search_id: str, search_service: SearchServiceDep
-) -> SearchResponseAPISchema:
-    search_task: SearchTask | None = search_service.get_search_task(search_id=search_id)
-    if search_task is None:
-        raise HTTPException(status_code=404, detail="search not found")
-    return SearchResponseAPISchema(
-        search_id=search_task.id,
-        parsed_pages=search_task.parsed_pages,
-        parsed_vacancies=search_task.parsed_count,
-        status=search_task.state_machine.current_state_value,
-    )
-
-
-@vacancies_router.delete("/search/{search_id}")
-async def delete_search(search_id: str, search_service: SearchServiceDep) -> None:
-    search_task: SearchTask | None = search_service.get_search_task(search_id=search_id)
-    if search_task is None:
-        raise HTTPException(status_code=404, detail="search not found")
-    await search_service.cancel_search(search_id=search_id)
-
-
-@vacancies_router.get("/searches")
-async def get_searches(session: SessionDep) -> Sequence[SearchHistoryAPISchema]:
-    result: Sequence[SearchHistoryORM] = await list_search_history(session=session)
-    return list(map(lambda orm: search_history_to_schema(orm=orm), result))
+async def find_all(
+    session: SessionDep,
+    search_id: str = Query(
+        default="latest",
+        description='Search filter: "latest" (current/most recent search), "all" (no filter), or a search UUID.',
+    ),
+) -> Sequence[VacancyAPISchema]:
+    if search_id == "all":
+        rows: Sequence[VacancyORM] = await list_vacancies(session=session)
+    elif search_id == "latest":
+        latest: str | None = await get_latest_search_id(session=session)
+        if latest is None:
+            return []
+        rows = await list_vacancies(session=session, search_id=latest)
+    else:
+        rows = await list_vacancies(session=session, search_id=search_id)
+    return [vacancy_to_schema(row=row) for row in rows]
 
 
 @vacancies_router.get(

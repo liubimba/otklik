@@ -5,8 +5,8 @@ from headhunter_backend.api.schemas import (
     CoverLetterRequestAPISchema,
     CoverLetterResponseAPISchema,
     ProcessingState,
-    SearchRequestAPISchema,
-    SearchResponseAPISchema,
+    VacanciesStartSearchRequestAPISchema,
+    VacanciesSearchAPISchema,
     VacancyAPISchema,
 )
 from headhunter_backend.db.crud import (
@@ -42,19 +42,19 @@ def test_vacancies_get_by_id_not_found(client):
 def test_vacancies_search(client):
     response: Response = client.post(
         "/api/v1/vacancies/search",
-        json=SearchRequestAPISchema(url=HttpUrl("http://hh.ru")).model_dump(
-            mode="json"
-        ),
+        json=VacanciesStartSearchRequestAPISchema(
+            url=HttpUrl("http://hh.ru")
+        ).model_dump(mode="json"),
     )
     assert response.status_code == 200
     payload = response.json()
-    search_response: SearchResponseAPISchema = SearchResponseAPISchema.model_validate(
+    search_response: VacanciesSearchAPISchema = VacanciesSearchAPISchema.model_validate(
         payload
     )
     response = client.get(f"/api/v1/vacancies/search/{search_response.search_id}")
     assert response.status_code == 200
     payload = response.json()
-    SearchResponseAPISchema.model_validate(payload)
+    VacanciesSearchAPISchema.model_validate(payload)
 
 
 def test_vacancies_submit(client):

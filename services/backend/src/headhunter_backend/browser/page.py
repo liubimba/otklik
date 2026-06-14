@@ -1,6 +1,10 @@
 from headhunter_backend.log import get_logger
-from patchright.async_api import Page, ElementHandle
+from patchright.async_api import Page, ElementHandle, TimeoutError
 from typing import List
+from headhunter_backend.browser.exceptions import (
+    ClosePageTimeoutError,
+    OpenPageTimeoutError,
+)
 
 
 class BrowserPage:
@@ -9,15 +13,24 @@ class BrowserPage:
         self._context = context
 
     async def goto(self, url: str) -> None:
-        self._logger.info("Navigating to page: ", url=url)
-        await self._context.goto(url)
+        try:
+            self._logger.info("Navigating to page: ", url=url)
+            await self._context.goto(url)
+        except TimeoutError as e:
+            raise OpenPageTimeoutError() from e
 
     def get_url(self) -> str:
         return self._context.url
 
+    def is_closed(self) -> bool:
+        return self._context.is_closed()
+
     async def close(self) -> None:
-        self._logger.info("Closing page")
-        await self._context.close()
+        try:
+            self._logger.info("Closing page")
+            await self._context.close()
+        except TimeoutError as e:
+            raise ClosePageTimeoutError() from e
 
     async def click(self, selector: str, timeout: float | None = None) -> None:
         self._logger.info("Click", selector=selector, timeout=timeout)

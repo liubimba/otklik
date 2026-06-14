@@ -121,9 +121,16 @@ async def get_vacancy_by_apply_link(
     return result.scalar_one_or_none()
 
 
-async def list_vacancies(session: AsyncSession) -> Sequence[VacancyORM]:
+async def list_vacancies(
+    session: AsyncSession, search_id: str | None = None
+) -> Sequence[VacancyORM]:
     logger.info("List vacancies")
-    result = await session.execute(select(VacancyORM))
+    if search_id is None:
+        result = await session.execute(select(VacancyORM))
+        return result.scalars().all()
+    result = await session.execute(
+        select(VacancyORM).where(VacancyORM.search_id == search_id)
+    )
     return result.scalars().all()
 
 
@@ -263,6 +270,16 @@ async def create_search_history(
 async def list_search_history(session: AsyncSession) -> Sequence[SearchHistoryORM]:
     result = await session.execute(select(SearchHistoryORM))
     return result.scalars().all()
+
+
+async def get_latest_search_id(session: AsyncSession) -> str | None:
+    stmt = (
+        select(SearchHistoryORM.id)
+        .order_by(SearchHistoryORM.started_at.desc())
+        .limit(1)
+    )
+    result = await session.execute(statement=stmt)
+    return result.scalar_one_or_none()
 
 
 async def update_search_history(

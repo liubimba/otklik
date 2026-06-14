@@ -49,10 +49,9 @@ class SearchStatusAPISchema(str, Enum):
 
 
 class VacancyAPISchema(BaseModel):
-    # Optional because the parser produces a schema before the row is persisted
-    # and the autoincrement id only exists after upsert. Anything returned via
-    # REST or WS always carries a real id (converted from the ORM row).
     id: Optional[int] = None
+    search_id: Optional[str] = None
+
     title: str
     apply_link: str
     description: str
@@ -96,10 +95,10 @@ class AIHealthStatusAPISchema(BaseModel):
     status: str
 
 
-class SearchRequestAPISchema(BaseModel):
+class VacanciesStartSearchRequestAPISchema(BaseModel):
     url: HttpUrl
-    max_pages: int = 5
-    max_vacancies: int = 50
+    max_pages: int | None = None
+    max_vacancies: int | None = None
 
     @field_validator("url")
     @classmethod
@@ -109,7 +108,7 @@ class SearchRequestAPISchema(BaseModel):
         return v
 
 
-class SearchResponseAPISchema(BaseModel):
+class VacanciesSearchAPISchema(BaseModel):
     search_id: str
     status: SearchStatusAPISchema
     parsed_pages: int
@@ -154,7 +153,13 @@ class UserSettingsAPISchema(BaseModel):
     auto_submit: bool = False
 
 
+class SearchSettingsAPISchema(BaseModel):
+    max_pages: int = 5
+    max_vacancies: int = 50
+
+
 class SettingsAPISchema(BaseModel):
+    search: SearchSettingsAPISchema = Field(default_factory=SearchSettingsAPISchema)
     user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
     llm: LLMSettingsAPISchema = Field(default_factory=LLMSettingsAPISchema)
     rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
@@ -199,3 +204,11 @@ class RateLimitInfoAPISchema(BaseModel):
 class RateLimitsBudgetAPISchema(BaseModel):
     hourly: RateLimitInfoAPISchema
     daily: RateLimitInfoAPISchema
+
+
+class SearchSessionAPISchema(BaseModel):
+    session_id: str
+
+
+class ConfirmSearchAPISchema(BaseModel):
+    url: str

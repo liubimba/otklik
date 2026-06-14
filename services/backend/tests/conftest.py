@@ -34,8 +34,8 @@ from headhunter_backend.db.session import apply_sqlite_pragmas
 from headhunter_backend.browser.writer import SubmitResult
 from headhunter_backend.db.crud import create_vacancy
 from headhunter_backend.browser.selectors import Selectors
-from headhunter_backend.orchestrator.search import SearchAlreadyRunning, SearchTask
-from headhunter_backend.api.schemas import SearchRequestAPISchema
+from headhunter_backend.orchestrator.search import SearchAlreadyRunningError, SearchTask
+from headhunter_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from headhunter_backend.ai.deployment import LLMDeployment
 from headhunter_backend.ai.layer import AILayer
 
@@ -76,9 +76,11 @@ class FakeSearchService:
     def __init__(self) -> None:
         self._queue: dict[str, SearchTask] = {}
 
-    async def start_search(self, request: SearchRequestAPISchema) -> SearchTask:
+    async def start_search(
+        self, request: VacanciesStartSearchRequestAPISchema
+    ) -> SearchTask:
         if len(self._queue) > 0:
-            raise SearchAlreadyRunning()
+            raise SearchAlreadyRunningError()
         search_id: str = str(uuid.uuid4())
         task = SearchTask(id=search_id, task=None)  # type: ignore[arg-type]
         self._queue[search_id] = task

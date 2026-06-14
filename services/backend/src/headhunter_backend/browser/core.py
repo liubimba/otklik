@@ -34,7 +34,9 @@ class BrowserCore:
         self.profile_dir.mkdir(parents=True, exist_ok=True)
         self._playwright = await async_playwright().start()
         self._context = await self._playwright.chromium.launch_persistent_context(
-            user_data_dir=str(self.profile_dir), headless=self.headless
+            user_data_dir=str(self.profile_dir),
+            headless=self.headless,
+            no_viewport=True,
         )
 
     async def stop(self) -> None:

@@ -1,12 +1,14 @@
 from fastapi.testclient import TestClient
 from pydantic import HttpUrl
 
-from headhunter_backend.api.schemas import SearchRequestAPISchema
+from headhunter_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from tests.conftest import FakeSearchService
 
 
 def _body(url: str = "https://hh.ru/search/vacancy") -> dict[str, object]:
-    return SearchRequestAPISchema(url=HttpUrl(url)).model_dump(mode="json")
+    return VacanciesStartSearchRequestAPISchema(url=HttpUrl(url)).model_dump(
+        mode="json"
+    )
 
 
 def test_post_search_returns_search_id(client: TestClient) -> None:

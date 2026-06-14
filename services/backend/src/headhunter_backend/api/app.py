@@ -11,6 +11,7 @@ from headhunter_backend.api.routes import (
     ai,
     rate_limits,
     applications,
+    search,
 )
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.log import configure_logging, get_logger
@@ -33,6 +34,7 @@ from datetime import datetime
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from headhunter_backend.orchestrator.apply_service import AutoApplyService
+from headhunter_backend.api.errors import register_error_handlers
 
 logger = get_logger(__name__)
 
@@ -122,6 +124,7 @@ router.include_router(orchestrator.orchestrator_router)
 router.include_router(ai.ai_router)
 router.include_router(rate_limits.rate_limits_router)
 router.include_router(applications.applications_router)
+router.include_router(search.search_router)
 
 app = FastAPI(title="Headhunter Backend API", version="0.0.1", lifespan=lifespan)
 app.include_router(router)
@@ -129,6 +132,7 @@ app.include_router(ws.ws_router)
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
+register_error_handlers(app=app)
 
 
 def run() -> None:

@@ -10,6 +10,7 @@ from headhunter_backend.api.schemas import (
     VacancyAPISchema,
     SearchHistoryAPISchema,
     LLMSettingsAPISchema,
+    SearchSettingsAPISchema,
     SettingsAPISchema,
     RateLimitsAPISchema,
     UserSettingsAPISchema,
@@ -28,6 +29,8 @@ def settings_to_orm(schema: SettingsAPISchema) -> SettingsORM:
         llm_deployments=schema.llm.deployments,
         llm_system_prompt=schema.llm.system_prompt,
         auto_submit=schema.user.auto_submit,
+        max_vacancies=schema.search.max_vacancies,
+        max_pages=schema.search.max_pages,
     )
 
 
@@ -46,11 +49,16 @@ def settings_to_schema(orm: SettingsORM) -> SettingsAPISchema:
             resume_text=orm.resume_text,
         ),
         user=UserSettingsAPISchema(auto_submit=orm.auto_submit),
+        search=SearchSettingsAPISchema(
+            max_pages=orm.max_pages,
+            max_vacancies=orm.max_vacancies,
+        ),
     )
 
 
 def vacancy_to_orm(schema: VacancyAPISchema) -> VacancyORM:
     return VacancyORM(
+        search_id=schema.search_id,
         title=schema.title,
         apply_link=schema.apply_link,
         description=schema.description,
@@ -70,6 +78,7 @@ def vacancy_to_orm(schema: VacancyAPISchema) -> VacancyORM:
 def vacancy_to_schema(row: VacancyORM) -> VacancyAPISchema:
     return VacancyAPISchema(
         id=row.id,
+        search_id=row.search_id,
         title=row.title,
         apply_link=row.apply_link,
         description=row.description,

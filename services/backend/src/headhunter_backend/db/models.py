@@ -59,6 +59,9 @@ class SettingsORM(Base):
     letter_style: Mapped[str]
     resume_text: Mapped[str]
 
+    max_pages: Mapped[int]
+    max_vacancies: Mapped[int]
+
     daily_limit: Mapped[int]
     hourly_limit: Mapped[int]
     min_delay_ms: Mapped[int]
@@ -76,6 +79,9 @@ class VacancyORM(Base):
     __tablename__ = "vacancies"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    search_id: Mapped[str] = mapped_column(
+        ForeignKey("searches.id"), index=True, nullable=True
+    )
 
     title: Mapped[str]
     apply_link: Mapped[str] = mapped_column(unique=True, index=True)

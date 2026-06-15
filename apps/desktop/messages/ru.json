@@ -1,26 +1,24 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
+	"nav_app_title": "Headhunter AI",
+	"nav_queue": "Очередь вакансий",
+	"nav_settings": "Настройки",
 	"queue_title": "Очередь вакансий",
 	"queue_header_pages": "Страниц: {n}",
 	"queue_header_vacancies": "Вакансий: {n}",
 	"queue_header_status": "Статус: {status}",
 	"queue_button_new_search": "Новый поиск",
 	"queue_button_cancel_search": "Отменить поиск",
-
 	"queue_empty": "Пока пусто. Нажмите «Новый поиск», чтобы запустить парсинг.",
 	"queue_loading": "Загрузка…",
 	"queue_error_load": "Не удалось загрузить вакансии: {error}",
-
 	"queue_count": "Найдено {count, plural, one {{count} вакансия} few {{count} вакансии} many {{count} вакансий} other {{count} вакансий}}",
-
 	"status_pending": "ожидание",
 	"status_running": "идёт",
 	"status_canceled": "отменён",
 	"status_exited": "завершён",
 	"status_failed": "ошибка",
 	"status_interrupted": "прерван",
-
 	"picker_opening": "Открываем hh.ru в браузере…",
 	"picker_awaiting_title": "Настройте фильтр в открытой вкладке",
 	"picker_awaiting_instructions": "Перейдите во вкладку Chromium, отфильтруйте вакансии нужным образом (регион, опыт, формат и т.д.) и вернитесь сюда. Поиск пойдёт по тому URL, который будет в адресной строке вкладки на момент подтверждения.",
@@ -34,12 +32,10 @@
 	"picker_canceling": "Отменяем сессию…",
 	"picker_error_prefix": "Ошибка: {message}",
 	"picker_button_dismiss": "Закрыть",
-
 	"dialog_replace_title": "Запустить новый поиск?",
 	"dialog_replace_description": "Текущий поиск будет отменён. Уже спарсенные вакансии останутся в очереди.",
 	"dialog_replace_cancel": "Не отменять",
 	"dialog_replace_confirm": "Отменить и запустить новый",
 	"dialog_replace_confirming": "Отменяем…",
-
 	"toast_cancel_failed": "Не удалось отменить поиск: {error}"
 }

@@ -142,7 +142,7 @@ const isSearchInFlight = $derived(
     </AlertDialog.Content>
 </AlertDialog.Root>
 
-<main class="container mx-auto p-6 space-y-6 relative">
+<div class="container mx-auto p-6 space-y-6 relative">
     <header class="flex items-center justify-between sticky top-0">
         <h1 class="text-2xl font-bold">{m.queue_title()}</h1>
         {#if currentSearch.data}
@@ -265,4 +265,4 @@ const isSearchInFlight = $derived(
             {/each}
         </ul>
     {/if}
-</main>
+</div>

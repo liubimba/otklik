@@ -25,7 +25,7 @@ function formatErrorDetail(detail: APIRequestError["detail"]): string {
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
 	const url: string = `http://${BASE_IP}:${BASE_PORT}/api/v1/${path}`;
 	logger.info(
-		`Making API request to "${url}" with method: ${init?.method || "GET"}`,
+		`Making API request to "${url}" with method: ${init?.method || "GET"}. Body: ${init?.body}`,
 	);
 	const res = await fetch(url, {
 		...init,
@@ -141,4 +141,11 @@ export async function getCurrentSearchVacancies() {
 
 export async function deleteSearchVacancies(search_id: string) {
 	await api<APIResponse>(`search/vacancies/${search_id}`, { method: "DELETE" });
+}
+
+export async function putSettings(body: Settings): Promise<Settings> {
+	return api<Settings>("settings", {
+		method: "PUT",
+		body: JSON.stringify(body),
+	});
 }

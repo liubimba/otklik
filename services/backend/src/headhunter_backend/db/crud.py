@@ -55,15 +55,10 @@ async def update_settings(
     session: AsyncSession, new_settings: SettingsORM
 ) -> SettingsORM:
     settings: SettingsORM = await get_settings(session=session)
-    settings.daily_limit = new_settings.daily_limit
-    settings.delay_jitter_ms = new_settings.delay_jitter_ms
-    settings.hourly_limit = new_settings.hourly_limit
-    settings.letter_style = new_settings.letter_style
-    settings.resume_text = new_settings.resume_text
-    settings.min_delay_ms = new_settings.min_delay_ms
-    settings.llm_deployments = new_settings.llm_deployments
-    settings.llm_system_prompt = new_settings.llm_system_prompt
-    settings.auto_submit = new_settings.auto_submit
+    for col in SettingsORM.__table__.columns:
+        if col.primary_key:
+            continue
+        setattr(settings, col.name, getattr(new_settings, col.name))
     await session.commit()
     return settings
 

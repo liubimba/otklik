@@ -119,22 +119,6 @@ export type APIRequestError = {
 	detail?: string | FastAPIValidationIssue[];
 };
 
-export type Settings = {
-	rate_limits: {
-		daily_limit: number;
-		hourly_limit: number;
-		min_delay_ms: number;
-		delay_jitter_ms: number;
-	};
-	user: {
-		auto_submit: boolean;
-	};
-	search: {
-		max_pages: number;
-		max_vacancies: number;
-	};
-};
-
 export type ServerEvent =
 	| AuthEvent
 	| VacancyEvent
@@ -148,3 +132,28 @@ export const TERMINAL_SEARCH_STATUSES = new Set<SearchData["status"]>([
 	"failed",
 	"interrupted",
 ]);
+
+export type LLMDeployment = {
+	model: string;
+	api_key?: string | null;
+	api_base?: string | null;
+};
+
+export type LLMSettings = {
+	resume_text: string;
+	letter_style: string;
+	system_prompt?: string | null;
+	deployments: LLMDeployment[];
+};
+
+export type Settings = {
+	search: { max_pages: number; max_vacancies: number };
+	user: { auto_submit: boolean };
+	rate_limits: {
+		daily_limit: number;
+		hourly_limit: number;
+		min_delay_ms: number;
+		delay_jitter_ms: number;
+	};
+	llm: LLMSettings;
+};

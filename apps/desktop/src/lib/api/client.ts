@@ -1,9 +1,12 @@
 import { getLogger } from "$lib/log";
 import { APIError } from "./error";
 import type {
+	AICoverLetterResponse,
 	APIRequestError,
 	APIResponse,
+	ApplicationData,
 	AuthStatus,
+	CoverLetter,
 	FilterSessionConfirm,
 	NewFilterSession,
 	SearchData,
@@ -147,5 +150,88 @@ export async function putSettings(body: Settings): Promise<Settings> {
 	return api<Settings>("settings", {
 		method: "PUT",
 		body: JSON.stringify(body),
+	});
+}
+
+async function api404Null<T>(
+	path: string,
+	init?: RequestInit,
+): Promise<T | null> {
+	try {
+		return await api<T>(path, init);
+	} catch (e) {
+		if (e instanceof APIError && e.status === 404) return null;
+		throw e;
+	}
+}
+
+export async function getApplicationByVacancyId(
+	vacancyId: number,
+): Promise<ApplicationData | null> {
+	return api404Null<ApplicationData>(`vacancies/${vacancyId}/status`);
+}
+
+export async function getLatestCoverLetterByVacancyId(
+	vacancyId: number,
+): Promise<CoverLetter | null> {
+	return api404Null<CoverLetter>(`vacancies/${vacancyId}/cover_letter`);
+}
+
+export async function getCoverLettersOfVacancyById(
+	vacancyId: number,
+): Promise<CoverLetter[]> {
+	const r = await api404Null<CoverLetter[]>(
+		`vacancies/${vacancyId}/cover_letters`,
+	);
+	return r ?? [];
+}
+
+export async function queueForLetter(
+	vacancyId: number,
+): Promise<ApplicationData> {
+	return api<ApplicationData>(`vacancies/${vacancyId}/queue_for_letter`, {
+		method: "POST",
+	});
+}
+
+export async function generateCoverLetter(
+	vacancyId: number,
+): Promise<AICoverLetterResponse> {
+	return api<AICoverLetterResponse>(`ai/create_cover_letter/${vacancyId}`, {
+		method: "POST",
+	});
+}
+
+export async function saveCoverLetter(
+	vacancyId: number,
+	text: string,
+): Promise<CoverLetter> {
+	return api<CoverLetter>(`vacancies/${vacancyId}/cover_letter`, {
+		method: "POST",
+		body: JSON.stringify({ text }),
+	});
+}
+
+export async function submitApplication(
+	vacancyId: number,
+): Promise<ApplicationData> {
+	return api<ApplicationData>(`vacancies/${vacancyId}/submit`, {
+		method: "POST",
+	});
+}
+
+export async function skipApplication(
+	vacancyId: number,
+): Promise<ApplicationData> {
+	return api<ApplicationData>(`vacancies/${vacancyId}/skip`, {
+		method: "POST",
+	});
+}
+
+export async function retryApplication(
+	vacancyId: number,
+): Promise<ApplicationData> {
+	return api<ApplicationData>(`vacancies/${vacancyId}/retry`, {
+		method: "POST",
 	});
 }

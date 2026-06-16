@@ -80,7 +80,7 @@ class SearchHistoryAPISchema(BaseModel):
     error: Optional[str]
 
 
-class AICoverLetterResponseAPISchema(BaseModel):
+class AICoverLetterAPISchema(BaseModel):
     text: str
     model_used: str
     prompt_tokens: int
@@ -128,7 +128,7 @@ class CoverLetterRequestAPISchema(BaseModel):
     text: str
 
 
-class CoverLetterResponseAPISchema(BaseModel):
+class CoverLetterAPISchema(BaseModel):
     text: str
     version: int
     created_at: datetime

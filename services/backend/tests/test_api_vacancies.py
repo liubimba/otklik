@@ -3,7 +3,7 @@ from headhunter_backend.db.models import CoverLetterORM, ApplicationORM
 from headhunter_backend.api.schemas import (
     ApplicationAPISchema,
     CoverLetterRequestAPISchema,
-    CoverLetterResponseAPISchema,
+    CoverLetterAPISchema,
     ProcessingState,
     VacanciesStartSearchRequestAPISchema,
     VacanciesSearchAPISchema,
@@ -100,9 +100,7 @@ async def test_vacancies_cover_letter(client, session_factory):
     )
     assert response.status_code == 200
     payload = response.json()
-    cover_letter: CoverLetterResponseAPISchema = (
-        CoverLetterResponseAPISchema.model_validate(payload)
-    )
+    cover_letter: CoverLetterAPISchema = CoverLetterAPISchema.model_validate(payload)
     assert cover_letter.text == request.text
     assert cover_letter.version == 1
     assert cover_letter.created_at is not None
@@ -130,9 +128,7 @@ async def test_vacancies_double_cover_letter(client, session_factory):
     )
     assert response.status_code == 200
     payload = response.json()
-    cover_letter: CoverLetterResponseAPISchema = (
-        CoverLetterResponseAPISchema.model_validate(payload)
-    )
+    cover_letter: CoverLetterAPISchema = CoverLetterAPISchema.model_validate(payload)
     assert cover_letter.version == 1
     assert cover_letter.text == text
     response = client.post(
@@ -140,9 +136,7 @@ async def test_vacancies_double_cover_letter(client, session_factory):
     )
     assert response.status_code == 200
     payload = response.json()
-    cover_letter: CoverLetterResponseAPISchema = (
-        CoverLetterResponseAPISchema.model_validate(payload)
-    )
+    cover_letter: CoverLetterAPISchema = CoverLetterAPISchema.model_validate(payload)
     assert cover_letter.version == 2
     assert cover_letter.text == text
     response = client.post("/api/v1/vacancies/1/review")
@@ -152,9 +146,7 @@ async def test_vacancies_double_cover_letter(client, session_factory):
     )
     assert response.status_code == 200
     payload = response.json()
-    cover_letter: CoverLetterResponseAPISchema = (
-        CoverLetterResponseAPISchema.model_validate(payload)
-    )
+    cover_letter: CoverLetterAPISchema = CoverLetterAPISchema.model_validate(payload)
     assert cover_letter.version == 3
     assert cover_letter.text == text
 
@@ -191,7 +183,7 @@ def test_get_cover_letter_happy(client):
     )
     response = client.get("/api/v1/vacancies/1/cover_letter")
     assert response.status_code == 200
-    letter = CoverLetterResponseAPISchema.model_validate(response.json())
+    letter = CoverLetterAPISchema.model_validate(response.json())
     assert letter.text == "hello"
     assert letter.version == 1
 

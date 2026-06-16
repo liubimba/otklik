@@ -261,6 +261,15 @@ async def get_latest_cover_letter(
     return result.scalar_one_or_none()
 
 
+async def list_cover_letters_by_application_id(
+    session: AsyncSession, application_id: int
+) -> Sequence[CoverLetterORM]:
+    result = await session.execute(
+        select(CoverLetterORM).where(CoverLetterORM.application_id == application_id)
+    )
+    return result.scalars().all()
+
+
 async def create_search_history(
     session: AsyncSession,
     search_id: str,

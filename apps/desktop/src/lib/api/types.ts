@@ -157,3 +157,19 @@ export type Settings = {
 	};
 	llm: LLMSettings;
 };
+
+export type CoverLetter = {
+	text: string;
+	version: number;
+	created_at: string;
+};
+
+export type AICoverLetterResponse = {
+	text: string;
+	model_used: string;
+	prompt_tokens: number;
+	completion_tokens: number;
+	total_tokens: number;
+	was_fallback: boolean;
+	cost_usd: number | null;
+};

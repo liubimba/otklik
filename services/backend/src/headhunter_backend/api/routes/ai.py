@@ -9,7 +9,7 @@ from headhunter_backend.db.models import VacancyORM, SettingsORM, ApplicationORM
 from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.api.schemas import (
-    AICoverLetterResponseAPISchema,
+    AICoverLetterAPISchema,
     AIHealthStatusAPISchema,
 )
 from headhunter_backend.ai.health import AILayerHealthStatus
@@ -20,7 +20,7 @@ ai_router = APIRouter(prefix="/ai", tags=["ai"])
 @ai_router.post("/create_cover_letter/{vacancy_id}")
 async def generate_cover_letter(
     session: SessionDep, ai_layer: AILayerDep, vacancy_id: int
-) -> AICoverLetterResponseAPISchema:
+) -> AICoverLetterAPISchema:
     if not (await ai_layer.get_health_status()).is_ready():
         raise HTTPException(
             status_code=409, detail="AILayer is not ready to generate cover letter"
@@ -44,7 +44,7 @@ async def generate_cover_letter(
         style=settings_orm.letter_style,
         system_prompt=settings_orm.llm_system_prompt,
     )
-    return AICoverLetterResponseAPISchema(
+    return AICoverLetterAPISchema(
         text=cover_letter.text,
         model_used=cover_letter.model_used,
         prompt_tokens=cover_letter.prompt_tokens,

@@ -15,6 +15,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
 import { onMount } from "svelte";
 import type { LayoutProps } from "./$types";
 import "../app.css";
+import LetterReviewSheet from "$lib/components/letter-review-sheet.svelte";
+import { applyApplicationStatus } from "$lib/queries/applications";
 
 const { children }: LayoutProps = $props();
 
@@ -55,6 +57,8 @@ onMount(() => {
 			case "auth_changed":
 				auth.applyAuthEvent(event);
 				break;
+			case "application_event":
+				applyApplicationStatus(queryClient, event);
 		}
 	});
 
@@ -66,6 +70,7 @@ onMount(() => {
 
 <QueryClientProvider client={queryClient}>
 	<Toaster richColors />
+	<LetterReviewSheet />
 
 	<Sidebar.Provider>
 		<Sidebar.Root variant="inset">

@@ -3,6 +3,7 @@ from headhunter_backend.db.models import (
     SettingsORM,
     SearchHistoryORM,
     ApplicationORM,
+    CoverLetterORM,
 )
 from headhunter_backend.api.schemas import (
     EmploymentType,
@@ -15,6 +16,7 @@ from headhunter_backend.api.schemas import (
     RateLimitsAPISchema,
     UserSettingsAPISchema,
     ApplicationAPISchema,
+    CoverLetterAPISchema,
 )
 
 
@@ -117,4 +119,10 @@ def application_to_schema(orm: ApplicationORM) -> ApplicationAPISchema:
         status=orm.status,
         updated_at=orm.updated_at,
         error_message=orm.error_message,
+    )
+
+
+def cover_letter_to_schema(orm: CoverLetterORM) -> CoverLetterAPISchema:
+    return CoverLetterAPISchema(
+        version=orm.version, text=orm.text, created_at=orm.created_at
     )

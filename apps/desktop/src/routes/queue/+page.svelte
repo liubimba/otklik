@@ -4,6 +4,7 @@ import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 import { deleteSearchVacancies } from "$lib/api/client";
 import type { SearchStatus } from "$lib/api/types";
 import { Button } from "$lib/components/ui/button";
+import VacancyCard from "$lib/components/vacancy-card.svelte";
 import * as m from "$lib/paraglide/messages";
 import {
 	createCurrentSearchQuery,
@@ -14,6 +15,7 @@ import {
 	createVacanciesQuery,
 	vacanciesQueryKey,
 } from "$lib/queries/vacancies";
+import { letterReview } from "$lib/stores/letter_review.svelte";
 import { searchPicker } from "$lib/stores/search_picker.svelte";
 import { createMutation, useQueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
@@ -146,9 +148,21 @@ const isSearchInFlight = $derived(
     <header class="flex items-center justify-between sticky top-0">
         <h1 class="text-2xl font-bold">{m.queue_title()}</h1>
         {#if currentSearch.data}
-            <span>{m.queue_header_pages({ n: currentSearch.data.parsed_pages })}</span>
-            <span>{m.queue_count({ count: currentSearch.data.parsed_vacancies })}</span>
-            <span>{m.queue_header_status({ status: statusLabel(currentSearch.data.status) })}</span>
+            <span
+                >{m.queue_header_pages({
+                    n: currentSearch.data.parsed_pages,
+                })}</span
+            >
+            <span
+                >{m.queue_count({
+                    count: currentSearch.data.parsed_vacancies,
+                })}</span
+            >
+            <span
+                >{m.queue_header_status({
+                    status: statusLabel(currentSearch.data.status),
+                })}</span
+            >
         {/if}
         <Button onclick={handleStart} disabled={!isInactive}>
             {#if isSearchInFlight}
@@ -197,7 +211,9 @@ const isSearchInFlight = $derived(
                     </label>
                 </div>
                 <div class="flex gap-2">
-                    <Button onclick={handleConfirm}>{m.picker_button_confirm()}</Button>
+                    <Button onclick={handleConfirm}
+                        >{m.picker_button_confirm()}</Button
+                    >
                     <Button variant="outline" onclick={handleCancel}>
                         {m.picker_button_cancel()}
                     </Button>
@@ -211,7 +227,9 @@ const isSearchInFlight = $derived(
             {:else if searchPicker.state.status === "error"}
                 <div class="space-y-2">
                     <p class="font-medium text-destructive">
-                        {m.picker_error_prefix({ message: searchPicker.state.message })}
+                        {m.picker_error_prefix({
+                            message: searchPicker.state.message,
+                        })}
                     </p>
                     <Button variant="outline" onclick={handleDismissError}>
                         {m.picker_button_dismiss()}
@@ -225,7 +243,9 @@ const isSearchInFlight = $derived(
         <p>{m.queue_loading()}</p>
     {:else if vacancies.isError}
         <p class="text-red-600">
-            {m.queue_error_load({ error: vacancies.error?.message ?? "unknown error" })}
+            {m.queue_error_load({
+                error: vacancies.error?.message ?? "unknown error",
+            })}
         </p>
     {:else if vacancies.data.length === 0 && !isSearchInFlight}
         <p class="text-gray-500">{m.queue_empty()}</p>
@@ -239,28 +259,11 @@ const isSearchInFlight = $derived(
                 </li>
             {/if}
             {#each vacancies.data as vacancy (vacancy.id)}
-                <li class="border rounded p-4">
-                    <a
-                        href={vacancy.apply_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-lg font-medium hover:underline"
-                    >
-                        {vacancy.title}
-                    </a>
-                    {#if vacancy.company_name}
-                        <p class="text-sm text-gray-700">
-                            {vacancy.company_name}
-                        </p>
-                    {/if}
-                    {#if vacancy.salary}
-                        <p class="text-sm">{vacancy.salary}</p>
-                    {/if}
-                    {#if vacancy.work_location}
-                        <p class="text-sm text-gray-600">
-                            {vacancy.work_location}
-                        </p>
-                    {/if}
+                <li>
+                    <VacancyCard
+                        {vacancy}
+                        onclick={(v) => letterReview.open(v.id)}
+                    />
                 </li>
             {/each}
         </ul>

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from headhunter_backend.api.schemas import (
     ApplicationAPISchema,
     CoverLetterRequestAPISchema,
-    CoverLetterResponseAPISchema,
+    CoverLetterAPISchema,
     ProcessingState,
     VacancyAPISchema,
 )
@@ -14,6 +14,7 @@ from headhunter_backend.db.models import (
 from headhunter_backend.db.converters import (
     vacancy_to_schema,
     application_to_schema,
+    cover_letter_to_schema,
 )
 from headhunter_backend.db.crud import (
     list_vacancies,
@@ -24,6 +25,7 @@ from headhunter_backend.db.crud import (
     create_application,
     get_latest_search_id,
     get_latest_cover_letter,
+    list_cover_letters_by_application_id,
 )
 from headhunter_backend.api.dependencies import (
     SessionDep,
@@ -250,7 +252,7 @@ async def queue_for_letter(
 @vacancies_router.get("/{vacancy_id}/cover_letter")
 async def get_cover_letter(
     vacancy_id: int, session: SessionDep
-) -> CoverLetterResponseAPISchema:
+) -> CoverLetterAPISchema:
     application: ApplicationORM | None = await get_application_by_vacancy_id(
         vacancy_id=vacancy_id, session=session
     )
@@ -261,11 +263,28 @@ async def get_cover_letter(
     )
     if cover_letter is None:
         raise HTTPException(status_code=404, detail="Cover letter not found")
-    return CoverLetterResponseAPISchema(
+    return CoverLetterAPISchema(
         text=cover_letter.text,
         version=cover_letter.version,
         created_at=cover_letter.created_at,
     )
+
+
+@vacancies_router.get("/{vacancy_id}/cover_letters")
+async def list_cover_letters(
+    vacancy_id: int, session: SessionDep
+) -> Sequence[CoverLetterAPISchema]:
+    application: ApplicationORM | None = await get_application_by_vacancy_id(
+        vacancy_id=vacancy_id, session=session
+    )
+    if application is None:
+        raise HTTPException(status_code=404, detail="Vacancy not found")
+    cover_letters: Sequence[
+        CoverLetterORM
+    ] = await list_cover_letters_by_application_id(
+        session=session, application_id=application.id
+    )
+    return list(map(lambda item: cover_letter_to_schema(orm=item), cover_letters))
 
 
 @vacancies_router.post("/{vacancy_id}/cover_letter")
@@ -274,7 +293,7 @@ async def post_cover_letter(
     session: SessionDep,
     letter: CoverLetterRequestAPISchema,
     broadcaster: BroadcasterDep,
-) -> CoverLetterResponseAPISchema:
+) -> CoverLetterAPISchema:
     vacancy: VacancyORM | None = await get_vacancy(
         session=session, vacancy_id=vacancy_id
     )
@@ -321,7 +340,7 @@ async def post_cover_letter(
             )
         )
     )
-    return CoverLetterResponseAPISchema(
+    return CoverLetterAPISchema(
         text=cover_letter.text,
         version=cover_letter.version,
         created_at=cover_letter.created_at,

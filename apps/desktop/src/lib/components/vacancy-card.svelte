@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Vacancy } from "$lib/api/types";
 import * as m from "$lib/paraglide/messages";
-import { ExternalLink } from "@lucide/svelte";
+import ExternalLink from "@lucide/svelte/icons/external-link";
 
 interface Props {
 	vacancy: Vacancy;

@@ -8,7 +8,9 @@ import {
 	DropdownMenuTrigger,
 } from "$lib/components/ui/dropdown-menu";
 import { auth } from "$lib/stores/auth.svelte";
-import { LoaderCircle, User, UserCheck } from "@lucide/svelte";
+import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import User from "@lucide/svelte/icons/user";
+import UserCheck from "@lucide/svelte/icons/user-check";
 
 const status = $derived(auth.getState()?.status ?? null);
 </script>

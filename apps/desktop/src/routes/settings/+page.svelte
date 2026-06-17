@@ -1,6 +1,6 @@
 <script lang="ts">
 import { putSettings } from "$lib/api/client";
-import type { Settings } from "$lib/api/types";
+import SettingsAiTab from "$lib/components/settings-ai-tab.svelte";
 import { Button } from "$lib/components/ui/button";
 import * as Form from "$lib/components/ui/form";
 import { Input } from "$lib/components/ui/input";
@@ -9,8 +9,14 @@ import { Switch } from "$lib/components/ui/switch";
 import * as Tabs from "$lib/components/ui/tabs";
 import { m } from "$lib/paraglide/messages";
 import { createSettingsQuery, settingsQueryKey } from "$lib/queries/settings";
-import { defaultLlm, settingsFormSchema } from "$lib/schemas/settings";
+import {
+	type LLMDeploymentForm,
+	apiDeploymentToForm,
+	formDeploymentToAPI,
+	settingsFormSchema,
+} from "$lib/schemas/settings";
 import { useQueryClient } from "@tanstack/svelte-query";
+import { untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import { defaults, superForm } from "sveltekit-superforms";
 import { zod4 } from "sveltekit-superforms/adapters";
@@ -27,11 +33,19 @@ const form = superForm(defaults(zod4(settingsFormSchema)), {
 		if (!form.valid) {
 			return;
 		}
-		const cached = queryClient.getQueryData<Settings>(settingsQueryKey);
 		try {
 			const saved = await putSettings({
-				...form.data,
-				llm: cached?.llm ?? defaultLlm,
+				search: form.data.search,
+				user: form.data.user,
+				rate_limits: form.data.rate_limits,
+				llm: {
+					resume_text: form.data.llm.resume_text,
+					letter_style: form.data.llm.letter_style,
+					system_prompt: form.data.llm.system_prompt.trim()
+						? form.data.llm.system_prompt
+						: null,
+					deployments: form.data.llm.deployments.map(formDeploymentToAPI),
+				},
 			});
 			queryClient.setQueryData(settingsQueryKey, saved);
 			toast.success(m.settings_save_success());
@@ -44,13 +58,27 @@ const form = superForm(defaults(zod4(settingsFormSchema)), {
 const { form: formData, enhance, submitting } = form;
 
 $effect(() => {
-	if (settings.data) {
-		formData.set({
-			search: settings.data.search,
-			user: settings.data.user,
-			rate_limits: settings.data.rate_limits,
-		});
-	}
+	if (!settings.data) return;
+	const existingDeployments = untrack(() => $formData.llm?.deployments ?? []);
+	const deployments: LLMDeploymentForm[] = settings.data.llm.deployments.map(
+		(d, i) => {
+			const existingId = existingDeployments[i]?.id;
+			const fresh = apiDeploymentToForm(d);
+			return existingId ? { ...fresh, id: existingId } : fresh;
+		},
+	);
+
+	formData.set({
+		search: settings.data.search,
+		user: settings.data.user,
+		rate_limits: settings.data.rate_limits,
+		llm: {
+			resume_text: settings.data.llm.resume_text,
+			letter_style: settings.data.llm.letter_style,
+			system_prompt: settings.data.llm.system_prompt ?? "",
+			deployments,
+		},
+	});
 });
 </script>
 
@@ -104,6 +132,8 @@ $effect(() => {
                     <Tabs.Trigger value="limits"
                         >{m.settings_tab_limits()}</Tabs.Trigger
                     >
+                    <Tabs.Trigger value="ai">{m.settings_tab_ai()}</Tabs.Trigger
+                    >
                 </Tabs.List>
 
                 <Tabs.Content value="search" class="space-y-4">
@@ -134,9 +164,7 @@ $effect(() => {
                                     type="number"
                                     min="1"
                                     {...props}
-                                    bind:value={
-                                        $formData.search.max_vacancies
-                                    }
+                                    bind:value={$formData.search.max_vacancies}
                                 />
                             {/snippet}
                         </Form.Control>
@@ -240,6 +268,10 @@ $effect(() => {
                         </Form.Control>
                         <Form.FieldErrors />
                     </Form.Field>
+                </Tabs.Content>
+
+                <Tabs.Content value="ai" class="space-y-4">
+                    <SettingsAiTab {form} />
                 </Tabs.Content>
             </Tabs.Root>
 

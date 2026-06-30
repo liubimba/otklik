@@ -6,6 +6,8 @@ from headhunter_backend.api.routes import (
     settings,
     ws,
     vacancies,
+    letter,
+    submission,
     auth,
     orchestrator,
     ai,
@@ -15,6 +17,8 @@ from headhunter_backend.api.routes import (
 )
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.log import configure_logging, get_logger
+from headhunter_backend.orchestrator.authorization_service import AuthorizationService
+from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
 from headhunter_backend.orchestrator.queue import Orchestrator
 from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
 from headhunter_backend.browser.writer import BrowserWriter
@@ -70,16 +74,25 @@ async def lifespan(app: FastAPI) -> Any:
         selectors=HHRU_SELECTORS,
     )
     app.state.ai_layer = await bootstrap_ai_layer(maker=session_maker)
+    app.state.cover_letter_service = CoverLetterService(
+        session_maker=session_maker,
+        ai_layer=app.state.ai_layer,
+        broadcaster=app.state.broadcaster,
+    )
     app.state.apply_service = AutoApplyService(
         session_maker=session_maker,
         ai_layer=app.state.ai_layer,
         orchestrator=app.state.orchestrator,
+    )
+    app.state.authorization_service = AuthorizationService(
+        broadcaster=app.state.broadcaster, core=app.state.browser
     )
     app.state.apply_service.start(broadcaster=app.state.broadcaster)
     async with session_maker() as session:
         recovered_count: int = await app.state.orchestrator.recover_from_db(
             session=session
         )
+        await app.state.cover_letter_service.recover_pending(session=session)
         for search_history in await list_search_history(session=session):
             if search_history.status.is_active():
                 await update_search_history(
@@ -88,6 +101,7 @@ async def lifespan(app: FastAPI) -> Any:
                     finished_at=datetime.now(),
                     status=SearchStatusAPISchema.INTERRUPTED,
                 )
+
         logger.info(f"Recovered {recovered_count} applications from the database.")
 
     apply_sqlite_pragmas(target_engine=engine)
@@ -118,8 +132,10 @@ async def lifespan(app: FastAPI) -> Any:
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(vacancies.vacancies_router)
+router.include_router(letter.letter_router)
+router.include_router(submission.submission_router)
 router.include_router(settings.settings_router)
-router.include_router(auth.auth_router)
+router.include_router(auth.user_router)
 router.include_router(orchestrator.orchestrator_router)
 router.include_router(ai.ai_router)
 router.include_router(rate_limits.rate_limits_router)

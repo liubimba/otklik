@@ -37,6 +37,7 @@ class Orchestrator:
     def __init__(self) -> None:
         self._log = get_logger(__name__)
         self._queue: asyncio.Queue[int] = asyncio.Queue()
+        self._pending: list[int] = []
         self._resume_event = asyncio.Event()
         self._resume_event.set()
         self._once = False
@@ -60,15 +61,21 @@ class Orchestrator:
 
     async def enqueue(self, application_id: int) -> None:
         await self._queue.put(application_id)
+        self._pending.append(application_id)
 
     async def get_next(self) -> int:
-        return await self._queue.get()
+        application_id = await self._queue.get()
+        try:
+            self._pending.remove(application_id)
+        except ValueError:
+            pass
+        return application_id
 
     def qsize(self) -> int:
         return self._queue.qsize()
 
     def get_application_ids(self) -> Sequence[int]:
-        return list(self._queue._queue)  # type: ignore
+        return list(self._pending)
 
     async def recover_from_db(self, session: AsyncSession) -> int:
         applications: Sequence[ApplicationORM] = await list_active_applications(session)
@@ -93,7 +100,7 @@ class Orchestrator:
         try:
             while True:
                 await self._resume_event.wait()
-                application_id: int = await self._queue.get()
+                application_id: int = await self.get_next()
                 try:
                     await self._process_one(
                         application_id=application_id,

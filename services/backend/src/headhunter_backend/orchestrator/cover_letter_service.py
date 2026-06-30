@@ -7,7 +7,6 @@ from headhunter_backend.ai.exceptions import AILayerUnhealthyError
 from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.events import ApplicationData, ApplicationWSEvent
 from headhunter_backend.api.schemas import ProcessingState
 from headhunter_backend.db.crud import (
     create_cover_letter,
@@ -15,12 +14,12 @@ from headhunter_backend.db.crud import (
     get_settings,
     get_vacancy,
     list_applications_by_status,
-    transition_application,
 )
 from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
 from headhunter_backend.exceptions import ApplicationNotFoundError, VacancyNotFoundError
 from headhunter_backend.log import get_logger
+from headhunter_backend.orchestrator._transitions import transition_and_broadcast
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 
 
@@ -66,19 +65,11 @@ class CoverLetterService:
                 application_id=application.id,
                 text=cover_result.text,
             )
-            await transition_application(
+            await transition_and_broadcast(
                 session=session,
+                broadcaster=self._broadcaster,
                 application_id=application.id,
                 to_state=ApplicationEvent.LETTER_GENERATED,
-            )
-            await self._broadcaster.publish(
-                event=ApplicationWSEvent(
-                    data=ApplicationData(
-                        application_id=application.id,
-                        vacancy_id=application.vacancy_id,
-                        status=application.status,
-                    )
-                )
             )
             return cover_result
 

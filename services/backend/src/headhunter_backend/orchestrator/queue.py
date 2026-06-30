@@ -8,7 +8,6 @@ from headhunter_backend.db.crud import (
     get_application_by_id,
     get_latest_cover_letter,
     get_vacancy,
-    transition_application,
     log_submission,
 )
 from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
@@ -21,17 +20,17 @@ from headhunter_backend.browser.writer import (
 from headhunter_backend.browser.selectors import Selectors
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.events import (
-    ApplicationData,
-    ApplicationWSEvent,
     CaptchaWSEvent,
     CaptchaData,
 )
+from headhunter_backend.orchestrator._transitions import transition_and_broadcast
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from headhunter_backend.orchestrator.rate_limiter import (
     ensure_within_limits,
     RateLimitExceeded,
 )
 from headhunter_backend.api.schemas import AuthStatusAPISchema, ProcessingState
+from headhunter_backend.exceptions import ApplicationNotFoundError
 
 
 class Orchestrator:
@@ -220,23 +219,16 @@ class Orchestrator:
             match result.type:
                 case SubmitResultType.SUBMITTED:
                     await log_submission(session=session)
-                    app = await transition_application(
-                        session=session,
-                        application_id=app.id,
-                        to_state=ApplicationEvent.SUBMISSION_OK,
-                    )
-                    if app is None:
+                    try:
+                        await transition_and_broadcast(
+                            session=session,
+                            broadcaster=broadcaster,
+                            application_id=app.id,
+                            to_state=ApplicationEvent.SUBMISSION_OK,
+                        )
+                    except ApplicationNotFoundError:
                         self._log.error("Failed to transition to SUBMISSION_OK")
                         return
-                    await broadcaster.publish(
-                        event=ApplicationWSEvent(
-                            data=ApplicationData(
-                                vacancy_id=app.vacancy_id,
-                                application_id=app.id,
-                                status=app.status,
-                            )
-                        )
-                    )
                 case SubmitResultType.CAPTCHA:
                     await self.enqueue(application_id=app.id)
                     self.pause(reason="captcha")
@@ -265,27 +257,18 @@ class Orchestrator:
         broadcaster: EventBroadcaster,
     ) -> None:
         try:
-            application: ApplicationORM | None = await transition_application(
+            await transition_and_broadcast(
                 session=session,
+                broadcaster=broadcaster,
                 application_id=application_id,
                 to_state=ApplicationEvent.SUBMISSION_FAILED,
+                reason=reason,
+            )
+        except ApplicationNotFoundError:
+            self._log.error(
+                "Failed to find application to transition to SUBMISSION_FAILED"
             )
         except Exception as e:
             self._log.exception(
                 "Failed to transition to SUBMISSION_FAILED", error=str(e)
             )
-        if application is None:
-            self._log.error(
-                "Failed to find application to transition to SUBMISSION_FAILED"
-            )
-            return
-        await broadcaster.publish(
-            ApplicationWSEvent(
-                data=ApplicationData(
-                    vacancy_id=vacancy_id,
-                    application_id=application_id,
-                    status=application.status,
-                    reason=reason,
-                )
-            )
-        )

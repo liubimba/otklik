@@ -32,6 +32,7 @@ from headhunter_backend.api.dependencies import (
     OrchestratorDep,
     BroadcasterDep,
 )
+from headhunter_backend.orchestrator._transitions import transition_and_broadcast
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from statemachine.exceptions import TransitionNotAllowed
 from headhunter_backend.log import get_logger
@@ -93,8 +94,9 @@ async def review(
     if application is None:
         raise HTTPException(status_code=409, detail="Vacancy not queued for letter")
     try:
-        application = await transition_application(
+        application = await transition_and_broadcast(
             session=session,
+            broadcaster=broadcaster,
             application_id=application.id,
             to_state=ApplicationEvent.SEND_FOR_REVIEW,
         )
@@ -102,17 +104,6 @@ async def review(
         raise HTTPException(
             status_code=409, detail=f"Unavailable state to queue letter. Error: {e}"
         )
-    if application is None:
-        raise HTTPException(status_code=500, detail="Server error")
-    await broadcaster.publish(
-        event=ApplicationWSEvent(
-            data=ApplicationData(
-                vacancy_id=vacancy_id,
-                application_id=application.id,
-                status=application.status,
-            )
-        )
-    )
     return application_to_schema(orm=application)
 
 
@@ -131,8 +122,9 @@ async def skip(
     if application is None:
         raise HTTPException(status_code=409, detail="Vacancy not queued for letter")
     try:
-        application = await transition_application(
+        application = await transition_and_broadcast(
             session=session,
+            broadcaster=broadcaster,
             application_id=application.id,
             to_state=ApplicationEvent.SKIP,
         )
@@ -140,17 +132,6 @@ async def skip(
         raise HTTPException(
             status_code=409, detail=f"Unavailable state to skip letter. Error: {e}"
         )
-    if application is None:
-        raise HTTPException(status_code=500, detail="Server error")
-    await broadcaster.publish(
-        event=ApplicationWSEvent(
-            data=ApplicationData(
-                vacancy_id=vacancy_id,
-                application_id=application.id,
-                status=application.status,
-            )
-        )
-    )
     return application_to_schema(orm=application)
 
 
@@ -176,8 +157,9 @@ async def submit(
             status_code=409, detail="Vacancy is not queued for a cover letter"
         )
     try:
-        application = await transition_application(
+        application = await transition_and_broadcast(
             session=session,
+            broadcaster=broadcaster,
             application_id=application.id,
             to_state=ApplicationEvent.SUBMIT,
         )
@@ -186,18 +168,7 @@ async def submit(
             status_code=409,
             detail=f"Unavailable state for to submit cover letter. Error: {e}",
         )
-    if application is None:
-        raise HTTPException(status_code=500, detail="Server error")
     await orchestrator.enqueue(application_id=application.id)
-    await broadcaster.publish(
-        event=ApplicationWSEvent(
-            data=ApplicationData(
-                vacancy_id=vacancy_id,
-                application_id=application.id,
-                status=application.status,
-            )
-        )
-    )
     return application_to_schema(orm=application)
 
 
@@ -226,8 +197,9 @@ async def queue_for_letter(
         )
     application = await create_application(session=session, vacancy_id=vacancy_id)
     try:
-        application = await transition_application(
+        application = await transition_and_broadcast(
             session=session,
+            broadcaster=broadcaster,
             application_id=application.id,
             to_state=ApplicationEvent.ENQUEUE_FOR_LETTER,
         )
@@ -235,17 +207,6 @@ async def queue_for_letter(
         raise HTTPException(
             status_code=409, detail=f"Unavailable state to queue letter. Error: {e}"
         )
-    if application is None:
-        raise HTTPException(status_code=500, detail="Server error")
-    await broadcaster.publish(
-        event=ApplicationWSEvent(
-            data=ApplicationData(
-                vacancy_id=vacancy_id,
-                application_id=application.id,
-                status=application.status,
-            )
-        )
-    )
     return application_to_schema(orm=application)
 
 
@@ -364,8 +325,9 @@ async def retry(
             status_code=409, detail="Vacancy is not queued for a cover letter"
         )
     try:
-        application = await transition_application(
+        application = await transition_and_broadcast(
             session=session,
+            broadcaster=broadcaster,
             application_id=application.id,
             to_state=ApplicationEvent.RETRY,
         )
@@ -374,15 +336,4 @@ async def retry(
             status_code=409,
             detail=f"Unavailable state for to submit cover letter. Error: {e}",
         )
-    if application is None:
-        raise HTTPException(status_code=500, detail="Server error")
-    await broadcaster.publish(
-        event=ApplicationWSEvent(
-            data=ApplicationData(
-                vacancy_id=vacancy_id,
-                application_id=application.id,
-                status=application.status,
-            )
-        )
-    )
     return application_to_schema(orm=application)

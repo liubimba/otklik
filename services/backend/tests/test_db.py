@@ -22,8 +22,11 @@ from headhunter_backend.db.crud import (
     create_search_history,
     list_search_history,
     update_search_history,
+    list_applications_by_status,
+    transition_application,
 )
-from headhunter_backend.api.schemas import SearchStatusAPISchema
+from headhunter_backend.api.schemas import ProcessingState, SearchStatusAPISchema
+from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 
 
 async def test_vacancy_crud(
@@ -232,6 +235,83 @@ async def test_list_search_history(
         result = await list_search_history(session=session)
         assert len(result) == 1
         assert result[0] == search_history
+
+
+async def test_list_applications_by_status(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        v_pending = await create_vacancy(
+            session=session,
+            vacancy=vacancy_to_orm(
+                VacancyAPISchema(
+                    title="P",
+                    apply_link="https://hh.ru/p",
+                    description="d",
+                )
+            ),
+        )
+        v_ready = await create_vacancy(
+            session=session,
+            vacancy=vacancy_to_orm(
+                VacancyAPISchema(
+                    title="R",
+                    apply_link="https://hh.ru/r",
+                    description="d",
+                )
+            ),
+        )
+        v_parsed = await create_vacancy(
+            session=session,
+            vacancy=vacancy_to_orm(
+                VacancyAPISchema(
+                    title="X",
+                    apply_link="https://hh.ru/x",
+                    description="d",
+                )
+            ),
+        )
+
+        app_pending = await create_application(session=session, vacancy_id=v_pending.id)
+        await transition_application(
+            session=session,
+            application_id=app_pending.id,
+            to_state=ApplicationEvent.ENQUEUE_FOR_LETTER,
+        )
+
+        app_ready = await create_application(session=session, vacancy_id=v_ready.id)
+        await transition_application(
+            session=session,
+            application_id=app_ready.id,
+            to_state=ApplicationEvent.ENQUEUE_FOR_LETTER,
+        )
+        await transition_application(
+            session=session,
+            application_id=app_ready.id,
+            to_state=ApplicationEvent.LETTER_GENERATED,
+        )
+
+        await create_application(session=session, vacancy_id=v_parsed.id)
+
+        pending = await list_applications_by_status(
+            session=session, status=ProcessingState.LETTER_PENDING
+        )
+        assert {a.vacancy_id for a in pending} == {v_pending.id}
+
+        ready = await list_applications_by_status(
+            session=session, status=ProcessingState.LETTER_READY
+        )
+        assert {a.vacancy_id for a in ready} == {v_ready.id}
+
+        parsed = await list_applications_by_status(
+            session=session, status=ProcessingState.PARSED
+        )
+        assert {a.vacancy_id for a in parsed} == {v_parsed.id}
+
+        skipped = await list_applications_by_status(
+            session=session, status=ProcessingState.SKIPPED
+        )
+        assert list(skipped) == []
 
 
 async def test_search_history_update(

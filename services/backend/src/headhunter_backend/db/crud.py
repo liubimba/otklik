@@ -191,7 +191,10 @@ async def get_application_by_vacancy_id(
 
 
 async def transition_application(
-    session: AsyncSession, application_id: int, to_state: ApplicationEvent
+    session: AsyncSession,
+    application_id: int,
+    to_state: ApplicationEvent,
+    error_message: str | None = None,
 ) -> ApplicationORM | None:
     application: ApplicationORM | None = await get_application_by_id(
         session=session, application_id=application_id
@@ -203,6 +206,7 @@ async def transition_application(
     )
     state_machine.send(to_state.value)
     application.status = ProcessingState(state_machine.current_state_value)
+    application.error_message = error_message
     await session.commit()
     logger.info(
         "Transited application state", application_id=application_id, to_state=to_state
@@ -227,6 +231,15 @@ async def list_active_applications(session: AsyncSession) -> Sequence[Applicatio
                 [ProcessingState.SKIPPED, ProcessingState.LETTER_SENT]
             )
         )
+    )
+    return result.scalars().all()
+
+
+async def list_applications_by_status(
+    session: AsyncSession, status: ProcessingState
+) -> Sequence[ApplicationORM]:
+    result = await session.execute(
+        select(ApplicationORM).where(ApplicationORM.status == status)
     )
     return result.scalars().all()
 

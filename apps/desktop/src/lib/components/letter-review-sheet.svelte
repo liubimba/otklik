@@ -38,21 +38,48 @@
 
     // Sync the editor buffer from the ApplicationDetail.latest_letter that
     // the server returns on GET /vacancies/{id}/application (one hit instead
-    // of a separate cover_letter fetch).
+    // of a separate cover_letter fetch). Every server-driven sync resets
+    // the undo history — Ctrl+Z must not cross a version boundary and
+    // reveal a stale text the user did not type.
     $effect(() => {
         const id = store.letter.review.vacancyId;
         const latest = applicationStatus.data?.latest_letter ?? null;
         if (id === null) {
-            model.cover_letter.localText = "";
+            model.cover_letter.setText("", { pushHistory: false });
+            model.cover_letter.clearHistory();
             model.cover_letter.lastSyncedVersion = null;
             model.tab = "letter";
             return;
         }
         if (latest && latest.version !== model.cover_letter.lastSyncedVersion) {
-            model.cover_letter.localText = latest.text;
+            model.cover_letter.setText(latest.text, { pushHistory: false });
+            model.cover_letter.clearHistory();
             model.cover_letter.lastSyncedVersion = latest.version;
         }
     });
+
+    function handleTextareaKeydown(event: KeyboardEvent) {
+        const isMod = event.ctrlKey || event.metaKey;
+        if (!isMod) return;
+        const key = event.key.toLowerCase();
+        // Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y — redo.
+        if ((key === "z" && event.shiftKey) || key === "y") {
+            if (model.cover_letter.canRedo) {
+                event.preventDefault();
+                view.redo();
+            }
+            return;
+        }
+        // Cmd/Ctrl+Z — undo. The browser's built-in undo stack is wiped
+        // on every programmatic value replacement (initial sync, restore
+        // from history), so we keep our own and swallow the event.
+        if (key === "z") {
+            if (model.cover_letter.canUndo) {
+                event.preventDefault();
+                view.undo();
+            }
+        }
+    }
 </script>
 
 <Sheet.Root
@@ -184,7 +211,12 @@
                         {/if}
 
                         <Textarea
-                            bind:value={model.cover_letter.localText}
+                            value={model.cover_letter.localText}
+                            oninput={(e) =>
+                                model.cover_letter.setText(
+                                    (e.currentTarget as HTMLTextAreaElement).value,
+                                )}
+                            onkeydown={handleTextareaKeydown}
                             readonly={model.cover_letter.isReadOnly}
                             rows={14}
                             placeholder={m.review_textarea_placeholder()}

@@ -57,9 +57,19 @@ class Review {
 }
 
 class LetterReviewSheetCoverLetter {
+	/**
+	 * Upper bound on undo history size. Every keystroke pushes a snapshot,
+	 * so a long editing session could otherwise grow unbounded. 500 covers
+	 * a full-page rewrite without hitting the cap in practice.
+	 */
+	private static readonly MAX_HISTORY = 500;
+
 	localText = $state("");
 	lastSyncedVersion = $state<number | null>(null);
 	restoreCandidate = $state<CoverLetter | null>(null);
+
+	private undoStack = $state<string[]>([]);
+	private redoStack = $state<string[]>([]);
 
 	readonly latest: CoverLetter | null;
 	readonly isEditable: boolean;
@@ -74,6 +84,8 @@ class LetterReviewSheetCoverLetter {
 	 */
 	readonly showSaveButton: boolean;
 	readonly isDirty: boolean;
+	readonly canUndo: boolean;
+	readonly canRedo: boolean;
 
 	constructor(private readonly applicationStatus: ApplicationQuery) {
 		this.latest = $derived(this.applicationStatus.data?.latest_letter ?? null);
@@ -97,6 +109,51 @@ class LetterReviewSheetCoverLetter {
 				? this.localText !== this.latest.text
 				: this.localText.length > 0,
 		);
+
+		this.canUndo = $derived(this.undoStack.length > 0);
+		this.canRedo = $derived(this.redoStack.length > 0);
+	}
+
+	/**
+	 * Single source of truth for changes to `localText`. Every edit records
+	 * the previous value on the undo stack and drops the redo stack (any
+	 * fresh edit invalidates the redo timeline). Server-driven syncs pass
+	 * `pushHistory: false` and pair the call with `clearHistory()` — Ctrl+Z
+	 * must not step past a version-boundary imposed by the server.
+	 */
+	setText(next: string, opts: { pushHistory?: boolean } = {}): void {
+		const pushHistory = opts.pushHistory ?? true;
+		if (pushHistory && this.localText !== next) {
+			this.undoStack.push(this.localText);
+			if (this.undoStack.length > LetterReviewSheetCoverLetter.MAX_HISTORY) {
+				this.undoStack.shift();
+			}
+			this.redoStack = [];
+		}
+		this.localText = next;
+	}
+
+	/** Pop one snapshot off the undo stack and make it the current value. */
+	undo(): boolean {
+		const prev = this.undoStack.pop();
+		if (prev === undefined) return false;
+		this.redoStack.push(this.localText);
+		this.localText = prev;
+		return true;
+	}
+
+	/** Reverse of undo(): pop the redo stack and re-apply. */
+	redo(): boolean {
+		const next = this.redoStack.pop();
+		if (next === undefined) return false;
+		this.undoStack.push(this.localText);
+		this.localText = next;
+		return true;
+	}
+
+	clearHistory(): void {
+		this.undoStack = [];
+		this.redoStack = [];
 	}
 }
 

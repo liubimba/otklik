@@ -336,6 +336,126 @@ describe("LetterReviewSheetCoverLetter — latest + isDirty", () => {
 	});
 });
 
+describe("LetterReviewSheetCoverLetter — undo / redo", () => {
+	function editable() {
+		return makeVM({
+			data: detail({ status: "letter_ready" }),
+			isPending: false,
+			isError: false,
+		});
+	}
+
+	it("starts with empty history (canUndo=false, canRedo=false)", () => {
+		const vm = editable();
+		expect(vm.cover_letter.canUndo).toBe(false);
+		expect(vm.cover_letter.canRedo).toBe(false);
+	});
+
+	it("setText pushes the previous value onto the undo stack", () => {
+		const vm = editable();
+		vm.cover_letter.setText("a");
+		vm.cover_letter.setText("ab");
+		expect(vm.cover_letter.canUndo).toBe(true);
+		expect(vm.cover_letter.localText).toBe("ab");
+	});
+
+	it("setText with pushHistory=false does NOT record history", () => {
+		const vm = editable();
+		vm.cover_letter.setText("server text", { pushHistory: false });
+		expect(vm.cover_letter.canUndo).toBe(false);
+		expect(vm.cover_letter.localText).toBe("server text");
+	});
+
+	it("setText with identical value does not push a duplicate entry", () => {
+		const vm = editable();
+		vm.cover_letter.setText("same");
+		vm.cover_letter.setText("same");
+		vm.cover_letter.undo();
+		expect(vm.cover_letter.canUndo).toBe(false);
+	});
+
+	it("undo restores the previous value and unlocks canRedo", () => {
+		const vm = editable();
+		vm.cover_letter.setText("a");
+		vm.cover_letter.setText("ab");
+
+		expect(vm.cover_letter.undo()).toBe(true);
+		expect(vm.cover_letter.localText).toBe("a");
+		expect(vm.cover_letter.canRedo).toBe(true);
+	});
+
+	it("undo returns false and is a no-op when the stack is empty", () => {
+		const vm = editable();
+		expect(vm.cover_letter.undo()).toBe(false);
+		expect(vm.cover_letter.localText).toBe("");
+	});
+
+	it("multiple undos rewind through the whole history", () => {
+		const vm = editable();
+		vm.cover_letter.setText("a");
+		vm.cover_letter.setText("ab");
+		vm.cover_letter.setText("abc");
+
+		vm.cover_letter.undo();
+		vm.cover_letter.undo();
+		vm.cover_letter.undo();
+		expect(vm.cover_letter.localText).toBe("");
+		expect(vm.cover_letter.canUndo).toBe(false);
+		expect(vm.cover_letter.undo()).toBe(false);
+	});
+
+	it("redo re-applies the last undone value", () => {
+		const vm = editable();
+		vm.cover_letter.setText("hello");
+		vm.cover_letter.undo();
+		expect(vm.cover_letter.localText).toBe("");
+		expect(vm.cover_letter.redo()).toBe(true);
+		expect(vm.cover_letter.localText).toBe("hello");
+	});
+
+	it("redo returns false when the redo stack is empty", () => {
+		const vm = editable();
+		expect(vm.cover_letter.redo()).toBe(false);
+	});
+
+	it("a fresh edit after undo drops the redo stack", () => {
+		const vm = editable();
+		vm.cover_letter.setText("a");
+		vm.cover_letter.setText("ab");
+		vm.cover_letter.undo();
+		expect(vm.cover_letter.canRedo).toBe(true);
+
+		vm.cover_letter.setText("new branch");
+		expect(vm.cover_letter.canRedo).toBe(false);
+	});
+
+	it("clearHistory wipes both stacks", () => {
+		const vm = editable();
+		vm.cover_letter.setText("a");
+		vm.cover_letter.setText("b");
+		vm.cover_letter.undo();
+
+		vm.cover_letter.clearHistory();
+		expect(vm.cover_letter.canUndo).toBe(false);
+		expect(vm.cover_letter.canRedo).toBe(false);
+	});
+
+	it("caps undo history at MAX_HISTORY (drops the oldest entry)", () => {
+		const vm = editable();
+		// Push more than the cap so the oldest entries get evicted.
+		for (let i = 0; i < 505; i++) {
+			vm.cover_letter.setText(String(i));
+		}
+		// Rewind all the way back. If the cap held, we can't reach the empty
+		// initial value (the first ~5 entries were dropped).
+		while (vm.cover_letter.undo()) {
+			/* keep unwinding */
+		}
+		expect(vm.cover_letter.localText).not.toBe("");
+		expect(vm.cover_letter.localText).toBe("4");
+	});
+});
+
 describe("LetterReviewSheetViewModel — tab state", () => {
 	it("defaults to the 'letter' tab", () => {
 		const vm = makeVM({

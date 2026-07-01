@@ -85,10 +85,11 @@ export function createLetterReviewSheetView(
 		}
 	}
 
-	async function close() {
-		if (vm.cover_letter.isDirty && vm.cover_letter.isEditable) {
-			await save();
-		}
+	// Close discards unsaved edits by design. Prior behaviour auto-saved
+	// on every close (removed on user's request 2026-07-01) surprised
+	// users into persisting drafts they intended to throw away — a Sheet
+	// close is a dismissal, not a commit.
+	function close() {
 		store.close();
 	}
 
@@ -99,9 +100,20 @@ export function createLetterReviewSheetView(
 	function confirmRestore() {
 		const candidate = vm.cover_letter.restoreCandidate;
 		if (candidate === null) return;
-		vm.cover_letter.localText = candidate.text;
+		// Route through setText() so the pre-restore text lands on the undo
+		// stack — Ctrl+Z after a restore takes the user back to what they
+		// had, matching every other editor.
+		vm.cover_letter.setText(candidate.text);
 		vm.tab = "letter";
 		vm.cover_letter.restoreCandidate = null;
+	}
+
+	function undo() {
+		vm.cover_letter.undo();
+	}
+
+	function redo() {
+		vm.cover_letter.redo();
 	}
 
 	function cancelRestore() {
@@ -123,6 +135,8 @@ export function createLetterReviewSheetView(
 		confirmRestore,
 		cancelRestore,
 		setTab,
+		undo,
+		redo,
 		errMsg,
 	};
 }

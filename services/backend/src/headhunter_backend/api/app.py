@@ -25,9 +25,8 @@ from headhunter_backend.orchestrator.workers.letter_pending import LetterPending
 from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
 from headhunter_backend.browser.writer import BrowserWriter
-from headhunter_backend.browser.selectors import HHRU_SELECTORS
 from headhunter_backend.orchestrator.search import SearchService
-from headhunter_backend.browser.parser import Parser
+from headhunter_backend.sites.hh_ru import HHRUParser, HHRU_SELECTORS
 from headhunter_backend.api.schemas import SearchStatusAPISchema
 from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.db.models import SettingsORM
@@ -68,7 +67,7 @@ async def lifespan(app: FastAPI) -> Any:
     )
     app.state.search_service = SearchService(
         core=app.state.browser,
-        parser=Parser(core=app.state.browser),
+        parser=HHRUParser(core=app.state.browser),
         broadcaster=app.state.broadcaster,
         session_maker=session_maker,
         selectors=HHRU_SELECTORS,

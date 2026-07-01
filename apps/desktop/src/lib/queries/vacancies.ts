@@ -1,4 +1,4 @@
-import { getVacancies } from "$lib/api/client";
+import { API } from "$lib/api/client";
 import { TERMINAL_SEARCH_STATUSES } from "$lib/api/types";
 import type { SearchEvent, Vacancy, VacancyEvent } from "$lib/api/types";
 import { type QueryClient, createQuery } from "@tanstack/svelte-query";
@@ -8,7 +8,7 @@ export const vacanciesQueryKey = ["vacancies"] as const;
 export function createVacanciesQuery() {
 	return createQuery<Vacancy[]>(() => ({
 		queryKey: vacanciesQueryKey,
-		queryFn: getVacancies,
+		queryFn: () => API.vacancies.list(),
 		staleTime: 30_000,
 	}));
 }

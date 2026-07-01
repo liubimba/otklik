@@ -1,225 +1,65 @@
 <script lang="ts">
-import {
-	generateCoverLetter,
-	queueForLetter,
-	retryApplication,
-	saveCoverLetter,
-	skipApplication,
-	submitApplication,
-} from "$lib/api/client";
-import type { CoverLetter, Vacancy } from "$lib/api/types";
-import * as AlertDialog from "$lib/components/ui/alert-dialog";
-import { Badge } from "$lib/components/ui/badge";
-import { Button } from "$lib/components/ui/button";
-import { ScrollArea } from "$lib/components/ui/scroll-area";
-import * as Sheet from "$lib/components/ui/sheet";
-import { Skeleton } from "$lib/components/ui/skeleton";
-import * as Tabs from "$lib/components/ui/tabs";
-import { Textarea } from "$lib/components/ui/textarea";
-import { m } from "$lib/paraglide/messages";
-import {
-	applicationStatusQueryKey,
-	coverLettersHistoryQueryKey,
-	createApplicationStatusQuery,
-	createCoverLettersHistoryQuery,
-	createLatestCoverLetterQuery,
-	latestCoverLetterQueryKey,
-} from "$lib/queries/applications";
-import { vacanciesQueryKey } from "$lib/queries/vacancies";
-import { letterReview } from "$lib/stores/letter_review.svelte";
-import { useQueryClient } from "@tanstack/svelte-query";
-import { toast } from "svelte-sonner";
+    import * as AlertDialog from "$lib/components/ui/alert-dialog";
+    import {Badge} from "$lib/components/ui/badge";
+    import {Button} from "$lib/components/ui/button";
+    import {ScrollArea} from "$lib/components/ui/scroll-area";
+    import * as Sheet from "$lib/components/ui/sheet";
+    import {Skeleton} from "$lib/components/ui/skeleton";
+    import * as Tabs from "$lib/components/ui/tabs";
+    import {Textarea} from "$lib/components/ui/textarea";
+    import {m} from "$lib/paraglide/messages";
+    import {
+        createApplicationQuery,
+        createCoverLettersHistoryQuery,
+    } from "$lib/queries/applications";
+    import {useQueryClient} from "@tanstack/svelte-query";
+    import {createActions} from "$lib/actions";
+    import {store} from "$lib/stores";
+    import {lifecycle} from "$lib/model";
+    import type {Tab} from "$lib/model/letter-review-sheet.viewmodel.svelte";
 
-const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
+    const actions = createActions(queryClient);
 
-const applicationStatus = createApplicationStatusQuery(
-	() => letterReview.vacancyId,
-);
-const latestCoverLetter = createLatestCoverLetterQuery(
-	() => letterReview.vacancyId,
-);
-const coverLettersHistory = createCoverLettersHistoryQuery(
-	() => letterReview.vacancyId,
-);
+    const applicationStatus = createApplicationQuery(
+        () => store.letter.review.vacancyId,
+    );
+    const coverLettersHistory = createCoverLettersHistoryQuery(
+        () => store.letter.review.vacancyId,
+    );
 
-let activeTab = $state<"letter" | "history">("letter");
-let localText = $state("");
-let lastSyncedVersion = $state<number | null>(null);
-let restoreCandidate = $state<CoverLetter | null>(null);
-let isGenerating = $state(false);
-let isSaving = $state(false);
-let isSubmitting = $state(false);
-let isSkipping = $state(false);
-let isRetrying = $state(false);
+    const model = lifecycle.letter.review.viewmodel(
+        queryClient,
+        store.letter.review,
+        applicationStatus,
+        coverLettersHistory,
+    );
+    const view = lifecycle.letter.review.view(actions, store.letter.review, model);
 
-$effect(() => {
-	const id = letterReview.vacancyId;
-	const latest = latestCoverLetter.data;
-	if (id === null) {
-		localText = "";
-		lastSyncedVersion = null;
-		activeTab = "letter";
-		return;
-	}
-	if (latest && latest.version !== lastSyncedVersion) {
-		localText = latest.text;
-		lastSyncedVersion = latest.version;
-	}
-});
-
-const status = $derived(applicationStatus.data?.status ?? "parsed");
-const hasApplication = $derived(
-	applicationStatus.data !== null && applicationStatus.data !== undefined,
-);
-const isLoading = $derived(
-	applicationStatus.isPending || latestCoverLetter.isPending,
-);
-const isErrorState = $derived(
-	applicationStatus.isError || latestCoverLetter.isError,
-);
-const isDirty = $derived(
-	latestCoverLetter.data
-		? localText !== latestCoverLetter.data.text
-		: localText.length > 0,
-);
-const isEditable = $derived(
-	status === "letter_ready" ||
-		status === "letter_reviewing" ||
-		status === "error",
-);
-const isReadOnlyText = $derived(
-	status === "letter_sending" ||
-		status === "letter_sent" ||
-		status === "skipped",
-);
-
-const vacancy = $derived.by((): Vacancy | null => {
-	const id = letterReview.vacancyId;
-	if (id === null) return null;
-	const cached = queryClient.getQueryData<Vacancy[]>(vacanciesQueryKey);
-	return cached?.find((v) => v.id === id) ?? null;
-});
-
-function errMsg(e: unknown): string {
-	return e instanceof Error ? e.message : "unknown";
-}
-
-async function invalidateAll(vacancyId: number) {
-	await Promise.all([
-		queryClient.invalidateQueries({
-			queryKey: applicationStatusQueryKey(vacancyId),
-		}),
-		queryClient.invalidateQueries({
-			queryKey: latestCoverLetterQueryKey(vacancyId),
-		}),
-		queryClient.invalidateQueries({
-			queryKey: coverLettersHistoryQueryKey(vacancyId),
-		}),
-	]);
-}
-
-async function handleGenerate() {
-	const id = letterReview.vacancyId;
-	if (id === null) return;
-	isGenerating = true;
-	try {
-		if (!hasApplication) {
-			await queueForLetter(id);
-		}
-		await generateCoverLetter(id);
-		await invalidateAll(id);
-		toast.success(m.review_generate_success());
-	} catch (e) {
-		toast.error(m.review_generate_failed({ error: errMsg(e) }));
-	} finally {
-		isGenerating = false;
-	}
-}
-
-async function handleSave() {
-	const id = letterReview.vacancyId;
-	if (id === null) return;
-	isSaving = true;
-	try {
-		await saveCoverLetter(id, localText);
-		await invalidateAll(id);
-		toast.success(m.review_save_success());
-	} catch (e) {
-		toast.error(m.review_save_failed({ error: errMsg(e) }));
-	} finally {
-		isSaving = false;
-	}
-}
-
-async function handleSubmit() {
-	const id = letterReview.vacancyId;
-	if (id === null) return;
-	if (isDirty) {
-		await handleSave();
-	}
-	isSubmitting = true;
-	try {
-		await submitApplication(id);
-		await invalidateAll(id);
-		toast.success(m.review_submit_success());
-	} catch (e) {
-		toast.error(m.review_submit_failed({ error: errMsg(e) }));
-	} finally {
-		isSubmitting = false;
-	}
-}
-
-async function handleSkip() {
-	const id = letterReview.vacancyId;
-	if (id === null) return;
-	isSkipping = true;
-	try {
-		await skipApplication(id);
-		await invalidateAll(id);
-	} catch (e) {
-		toast.error(m.review_skip_failed({ error: errMsg(e) }));
-	} finally {
-		isSkipping = false;
-	}
-}
-
-async function handleRetry() {
-	const id = letterReview.vacancyId;
-	if (id === null) return;
-	isRetrying = true;
-	try {
-		await retryApplication(id);
-		await invalidateAll(id);
-	} catch (e) {
-		toast.error(m.review_retry_failed({ error: errMsg(e) }));
-	} finally {
-		isRetrying = false;
-	}
-}
-
-function startRestore(version: CoverLetter) {
-	restoreCandidate = version;
-}
-
-function confirmRestore() {
-	if (!restoreCandidate) return;
-	localText = restoreCandidate.text;
-	activeTab = "letter";
-	restoreCandidate = null;
-}
-
-async function handleOpenChange(open: boolean) {
-	if (open) return;
-	if (isDirty && isEditable) {
-		await handleSave();
-	}
-	letterReview.close();
-}
+    // Sync the editor buffer from the ApplicationDetail.latest_letter that
+    // the server returns on GET /vacancies/{id}/application (one hit instead
+    // of a separate cover_letter fetch).
+    $effect(() => {
+        const id = store.letter.review.vacancyId;
+        const latest = applicationStatus.data?.latest_letter ?? null;
+        if (id === null) {
+            model.cover_letter.localText = "";
+            model.cover_letter.lastSyncedVersion = null;
+            model.tab = "letter";
+            return;
+        }
+        if (latest && latest.version !== model.cover_letter.lastSyncedVersion) {
+            model.cover_letter.localText = latest.text;
+            model.cover_letter.lastSyncedVersion = latest.version;
+        }
+    });
 </script>
 
 <Sheet.Root
-    open={letterReview.vacancyId !== null}
-    onOpenChange={handleOpenChange}
+    open={model.isOpen}
+    onOpenChange={(o) => {
+        if (!o) view.close();
+    }}
 >
     <Sheet.Content
         side="right"
@@ -227,14 +67,15 @@ async function handleOpenChange(open: boolean) {
     >
         <Sheet.Header class="border-b border-border px-6 py-4">
             <Sheet.Title class="truncate pr-8 text-base">
-                {vacancy?.title ?? `#${letterReview.vacancyId ?? ""}`}
+                {model.review.vacancy?.title ??
+                    `#${store.letter.review.vacancyId ?? ""}`}
             </Sheet.Title>
             <Sheet.Description class="truncate text-sm text-muted-foreground">
-                {#if vacancy}
-                    {vacancy.company_name ?? ""}{#if vacancy.salary}
-                        · {vacancy.salary}
-                    {/if}{#if vacancy.work_location}
-                        · {vacancy.work_location}
+                {#if model.review.vacancy}
+                    {model.review.vacancy.company_name ?? ""}{#if model.review.vacancy.salary}
+                        · {model.review.vacancy.salary}
+                    {/if}{#if model.review.vacancy.work_location}
+                        · {model.review.vacancy.work_location}
                     {/if}
                 {:else}
                     &nbsp;
@@ -243,8 +84,8 @@ async function handleOpenChange(open: boolean) {
         </Sheet.Header>
 
         <Tabs.Root
-            value={activeTab}
-            onValueChange={(v) => (activeTab = v as "letter" | "history")}
+            value={model.tab}
+            onValueChange={(v) => view.setTab(v as Tab)}
             class="flex min-h-0 flex-1 flex-col gap-0"
         >
             <Tabs.List class="mx-6 mt-3 w-fit shrink-0">
@@ -253,9 +94,12 @@ async function handleOpenChange(open: boolean) {
                 </Tabs.Trigger>
                 <Tabs.Trigger value="history">
                     {m.review_tab_history()}
-                    {#if coverLettersHistory.data && coverLettersHistory.data.length > 0}
-                        <Badge variant="secondary" class="ml-1.5 h-4 px-1 text-[10px]">
-                            {coverLettersHistory.data.length}
+                    {#if model.coverLettersHistory.data && model.coverLettersHistory.data.length > 0}
+                        <Badge
+                            variant="secondary"
+                            class="ml-1.5 h-4 px-1 text-[10px]"
+                        >
+                            {model.coverLettersHistory.data.length}
                         </Badge>
                     {/if}
                 </Tabs.Trigger>
@@ -265,22 +109,21 @@ async function handleOpenChange(open: boolean) {
                 value="letter"
                 class="m-0 min-h-0 flex-1 overflow-y-auto"
             >
-                {#if isLoading}
+                {#if model.review.isLoading}
                     <div class="space-y-3 p-6">
                         <Skeleton class="h-4 w-32 rounded" />
                         <Skeleton class="h-64 w-full rounded-md" />
                     </div>
-                {:else if isErrorState}
+                {:else if model.review.isError}
                     <div class="p-6">
                         <p class="text-sm text-destructive">
                             {m.review_load_error({
                                 error:
-                                    errMsg(applicationStatus.error) ||
-                                    errMsg(latestCoverLetter.error),
+                                    view.errMsg(model.applicationStatus.error),
                             })}
                         </p>
                     </div>
-                {:else if status === "parsed" || !hasApplication}
+                {:else if model.review.status === "parsed" || !model.review.hasApplication}
                     <div
                         class="flex flex-col items-center justify-center gap-2 p-12 text-center"
                     >
@@ -291,7 +134,7 @@ async function handleOpenChange(open: boolean) {
                             {m.review_empty_letter_hint()}
                         </p>
                     </div>
-                {:else if status === "letter_pending" || isGenerating}
+                {:else if model.review.isGenerating}
                     <div
                         class="flex flex-col items-center justify-center gap-2 p-12 text-center"
                     >
@@ -307,7 +150,15 @@ async function handleOpenChange(open: boolean) {
                     </div>
                 {:else}
                     <div class="space-y-3 p-6">
-                        {#if status === "letter_sending"}
+                        {#if model.review.status === "error"}
+                            <div
+                                    class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                            >
+                                <span>{m.error()}: {model.review.error ? model.review.error : m.review_sent_unknown_error()}</span>
+                            </div>
+                        {/if}
+
+                        {#if model.review.isSubmitting}
                             <p
                                 class="flex items-center gap-2 text-sm text-muted-foreground"
                             >
@@ -316,36 +167,36 @@ async function handleOpenChange(open: boolean) {
                                 ></span>
                                 {m.review_sending_status()}
                             </p>
-                        {:else if status === "letter_sent"}
+                        {:else if model.review.status === "letter_sent"}
                             <Badge variant="default">
                                 {m.review_sent_status()}
                             </Badge>
-                        {:else if status === "skipped"}
+                        {:else if model.review.status === "skipped"}
                             <Badge variant="ghost">
                                 {m.review_skipped_status()}
                             </Badge>
-                        {:else if status === "error" && applicationStatus.data?.reason}
+                        {:else if model.review.status === "error" && model.applicationStatus.data?.reason}
                             <div
                                 class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
                             >
-                                {applicationStatus.data.reason}
+                                {model.applicationStatus.data.reason}
                             </div>
                         {/if}
 
                         <Textarea
-                            bind:value={localText}
-                            readonly={isReadOnlyText}
+                            bind:value={model.cover_letter.localText}
+                            readonly={model.cover_letter.isReadOnly}
                             rows={14}
                             placeholder={m.review_textarea_placeholder()}
-                            class={isReadOnlyText ? "opacity-70" : ""}
+                            class={model.cover_letter.isReadOnly ? "opacity-70" : ""}
                         />
 
                         <p class="text-xs text-muted-foreground">
-                            {#if isDirty && isEditable}
+                            {#if model.cover_letter.isDirty && model.cover_letter.isEditable}
                                 {m.review_dirty_hint()}
-                            {:else if latestCoverLetter.data}
+                            {:else if model.cover_letter.latest}
                                 {m.review_clean_hint({
-                                    version: latestCoverLetter.data.version,
+                                    version: model.cover_letter.latest.version,
                                 })}
                             {/if}
                         </p>
@@ -357,25 +208,25 @@ async function handleOpenChange(open: boolean) {
                 value="history"
                 class="m-0 min-h-0 flex-1 overflow-hidden"
             >
-                {#if coverLettersHistory.isPending}
+                {#if model.coverLettersHistory.isPending}
                     <div class="space-y-2 p-6">
                         <Skeleton class="h-16 w-full rounded-md" />
                         <Skeleton class="h-16 w-full rounded-md" />
                     </div>
-                {:else if coverLettersHistory.isError}
+                {:else if model.coverLettersHistory.isError}
                     <p class="p-6 text-sm text-destructive">
                         {m.review_load_error({
-                            error: errMsg(coverLettersHistory.error),
+                            error: view.errMsg(model.coverLettersHistory.error),
                         })}
                     </p>
-                {:else if !coverLettersHistory.data || coverLettersHistory.data.length === 0}
+                {:else if !model.coverLettersHistory.data || model.coverLettersHistory.data.length === 0}
                     <p class="p-6 text-sm text-muted-foreground">
                         {m.review_history_empty()}
                     </p>
                 {:else}
                     <ScrollArea class="h-full">
                         <ul class="space-y-3 p-6">
-                            {#each coverLettersHistory.data as version (version.version)}
+                            {#each model.coverLettersHistory.data as version (version.version)}
                                 <li
                                     class="space-y-2 rounded-md border border-border p-3"
                                 >
@@ -385,7 +236,7 @@ async function handleOpenChange(open: boolean) {
                                         <div class="flex items-center gap-2">
                                             <Badge variant="outline">
                                                 {m.review_history_version_label(
-                                                    { version: version.version },
+                                                    {version: version.version},
                                                 )}
                                             </Badge>
                                             <span
@@ -396,12 +247,12 @@ async function handleOpenChange(open: boolean) {
                                                 ).toLocaleString()}
                                             </span>
                                         </div>
-                                        {#if isEditable}
+                                        {#if model.cover_letter.isEditable}
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
                                                 onclick={() =>
-                                                    startRestore(version)}
+                                                    view.startRestore(version)}
                                             >
                                                 {m.review_button_restore()}
                                             </Button>
@@ -423,62 +274,55 @@ async function handleOpenChange(open: boolean) {
         <Sheet.Footer
             class="flex-row items-center justify-between gap-2 border-t border-border px-6 py-3"
         >
-            {#if status === "parsed" || !hasApplication}
+            {#if model.review.status === "parsed" || !model.review.hasApplication}
                 <div></div>
-                <Button onclick={handleGenerate} disabled={isGenerating}>
+                <Button
+                    onclick={view.generate}
+                    disabled={model.review.isGenerating}
+                >
                     {m.review_button_generate()}
                 </Button>
-            {:else if status === "letter_pending"}
+            {:else if model.review.isGenerating}
                 <div></div>
                 <Button disabled>{m.review_button_generate()}</Button>
-            {:else if status === "letter_ready" || status === "letter_reviewing"}
-                <Button
-                    variant="ghost"
-                    onclick={handleSkip}
-                    disabled={isSkipping}
-                >
+            {:else if model.review.status === "letter_ready" || model.review.status === "letter_reviewing"}
+                <Button variant="ghost" onclick={view.skip}>
                     {m.review_button_skip()}
                 </Button>
                 <div class="flex gap-2">
                     <Button
                         variant="outline"
-                        onclick={handleGenerate}
-                        disabled={isGenerating}
+                        onclick={view.generate}
+                        disabled={model.review.isGenerating}
                     >
                         {m.review_button_regenerate()}
                     </Button>
                     <Button
                         variant="outline"
-                        onclick={handleSave}
-                        disabled={isSaving || !isDirty}
+                        onclick={view.save}
+                        disabled={!model.cover_letter.isDirty}
                     >
-                        {isSaving
-                            ? m.review_button_saving()
-                            : m.review_button_save()}
+                        {m.review_button_save()}
                     </Button>
-                    <Button onclick={handleSubmit} disabled={isSubmitting}>
-                        {isSubmitting
+                    <Button
+                        onclick={view.submit}
+                        disabled={model.review.isSubmitting}
+                    >
+                        {model.review.isSubmitting
                             ? m.review_button_submitting()
                             : m.review_button_submit()}
                     </Button>
                 </div>
-            {:else if status === "error"}
-                <Button
-                    variant="ghost"
-                    onclick={handleSkip}
-                    disabled={isSkipping}
-                >
+            {:else if model.review.status === "error"}
+                <Button variant="ghost" onclick={view.skip}>
                     {m.review_button_skip()}
                 </Button>
-                <Button onclick={handleRetry} disabled={isRetrying}>
+                <Button onclick={view.retry}>
                     {m.review_button_retry()}
                 </Button>
             {:else}
                 <div></div>
-                <Button
-                    variant="ghost"
-                    onclick={() => letterReview.close()}
-                >
+                <Button variant="ghost" onclick={view.close}>
                     {m.review_button_close()}
                 </Button>
             {/if}
@@ -487,16 +331,16 @@ async function handleOpenChange(open: boolean) {
 </Sheet.Root>
 
 <AlertDialog.Root
-    open={restoreCandidate !== null}
+    open={model.cover_letter.restoreCandidate !== null}
     onOpenChange={(o) => {
-        if (!o) restoreCandidate = null;
+        if (!o) view.cancelRestore();
     }}
 >
     <AlertDialog.Content>
         <AlertDialog.Header>
             <AlertDialog.Title>
                 {m.review_restore_title({
-                    version: restoreCandidate?.version ?? 0,
+                    version: model.cover_letter.restoreCandidate?.version ?? 0,
                 })}
             </AlertDialog.Title>
             <AlertDialog.Description>
@@ -507,7 +351,7 @@ async function handleOpenChange(open: boolean) {
             <AlertDialog.Cancel>
                 {m.review_restore_cancel()}
             </AlertDialog.Cancel>
-            <AlertDialog.Action onclick={confirmRestore}>
+            <AlertDialog.Action onclick={view.confirmRestore}>
                 {m.review_restore_confirm()}
             </AlertDialog.Action>
         </AlertDialog.Footer>

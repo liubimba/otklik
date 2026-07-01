@@ -208,6 +208,38 @@ describe("Review — derived state from ApplicationQuery", () => {
 		expect(vm.review.canSubmit).toBe(true);
 	});
 
+	// canRegenerate mirrors the LETTER_GENERATED-event arcs that make sense
+	// as a footer button: letter_ready / letter_reviewing / error. The
+	// ERROR arc landed on the backend (commit 9be33fc); the UI needed the
+	// Regenerate button to match so the user isn't stuck taking the
+	// RETRY-via-queue path.
+	it.each<[ProcessingState, boolean]>([
+		["letter_ready", true],
+		["letter_reviewing", true],
+		["error", true],
+		["parsed", false],
+		["letter_pending", false],
+		["letter_sending", false],
+		["letter_sent", false],
+		["skipped", false],
+	])("canRegenerate for status=%s → %p", (status, expected) => {
+		const vm = makeVM({
+			data: detail({ status }),
+			isPending: false,
+			isError: false,
+		});
+		expect(vm.review.canRegenerate).toBe(expected);
+	});
+
+	it("canRegenerate is true in ERROR (regression: matches the new backend arc)", () => {
+		const vm = makeVM({
+			data: detail({ status: "error", reason: "not authorized" }),
+			isPending: false,
+			isError: false,
+		});
+		expect(vm.review.canRegenerate).toBe(true);
+	});
+
 	it("looks up the vacancy in the QueryClient cache by id", () => {
 		const cachedVacancy: Vacancy = {
 			id: 1,

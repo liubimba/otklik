@@ -323,13 +323,15 @@
                     {m.review_button_skip()}
                 </Button>
                 <div class="flex gap-2">
-                    <Button
-                        variant="outline"
-                        onclick={view.generate}
-                        disabled={model.review.isGenerating}
-                    >
-                        {m.review_button_regenerate()}
-                    </Button>
+                    {#if model.review.canRegenerate}
+                        <Button
+                            variant="outline"
+                            onclick={view.generate}
+                            disabled={model.review.isGenerating}
+                        >
+                            {m.review_button_regenerate()}
+                        </Button>
+                    {/if}
                     {#if model.cover_letter.showSaveButton}
                         <Button
                             variant="outline"
@@ -353,6 +355,21 @@
                     {m.review_button_skip()}
                 </Button>
                 <div class="flex gap-2">
+                    {#if model.review.canRegenerate}
+                        <!--
+                            ERROR → LETTER_READY arc on `letter_generated`
+                            (backend commit 9be33fc) — the user can regenerate
+                            a fresh letter from the LLM after a failed submit
+                            without first taking the RETRY-via-queue path.
+                        -->
+                        <Button
+                            variant="outline"
+                            onclick={view.generate}
+                            disabled={model.review.isGenerating}
+                        >
+                            {m.review_button_regenerate()}
+                        </Button>
+                    {/if}
                     {#if model.cover_letter.showSaveButton}
                         <Button
                             variant="outline"

@@ -30,6 +30,15 @@ class Review {
 	 * a forced LLM regeneration (which is what RETRY does).
 	 */
 	readonly canSubmit: boolean;
+	/**
+	 * Whether the "Сгенерировать заново" (Regenerate) button should be
+	 * shown in the footer. Mirrors the LETTER_GENERATED-event arcs on the
+	 * backend state machine that the UI actually surfaces —
+	 * letter_ready / letter_reviewing / error. Excludes letter_pending
+	 * (that IS a regeneration-in-progress; the footer shows a spinner
+	 * instead) and PARSED (which has its own initial-generate button).
+	 */
+	readonly canRegenerate: boolean;
 	readonly error;
 
 	constructor(
@@ -55,6 +64,12 @@ class Review {
 		this.isSubmitting = $derived(this.status === "letter_sending");
 
 		this.canSubmit = $derived(
+			this.status === "letter_ready" ||
+				this.status === "letter_reviewing" ||
+				this.status === "error",
+		);
+
+		this.canRegenerate = $derived(
 			this.status === "letter_ready" ||
 				this.status === "letter_reviewing" ||
 				this.status === "error",

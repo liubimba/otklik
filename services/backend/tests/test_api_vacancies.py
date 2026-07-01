@@ -9,11 +9,9 @@ from headhunter_backend.api.schemas import (
     VacanciesSearchAPISchema,
     VacancyAPISchema,
 )
-from headhunter_backend.db.crud import (
-    get_latest_cover_letter,
-    get_application_by_vacancy_id,
-)
 from pydantic import HttpUrl
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
 
 
 def test_vacancies_get(client):
@@ -106,11 +104,13 @@ async def test_vacancies_cover_letter(client, session_factory):
     assert cover_letter.created_at is not None
 
     async with session_factory() as session:
-        application: ApplicationORM | None = await get_application_by_vacancy_id(
-            session=session, vacancy_id=1
-        )
+        application: (
+            ApplicationORM | None
+        ) = await ApplicationRepository.get_by_vacancy_id(session=session, vacancy_id=1)
         assert application is not None
-        letter: CoverLetterORM | None = await get_latest_cover_letter(
+        letter: (
+            CoverLetterORM | None
+        ) = await CoverLetterRepository.get_latest_by_application_id(
             session=session, application_id=application.id
         )
         assert letter is not None
@@ -151,11 +151,13 @@ async def test_vacancies_double_cover_letter(client, session_factory):
     assert cover_letter.text == text
 
     async with session_factory() as session:
-        application: ApplicationORM | None = await get_application_by_vacancy_id(
-            session=session, vacancy_id=1
-        )
+        application: (
+            ApplicationORM | None
+        ) = await ApplicationRepository.get_by_vacancy_id(session=session, vacancy_id=1)
         assert application is not None
-        letter: CoverLetterORM | None = await get_latest_cover_letter(
+        letter: (
+            CoverLetterORM | None
+        ) = await CoverLetterRepository.get_latest_by_application_id(
             session=session, application_id=application.id
         )
         assert letter is not None

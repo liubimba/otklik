@@ -1,15 +1,11 @@
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
-from headhunter_backend.api.events import VacancyWSEvent
-from headhunter_backend.db.crud import (
-    get_settings,
-    get_vacancy_by_apply_link,
-    create_application,
-    transition_application,
-    create_cover_letter,
-)
-from headhunter_backend.db.models import SettingsORM, VacancyORM, ApplicationORM
+from headhunter_backend.api.events import VacancyWSEvent, ApplicationWSEvent
+from headhunter_backend.api.schemas import ProcessingState
+from headhunter_backend.db.models import SettingsORM, VacancyORM
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+from headhunter_backend.exceptions import VacancyNotFoundError
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.ai.result import AICoverLetterResult
@@ -18,6 +14,10 @@ from headhunter_backend.orchestrator.queue import Orchestrator
 from headhunter_backend.log import get_logger
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.subscribers import CallbackEventSubscriber
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
+from headhunter_backend.db.repositories.settings import SettingsRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 
 class AutoApplyService:
@@ -44,16 +44,40 @@ class AutoApplyService:
         self._log.info("Terminating service")
         self._broadcaster.unregister(self._subscriber)
 
+    async def regenerate(self, vacancy_id: int) -> None:
+        self._log.info("Requested to regenerate", vacancy_id=vacancy_id)
+        async with self._session_maker() as session:
+            vacancy_orm: VacancyORM | None = await VacancyRepository.get_by_id(
+                session=session, vacancy_id=vacancy_id
+            )
+            if vacancy_orm is None:
+                raise VacancyNotFoundError()
+            await self._process(
+                event=VacancyWSEvent(data=vacancy_to_schema(vacancy_orm))
+            )
+
     async def _handle_event(self, event: BaseModel) -> None:
         self._log.info("Received event")
         if isinstance(event, VacancyWSEvent):
             self._log.info("Add to async queue to process event", payload=event)
             await self._process(event=event)
+        elif isinstance(event, ApplicationWSEvent):
+            if event.data.status == ProcessingState.LETTER_PENDING:
+                try:
+                    await self.regenerate(vacancy_id=event.data.vacancy_id)
+                except VacancyNotFoundError as e:
+                    self._log.error(
+                        "Failed to regenerate",
+                        vacancy_id=event.data.vacancy_id,
+                        error=str(e),
+                    )
+        else:
+            self._log.warn("Skip unsupported event", instance=type(event))
 
     async def _process(self, event: VacancyWSEvent) -> None:
         async with self._session_maker() as session:
-            settings: SettingsORM = await get_settings(session=session)
-            vacancy_orm: VacancyORM | None = await get_vacancy_by_apply_link(
+            settings: SettingsORM = await SettingsRepository.get(session=session)
+            vacancy_orm: VacancyORM | None = await VacancyRepository.get_by_apply_link(
                 session=session, apply_link=event.data.apply_link
             )
             if not settings.auto_submit:
@@ -67,10 +91,19 @@ class AutoApplyService:
                 )
                 return
             try:
-                application: ApplicationORM = await create_application(
+                application = await ApplicationRepository.create(
                     session=session, vacancy_id=vacancy_orm.id
                 )
-                await transition_application(
+            except IntegrityError:
+                await session.rollback()
+                self._log.info(
+                    "Application already exists for vacancy, skipping",
+                    vacancy_id=vacancy_orm.id,
+                )
+                return
+
+            try:
+                await ApplicationRepository.transition(
                     session=session,
                     application_id=application.id,
                     to_state=ApplicationEvent.ENQUEUE_FOR_LETTER,
@@ -83,30 +116,30 @@ class AutoApplyService:
                         system_prompt=settings.llm_system_prompt,
                     )
                 )
-                await create_cover_letter(
+                await CoverLetterRepository.create(
                     session=session, application_id=application.id, text=result.text
                 )
-                await transition_application(
+                await ApplicationRepository.transition(
                     session=session,
                     application_id=application.id,
                     to_state=ApplicationEvent.LETTER_GENERATED,
                 )
-                await transition_application(
+                await ApplicationRepository.transition(
                     session=session,
                     application_id=application.id,
                     to_state=ApplicationEvent.SUBMIT,
                 )
                 await self._orchestrator.enqueue(application_id=application.id)
-            except IntegrityError:
-                await session.rollback()
-                self._log.info(
-                    "Application already exists for vacancy, skipping",
-                    vacancy_id=vacancy_orm.id,
-                )
-                return
+
             except Exception as e:
                 self._log.error(
                     "Failed to process auto submition",
                     vacancy_id=vacancy_orm.id,
                     error=str(e),
+                )
+                await ApplicationRepository.transition(
+                    session=session,
+                    application_id=application.id,
+                    to_state=ApplicationEvent.FAIL,
+                    error_message=str(e),
                 )

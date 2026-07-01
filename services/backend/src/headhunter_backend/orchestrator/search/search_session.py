@@ -18,15 +18,11 @@ from headhunter_backend.browser.page import BrowserPage
 from headhunter_backend.browser.parser import Parser
 from headhunter_backend.browser.selectors import Selectors
 from headhunter_backend.db.converters import vacancy_to_schema
-from headhunter_backend.db.crud import (
-    create_search_history,
-    link_vacancy_to_search,
-    update_search_history,
-    upsert_vacancy,
-)
 from headhunter_backend.db.models import VacancyORM
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator.exceptions import SearchAlreadyRunningError
+from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 
 class SearchStateEvent(str, Enum):
@@ -116,7 +112,7 @@ class SearchSession:
 
         async with self._session_maker() as session:
             self._log.info("Inserting search history into database")
-            await create_search_history(
+            await SearchHistoryRepository.create(
                 session=session,
                 search_id=self._id,
                 url=url,
@@ -225,10 +221,10 @@ class SearchSession:
                 selectors=self._selectors,
             ):
                 async with self._session_maker() as session:
-                    vacancy_orm: VacancyORM = await upsert_vacancy(
+                    vacancy_orm: VacancyORM = await VacancyRepository.upsert(
                         session=session, vacancy=parsed_vacancy
                     )
-                    await link_vacancy_to_search(
+                    await VacancyRepository.link_to_search(
                         session=session,
                         search_id=self._id,
                         vacancy_id=vacancy_orm.id,
@@ -298,7 +294,7 @@ class SearchSession:
     async def _update_search_history(self, task: SearchSessionTask) -> None:
         async with self._session_maker() as session:
             if task.state_machine.current_state_value == SearchStatusAPISchema.RUNNING:
-                await update_search_history(
+                await SearchHistoryRepository.update(
                     session=session,
                     search_id=task.id,
                     parsed_pages=task.parsed_pages,
@@ -306,7 +302,7 @@ class SearchSession:
                     status=task.state_machine.current_state_value,
                 )
             else:
-                await update_search_history(
+                await SearchHistoryRepository.update(
                     session=session,
                     search_id=task.id,
                     status=task.state_machine.current_state_value,

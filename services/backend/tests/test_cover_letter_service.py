@@ -9,18 +9,12 @@ from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.schemas import ProcessingState, VacancyAPISchema
 from headhunter_backend.db.converters import vacancy_to_orm
-from headhunter_backend.db.crud import (
-    create_application,
-    create_vacancy,
-    get_application_by_vacancy_id,
-    get_settings,
-    list_applications_by_status,
-    transition_application,
-    update_settings,
-)
 from headhunter_backend.db.models import SettingsORM
 from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.settings import SettingsRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 from tests.conftest import wait_until
 
@@ -52,9 +46,11 @@ async def _seed_pending(
         description="d",
     )
     async with session_factory() as session:
-        orm = await create_vacancy(session=session, vacancy=vacancy_to_orm(vacancy))
-        app = await create_application(session=session, vacancy_id=orm.id)
-        await transition_application(
+        orm = await VacancyRepository.create(
+            session=session, vacancy=vacancy_to_orm(vacancy)
+        )
+        app = await ApplicationRepository.create(session=session, vacancy_id=orm.id)
+        await ApplicationRepository.transition(
             session=session,
             application_id=app.id,
             to_state=ApplicationEvent.ENQUEUE_FOR_LETTER,
@@ -66,10 +62,10 @@ async def _set_resume_and_style(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        settings: SettingsORM = await get_settings(session=session)
+        settings: SettingsORM = await SettingsRepository.get(session=session)
         settings.resume_text = "resume"
         settings.letter_style = "polite"
-        await update_settings(session=session, new_settings=settings)
+        await SettingsRepository.update(session=session, new_settings=settings)
 
 
 async def test_recover_pending_idempotent(
@@ -93,7 +89,7 @@ async def test_recover_pending_idempotent(
 
     async def both_drained() -> bool:
         async with session_factory() as session:
-            pending = await list_applications_by_status(
+            pending = await ApplicationRepository.list_by_status(
                 session=session, status=ProcessingState.LETTER_PENDING
             )
             return len(pending) == 0
@@ -101,8 +97,12 @@ async def test_recover_pending_idempotent(
     await wait_until(both_drained, timeout=2.0)
 
     async with session_factory() as session:
-        app1 = await get_application_by_vacancy_id(session=session, vacancy_id=v1)
-        app2 = await get_application_by_vacancy_id(session=session, vacancy_id=v2)
+        app1 = await ApplicationRepository.get_by_vacancy_id(
+            session=session, vacancy_id=v1
+        )
+        app2 = await ApplicationRepository.get_by_vacancy_id(
+            session=session, vacancy_id=v2
+        )
         assert app1 is not None and app1.status == ProcessingState.LETTER_READY
         assert app2 is not None and app2.status == ProcessingState.LETTER_READY
 
@@ -123,16 +123,16 @@ async def test_recover_pending_swallows_transition_race(
 
     # Simulate someone advancing the application out of LETTER_PENDING right before recovery picks it up.
     async with session_factory() as session:
-        app = await get_application_by_vacancy_id(
+        app = await ApplicationRepository.get_by_vacancy_id(
             session=session, vacancy_id=vacancy_id
         )
         assert app is not None
-        await transition_application(
+        await ApplicationRepository.transition(
             session=session,
             application_id=app.id,
             to_state=ApplicationEvent.LETTER_GENERATED,
         )
-        await transition_application(
+        await ApplicationRepository.transition(
             session=session,
             application_id=app.id,
             to_state=ApplicationEvent.SUBMIT,
@@ -152,7 +152,7 @@ async def test_recover_pending_swallows_transition_race(
     await task  # must not raise
 
     async with session_factory() as session:
-        app = await get_application_by_vacancy_id(
+        app = await ApplicationRepository.get_by_vacancy_id(
             session=session, vacancy_id=vacancy_id
         )
         assert app is not None

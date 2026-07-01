@@ -1,7 +1,6 @@
 from headhunter_backend.orchestrator.queue import Orchestrator
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from headhunter_backend.db.models import ApplicationORM
-from headhunter_backend.db.crud import create_application, create_vacancy
 from headhunter_backend.db.converters import vacancy_to_orm
 from headhunter_backend.api.schemas import ProcessingState, VacancyAPISchema
 from tests.conftest import (
@@ -15,12 +14,11 @@ import asyncio
 
 from headhunter_backend.browser.writer import SubmitResult
 from headhunter_backend.browser.selectors import HHRU_SELECTORS
-from headhunter_backend.db.crud import (
-    create_cover_letter,
-    get_application_by_id,
-)
 from headhunter_backend.db.models import RateLimitEventORM
 from headhunter_backend.api.events import CaptchaWSEvent, ApplicationWSEvent
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 from sqlalchemy import select, func
 
 
@@ -30,7 +28,7 @@ async def test_recover_from_db_pushes_applications(
     applications: list[ApplicationORM] = []
     async with session_factory() as session:
         for _ in range(4):
-            await create_vacancy(
+            await VacancyRepository.create(
                 session=session,
                 vacancy=vacancy_to_orm(
                     VacancyAPISchema(
@@ -39,16 +37,20 @@ async def test_recover_from_db_pushes_applications(
                 ),
             )
 
-        applications.append(await create_application(session=session, vacancy_id=1))
-        applications.append(await create_application(session=session, vacancy_id=2))
+        applications.append(
+            await ApplicationRepository.create(session=session, vacancy_id=1)
+        )
+        applications.append(
+            await ApplicationRepository.create(session=session, vacancy_id=2)
+        )
 
-        application: ApplicationORM = await create_application(
+        application: ApplicationORM = await ApplicationRepository.create(
             session=session, vacancy_id=3
         )
         application.status = ProcessingState.LETTER_SENT
         await session.commit()
 
-        application: ApplicationORM = await create_application(
+        application: ApplicationORM = await ApplicationRepository.create(
             session=session, vacancy_id=4
         )
         application.status = ProcessingState.SKIPPED
@@ -79,7 +81,7 @@ async def seed_app_in_letter_sending(
     response_link: str = "https://hh.ru/applicant/vacancy_response?vacancyId=1",
 ) -> int:
     async with session_factory() as session:
-        await create_vacancy(
+        await VacancyRepository.create(
             session=session,
             vacancy=vacancy_to_orm(
                 VacancyAPISchema(
@@ -90,9 +92,11 @@ async def seed_app_in_letter_sending(
                 )
             ),
         )
-        app = await create_application(session=session, vacancy_id=1)
+        app = await ApplicationRepository.create(session=session, vacancy_id=1)
         app.status = ProcessingState.LETTER_SENDING
-        await create_cover_letter(session=session, application_id=app.id, text="hi")
+        await CoverLetterRepository.create(
+            session=session, application_id=app.id, text="hi"
+        )
         await session.commit()
         return app.id
 
@@ -149,7 +153,9 @@ async def test_consume_submitted_transitions_and_logs(
 
         async def status_is_sent() -> bool:
             async with session_factory() as s:
-                app = await get_application_by_id(session=s, application_id=app_id)
+                app = await ApplicationRepository.get_by_id(
+                    session=s, application_id=app_id
+                )
                 return app is not None and app.status == ProcessingState.LETTER_SENT
 
         await wait_until(status_is_sent)
@@ -194,7 +200,9 @@ async def test_consume_failed_transitions_to_error(
 
         async def status_is_error() -> bool:
             async with session_factory() as s:
-                app = await get_application_by_id(session=s, application_id=app_id)
+                app = await ApplicationRepository.get_by_id(
+                    session=s, application_id=app_id
+                )
                 return app is not None and app.status == ProcessingState.ERROR
 
         await wait_until(status_is_error)
@@ -238,7 +246,9 @@ async def test_consume_captcha_pauses_and_reenqueues(
 
         # статус заявки НЕ изменился (всё ещё LETTER_SENDING)
         async with session_factory() as s:
-            app = await get_application_by_id(session=s, application_id=app_id)
+            app = await ApplicationRepository.get_by_id(
+                session=s, application_id=app_id
+            )
             assert app is not None
             assert app.status == ProcessingState.LETTER_SENDING
 
@@ -273,7 +283,9 @@ async def test_consume_not_authorized_fails(
 
         async def status_is_error() -> bool:
             async with session_factory() as s:
-                app = await get_application_by_id(session=s, application_id=app_id)
+                app = await ApplicationRepository.get_by_id(
+                    session=s, application_id=app_id
+                )
                 return app is not None and app.status == ProcessingState.ERROR
 
         await wait_until(status_is_error)
@@ -318,7 +330,9 @@ async def test_consume_rate_limit_reenqueues_without_calling_writer(
 
         assert fake_writer.calls == []
         async with session_factory() as s:
-            app = await get_application_by_id(session=s, application_id=app_id)
+            app = await ApplicationRepository.get_by_id(
+                session=s, application_id=app_id
+            )
             assert app is not None
             assert app.status == ProcessingState.LETTER_SENDING
     finally:
@@ -333,7 +347,7 @@ async def test_consume_missing_cover_letter_fails(
     session_factory,
 ) -> None:
     async with session_factory() as session:
-        await create_vacancy(
+        await VacancyRepository.create(
             session=session,
             vacancy=vacancy_to_orm(
                 VacancyAPISchema(
@@ -344,7 +358,7 @@ async def test_consume_missing_cover_letter_fails(
                 )
             ),
         )
-        app = await create_application(session=session, vacancy_id=1)
+        app = await ApplicationRepository.create(session=session, vacancy_id=1)
         app.status = ProcessingState.LETTER_SENDING
         await session.commit()
         app_id = app.id
@@ -361,7 +375,9 @@ async def test_consume_missing_cover_letter_fails(
 
         async def status_is_error() -> bool:
             async with session_factory() as s:
-                a = await get_application_by_id(session=s, application_id=app_id)
+                a = await ApplicationRepository.get_by_id(
+                    session=s, application_id=app_id
+                )
                 return a is not None and a.status == ProcessingState.ERROR
 
         await wait_until(status_is_error)

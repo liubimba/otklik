@@ -2,10 +2,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.events import ApplicationData, ApplicationWSEvent
-from headhunter_backend.db.crud import transition_application
 from headhunter_backend.db.models import ApplicationORM
 from headhunter_backend.exceptions import ApplicationNotFoundError
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.db.repositories.applications import ApplicationRepository
 
 
 # Removed in stage 3.2 — replaced by StateTransitionService.
@@ -18,7 +18,7 @@ async def transition_and_broadcast(
     error_message: str | None = None,
     reason: str | None = None,
 ) -> ApplicationORM:
-    application: ApplicationORM | None = await transition_application(
+    application: ApplicationORM | None = await ApplicationRepository.transition(
         session=session,
         application_id=application_id,
         to_state=to_state,

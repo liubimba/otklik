@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from headhunter_backend.api.schemas import RateLimitsBudgetAPISchema
-from headhunter_backend.db.crud import log_submission
+from headhunter_backend.db.repositories.rate_limits import RateLimitRepository
 
 
 def test_budget_empty(client) -> None:
@@ -19,9 +19,9 @@ async def test_budget_counts_submissions(
     client, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
     async with session_factory() as session:
-        await log_submission(session=session)
-        await log_submission(session=session)
-        await log_submission(session=session)
+        await RateLimitRepository.log_submission(session=session)
+        await RateLimitRepository.log_submission(session=session)
+        await RateLimitRepository.log_submission(session=session)
 
     response = client.get("/api/v1/rate-limits/budget")
     payload = RateLimitsBudgetAPISchema.model_validate(response.json())

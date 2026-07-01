@@ -11,17 +11,13 @@ from headhunter_backend.api.schemas import (
     ProcessingState,
 )
 from headhunter_backend.db.converters import application_to_schema
-from headhunter_backend.db.crud import (
-    create_application,
-    create_cover_letter,
-    get_application_by_vacancy_id,
-    get_vacancy,
-    transition_application,
-)
 from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator._transitions import transition_and_broadcast
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 letter_router = APIRouter(prefix="/vacancies", tags=["vacancies"])
 log = get_logger(__name__)
@@ -31,16 +27,21 @@ log = get_logger(__name__)
 async def queue_for_letter(
     vacancy_id: int, session: SessionDep, broadcaster: BroadcasterDep
 ) -> ApplicationAPISchema:
-    if await get_vacancy(session=session, vacancy_id=vacancy_id) is None:
+    if (
+        await VacancyRepository.get_by_id(session=session, vacancy_id=vacancy_id)
+        is None
+    ):
         raise HTTPException(status_code=404, detail="Vacancy not found")
-    application: ApplicationORM | None = await get_application_by_vacancy_id(
+    application: ApplicationORM | None = await ApplicationRepository.get_by_vacancy_id(
         vacancy_id=vacancy_id, session=session
     )
     if application is not None:
         raise HTTPException(
             status_code=409, detail="Vacancy is queued for letter already"
         )
-    application = await create_application(session=session, vacancy_id=vacancy_id)
+    application = await ApplicationRepository.create(
+        session=session, vacancy_id=vacancy_id
+    )
     try:
         application = await transition_and_broadcast(
             session=session,
@@ -62,12 +63,12 @@ async def post_cover_letter(
     letter: CoverLetterRequestAPISchema,
     broadcaster: BroadcasterDep,
 ) -> CoverLetterAPISchema:
-    vacancy: VacancyORM | None = await get_vacancy(
+    vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
     )
     if vacancy is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
-    application: ApplicationORM | None = await get_application_by_vacancy_id(
+    application: ApplicationORM | None = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
     )
     if application is None:
@@ -76,7 +77,7 @@ async def post_cover_letter(
         )
     if application.status == ProcessingState.LETTER_PENDING:
         try:
-            application = await transition_application(
+            application = await ApplicationRepository.transition(
                 session=session,
                 application_id=application.id,
                 to_state=ApplicationEvent.LETTER_GENERATED,
@@ -96,7 +97,7 @@ async def post_cover_letter(
             status_code=409,
             detail=f"Unavailable state for cover letter: {application.status.value}",
         )
-    cover_letter: CoverLetterORM = await create_cover_letter(
+    cover_letter: CoverLetterORM = await CoverLetterRepository.create(
         session=session, application_id=application.id, text=letter.text
     )
     await broadcaster.publish(
@@ -119,12 +120,12 @@ async def post_cover_letter(
 async def review(
     session: SessionDep, vacancy_id: int, broadcaster: BroadcasterDep
 ) -> ApplicationAPISchema:
-    vacancy: VacancyORM | None = await get_vacancy(
+    vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
     )
     if vacancy is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
-    application: ApplicationORM | None = await get_application_by_vacancy_id(
+    application: ApplicationORM | None = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
     )
     if application is None:
@@ -147,12 +148,12 @@ async def review(
 async def retry(
     vacancy_id: int, session: SessionDep, broadcaster: BroadcasterDep
 ) -> ApplicationAPISchema:
-    vacancy: VacancyORM | None = await get_vacancy(
+    vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
     )
     if vacancy is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
-    application: ApplicationORM | None = await get_application_by_vacancy_id(
+    application: ApplicationORM | None = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
     )
     if application is None:

@@ -3,20 +3,12 @@ from unittest.mock import AsyncMock
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from headhunter_backend.ai.exceptions import GenerationCoverLetterException
+from headhunter_backend.ai.exceptions import GenerationCoverLetterError
 from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.events import VacancyWSEvent
 from headhunter_backend.db.converters import vacancy_to_orm
-from headhunter_backend.db.crud import (
-    create_application,
-    create_vacancy,
-    get_application_by_vacancy_id,
-    get_latest_cover_letter,
-    get_settings,
-    update_settings,
-)
 from headhunter_backend.db.models import (
     ApplicationORM,
     CoverLetterORM,
@@ -26,6 +18,10 @@ from headhunter_backend.db.models import (
 from headhunter_backend.api.schemas import ProcessingState, VacancyAPISchema
 from headhunter_backend.orchestrator.apply_service import AutoApplyService
 from headhunter_backend.orchestrator.queue import Orchestrator
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
+from headhunter_backend.db.repositories.settings import SettingsRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 
 async def _drain(broadcaster: EventBroadcaster) -> None:
@@ -61,18 +57,18 @@ async def _enable_auto_submit(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        settings: SettingsORM = await get_settings(session=session)
+        settings: SettingsORM = await SettingsRepository.get(session=session)
         settings.auto_submit = True
         settings.resume_text = "resume body"
         settings.letter_style = "polite"
-        await update_settings(session=session, new_settings=settings)
+        await SettingsRepository.update(session=session, new_settings=settings)
 
 
 async def _seed_vacancy(
     session_factory: async_sessionmaker[AsyncSession], vacancy: VacancyAPISchema
 ) -> int:
     async with session_factory() as session:
-        orm: VacancyORM = await create_vacancy(
+        orm: VacancyORM = await VacancyRepository.create(
             session=session, vacancy=vacancy_to_orm(schema=vacancy)
         )
         return orm.id
@@ -109,7 +105,9 @@ async def test_skips_when_auto_submit_disabled(
     await _drain(broadcaster)
 
     async with session_factory() as session:
-        application: ApplicationORM | None = await get_application_by_vacancy_id(
+        application: (
+            ApplicationORM | None
+        ) = await ApplicationRepository.get_by_vacancy_id(
             session=session, vacancy_id=vacancy_id
         )
 
@@ -152,7 +150,9 @@ async def test_happy_path_creates_application_letter_and_enqueues(
     await _drain(broadcaster)
 
     async with session_factory() as session:
-        application: ApplicationORM | None = await get_application_by_vacancy_id(
+        application: (
+            ApplicationORM | None
+        ) = await ApplicationRepository.get_by_vacancy_id(
             session=session, vacancy_id=vacancy_id
         )
         assert application is not None
@@ -161,7 +161,9 @@ async def test_happy_path_creates_application_letter_and_enqueues(
             "otherwise Orchestrator._process_one will skip the application"
         )
 
-        letter: CoverLetterORM | None = await get_latest_cover_letter(
+        letter: (
+            CoverLetterORM | None
+        ) = await CoverLetterRepository.get_latest_by_application_id(
             session=session, application_id=application.id
         )
         assert letter is not None
@@ -179,7 +181,7 @@ async def test_ai_failure_leaves_application_in_letter_pending(
     vacancy_id: int = await _seed_vacancy(session_factory, vacancy_model)
     await _enable_auto_submit(session_factory)
 
-    ai_layer = _make_ai_layer(GenerationCoverLetterException("no deployments"))
+    ai_layer = _make_ai_layer(GenerationCoverLetterError("no deployments"))
     service, broadcaster, orch = await _make_service_and_broadcast(
         session_factory, ai_layer
     )
@@ -188,13 +190,17 @@ async def test_ai_failure_leaves_application_in_letter_pending(
     await _drain(broadcaster)
 
     async with session_factory() as session:
-        application: ApplicationORM | None = await get_application_by_vacancy_id(
+        application: (
+            ApplicationORM | None
+        ) = await ApplicationRepository.get_by_vacancy_id(
             session=session, vacancy_id=vacancy_id
         )
         assert application is not None
         assert application.status == ProcessingState.LETTER_PENDING
 
-        letter: CoverLetterORM | None = await get_latest_cover_letter(
+        letter: (
+            CoverLetterORM | None
+        ) = await CoverLetterRepository.get_latest_by_application_id(
             session=session, application_id=application.id
         )
         assert letter is None
@@ -212,7 +218,7 @@ async def test_silently_skips_when_application_already_exists(
     await _enable_auto_submit(session_factory)
 
     async with session_factory() as session:
-        await create_application(session=session, vacancy_id=vacancy_id)
+        await ApplicationRepository.create(session=session, vacancy_id=vacancy_id)
 
     ai_layer = _make_ai_layer(_ok_result())
     service, broadcaster, orch = await _make_service_and_broadcast(
@@ -227,7 +233,9 @@ async def test_silently_skips_when_application_already_exists(
     assert orch.qsize() == 0
 
     async with session_factory() as session:
-        application: ApplicationORM | None = await get_application_by_vacancy_id(
+        application: (
+            ApplicationORM | None
+        ) = await ApplicationRepository.get_by_vacancy_id(
             session=session, vacancy_id=vacancy_id
         )
         # Existing application untouched, status still PARSED (from create_application).

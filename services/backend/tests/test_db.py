@@ -1,7 +1,6 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from headhunter_backend.db.crud import upsert_vacancy
 from headhunter_backend.db.models import VacancyORM
 from headhunter_backend.api.schemas import VacancyAPISchema
 from headhunter_backend.db.models import (
@@ -10,45 +9,36 @@ from headhunter_backend.db.models import (
     SearchHistoryORM,
 )
 from headhunter_backend.db.converters import vacancy_to_schema, vacancy_to_orm
-from headhunter_backend.db.crud import (
-    create_vacancy,
-    get_vacancy,
-    get_vacancy_by_apply_link,
-    list_vacancies,
-    delete_vacancy,
-    create_cover_letter,
-    get_latest_cover_letter,
-    create_application,
-    create_search_history,
-    list_search_history,
-    update_search_history,
-    list_applications_by_status,
-    transition_application,
-)
 from headhunter_backend.api.schemas import ProcessingState, SearchStatusAPISchema
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
+from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 
 async def test_vacancy_crud(
     session_factory: async_sessionmaker[AsyncSession], vacancy_model: VacancyAPISchema
 ) -> None:
     async with session_factory() as session:
-        created: VacancyORM = await create_vacancy(
+        created: VacancyORM = await VacancyRepository.create(
             session=session, vacancy=vacancy_to_orm(schema=vacancy_model)
         )
         vacancy_id: int = created.id
         assert vacancy_id is not None
 
     async with session_factory() as session:
-        by_id: VacancyORM = await get_vacancy(session=session, vacancy_id=vacancy_id)
+        by_id: VacancyORM = await VacancyRepository.get_by_id(
+            session=session, vacancy_id=vacancy_id
+        )
         assert by_id is not None
 
-        by_link: VacancyORM = await get_vacancy_by_apply_link(
+        by_link: VacancyORM = await VacancyRepository.get_by_apply_link(
             session=session, apply_link=vacancy_model.apply_link
         )
         assert by_link is not None
 
-        assert len(await list_vacancies(session=session)) == 1
+        assert len(await VacancyRepository.list_all(session=session)) == 1
 
         assert by_id.work_formats == ["remote", "hybrid"]
         assert by_id.employment_types == ["full_time", "part_time"]
@@ -58,27 +48,36 @@ async def test_vacancy_crud(
         assert vacancy_to_schema(row=by_id).model_dump(exclude={"id"}) == expected
 
     async with session_factory() as session:
-        assert await delete_vacancy(session=session, vacancy_id=vacancy_id) is True
-        assert await get_vacancy(session=session, vacancy_id=vacancy_id) is None
-        assert await delete_vacancy(session=session, vacancy_id=vacancy_id) is False
+        assert (
+            await VacancyRepository.delete(session=session, vacancy_id=vacancy_id)
+            is True
+        )
+        assert (
+            await VacancyRepository.get_by_id(session=session, vacancy_id=vacancy_id)
+            is None
+        )
+        assert (
+            await VacancyRepository.delete(session=session, vacancy_id=vacancy_id)
+            is False
+        )
 
 
 async def test_cover_letter_crud(
     session_factory: async_sessionmaker[AsyncSession], vacancy_model: VacancyAPISchema
 ) -> None:
     async with session_factory() as session:
-        created_vacancy: VacancyORM = await create_vacancy(
+        created_vacancy: VacancyORM = await VacancyRepository.create(
             session=session, vacancy=vacancy_to_orm(schema=vacancy_model)
         )
         vacancy_id: int = created_vacancy.id
 
-        created_application: ApplicationORM = await create_application(
+        created_application: ApplicationORM = await ApplicationRepository.create(
             session=session, vacancy_id=vacancy_id
         )
         application_id: int = created_application.id
 
         text: str = "Test"
-        first_created: CoverLetterORM = await create_cover_letter(
+        first_created: CoverLetterORM = await CoverLetterRepository.create(
             session=session, application_id=application_id, text=text
         )
         first_created_id: int = first_created.id
@@ -89,7 +88,7 @@ async def test_cover_letter_crud(
         assert first_created.version == 1
 
         text = text * 2
-        second_created: CoverLetterORM = await create_cover_letter(
+        second_created: CoverLetterORM = await CoverLetterRepository.create(
             session=session, application_id=application_id, text=text
         )
 
@@ -99,14 +98,19 @@ async def test_cover_letter_crud(
         assert second_created.version == 2
         assert second_created.text == text
 
-        latest: CoverLetterORM = await get_latest_cover_letter(
-            session=session, application_id=application_id
+        latest: CoverLetterORM = (
+            await CoverLetterRepository.get_latest_by_application_id(
+                session=session, application_id=application_id
+            )
         )
 
         assert latest == second_created
 
         assert (
-            await get_latest_cover_letter(session=session, application_id=999) is None
+            await CoverLetterRepository.get_latest_by_application_id(
+                session=session, application_id=999
+            )
+            is None
         )
 
 
@@ -114,7 +118,7 @@ async def test_upsert_inserts_new_vacancy(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        v = await upsert_vacancy(
+        v = await VacancyRepository.upsert(
             session=session,
             vacancy=VacancyAPISchema(
                 title="Junior Dev",
@@ -134,7 +138,7 @@ async def test_upsert_updates_existing_vacancy(
 ) -> None:
     apply_link = "https://hh.ru/vacancy/42"
     async with session_factory() as session:
-        await upsert_vacancy(
+        await VacancyRepository.upsert(
             session=session,
             vacancy=VacancyAPISchema(
                 title="old",
@@ -145,7 +149,7 @@ async def test_upsert_updates_existing_vacancy(
         )
         await session.commit()
 
-        await upsert_vacancy(
+        await VacancyRepository.upsert(
             session=session,
             vacancy=VacancyAPISchema(
                 title="new",
@@ -174,14 +178,14 @@ async def test_upsert_preserves_id_and_apply_link(
 ) -> None:
     apply_link = "https://hh.ru/vacancy/100"
     async with session_factory() as session:
-        first = await upsert_vacancy(
+        first = await VacancyRepository.upsert(
             session=session,
             vacancy=VacancyAPISchema(title="A", apply_link=apply_link, description="a"),
         )
         await session.commit()
         original_id = first.id
 
-        second = await upsert_vacancy(
+        second = await VacancyRepository.upsert(
             session=session,
             vacancy=VacancyAPISchema(title="B", apply_link=apply_link, description="b"),
         )
@@ -200,7 +204,7 @@ async def test_create_search_history(
         max_vacancies: int = 4
         search_status: SearchStatusAPISchema = SearchStatusAPISchema.PENDING
         url: str = "hh.ru"
-        search_history: SearchHistoryORM = await create_search_history(
+        search_history: SearchHistoryORM = await SearchHistoryRepository.create(
             session=session,
             search_id=search_id,
             url=url,
@@ -224,7 +228,7 @@ async def test_list_search_history(
         max_vacancies: int = 4
         search_status: SearchStatusAPISchema = SearchStatusAPISchema.PENDING
         url: str = "hh.ru"
-        search_history: SearchHistoryORM = await create_search_history(
+        search_history: SearchHistoryORM = await SearchHistoryRepository.create(
             session=session,
             search_id=search_id,
             url=url,
@@ -232,7 +236,7 @@ async def test_list_search_history(
             max_vacancies=max_vacancies,
             max_pages=max_pages,
         )
-        result = await list_search_history(session=session)
+        result = await SearchHistoryRepository.list_all(session=session)
         assert len(result) == 1
         assert result[0] == search_history
 
@@ -241,7 +245,7 @@ async def test_list_applications_by_status(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        v_pending = await create_vacancy(
+        v_pending = await VacancyRepository.create(
             session=session,
             vacancy=vacancy_to_orm(
                 VacancyAPISchema(
@@ -251,7 +255,7 @@ async def test_list_applications_by_status(
                 )
             ),
         )
-        v_ready = await create_vacancy(
+        v_ready = await VacancyRepository.create(
             session=session,
             vacancy=vacancy_to_orm(
                 VacancyAPISchema(
@@ -261,7 +265,7 @@ async def test_list_applications_by_status(
                 )
             ),
         )
-        v_parsed = await create_vacancy(
+        v_parsed = await VacancyRepository.create(
             session=session,
             vacancy=vacancy_to_orm(
                 VacancyAPISchema(
@@ -272,43 +276,47 @@ async def test_list_applications_by_status(
             ),
         )
 
-        app_pending = await create_application(session=session, vacancy_id=v_pending.id)
-        await transition_application(
+        app_pending = await ApplicationRepository.create(
+            session=session, vacancy_id=v_pending.id
+        )
+        await ApplicationRepository.transition(
             session=session,
             application_id=app_pending.id,
             to_state=ApplicationEvent.ENQUEUE_FOR_LETTER,
         )
 
-        app_ready = await create_application(session=session, vacancy_id=v_ready.id)
-        await transition_application(
+        app_ready = await ApplicationRepository.create(
+            session=session, vacancy_id=v_ready.id
+        )
+        await ApplicationRepository.transition(
             session=session,
             application_id=app_ready.id,
             to_state=ApplicationEvent.ENQUEUE_FOR_LETTER,
         )
-        await transition_application(
+        await ApplicationRepository.transition(
             session=session,
             application_id=app_ready.id,
             to_state=ApplicationEvent.LETTER_GENERATED,
         )
 
-        await create_application(session=session, vacancy_id=v_parsed.id)
+        await ApplicationRepository.create(session=session, vacancy_id=v_parsed.id)
 
-        pending = await list_applications_by_status(
+        pending = await ApplicationRepository.list_by_status(
             session=session, status=ProcessingState.LETTER_PENDING
         )
         assert {a.vacancy_id for a in pending} == {v_pending.id}
 
-        ready = await list_applications_by_status(
+        ready = await ApplicationRepository.list_by_status(
             session=session, status=ProcessingState.LETTER_READY
         )
         assert {a.vacancy_id for a in ready} == {v_ready.id}
 
-        parsed = await list_applications_by_status(
+        parsed = await ApplicationRepository.list_by_status(
             session=session, status=ProcessingState.PARSED
         )
         assert {a.vacancy_id for a in parsed} == {v_parsed.id}
 
-        skipped = await list_applications_by_status(
+        skipped = await ApplicationRepository.list_by_status(
             session=session, status=ProcessingState.SKIPPED
         )
         assert list(skipped) == []
@@ -324,7 +332,7 @@ async def test_search_history_update(
         search_status: SearchStatusAPISchema = SearchStatusAPISchema.PENDING
         parsed_vacancies: int = 2
         url: str = "hh.ru"
-        await create_search_history(
+        await SearchHistoryRepository.create(
             session=session,
             search_id=search_id,
             url=url,
@@ -332,6 +340,6 @@ async def test_search_history_update(
             max_vacancies=max_vacancies,
             max_pages=max_pages,
         )
-        await update_search_history(
+        await SearchHistoryRepository.update(
             session=session, search_id=search_id, parsed_vacancies=parsed_vacancies
         )

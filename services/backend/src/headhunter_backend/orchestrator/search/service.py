@@ -5,7 +5,6 @@ from headhunter_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.parser import Parser
 from headhunter_backend.browser.selectors import Selectors
-from headhunter_backend.db.crud import get_settings
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator.exceptions import (
     FilterSessionNotFoundError,
@@ -18,6 +17,7 @@ from headhunter_backend.orchestrator.search.search_session import (
     SearchSession,
     SearchSessionTask,
 )
+from headhunter_backend.db.repositories.settings import SettingsRepository
 
 
 class SearchService:
@@ -81,7 +81,7 @@ class SearchService:
             raise SearchAlreadyRunningError()
 
         async with self._session_maker() as session:
-            settings = await get_settings(session=session)
+            settings = await SettingsRepository.get(session=session)
 
         max_pages = (
             request.max_pages if request.max_pages is not None else settings.max_pages

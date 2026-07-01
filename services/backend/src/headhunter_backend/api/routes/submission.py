@@ -9,11 +9,12 @@ from headhunter_backend.api.dependencies import (
 )
 from headhunter_backend.api.schemas import ApplicationAPISchema
 from headhunter_backend.db.converters import application_to_schema
-from headhunter_backend.db.crud import get_application_by_vacancy_id, get_vacancy
 from headhunter_backend.db.models import ApplicationORM, VacancyORM
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator._transitions import transition_and_broadcast
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 submission_router = APIRouter(prefix="/vacancies", tags=["vacancies"])
 log = get_logger(__name__)
@@ -28,12 +29,12 @@ async def submit(
     orchestrator: OrchestratorDep,
     broadcaster: BroadcasterDep,
 ) -> ApplicationAPISchema:
-    vacancy: VacancyORM | None = await get_vacancy(
+    vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
     )
     if vacancy is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
-    application: ApplicationORM | None = await get_application_by_vacancy_id(
+    application: ApplicationORM | None = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
     )
     if application is None:
@@ -60,12 +61,12 @@ async def submit(
 async def skip(
     session: SessionDep, vacancy_id: int, broadcaster: BroadcasterDep
 ) -> ApplicationAPISchema:
-    vacancy: VacancyORM | None = await get_vacancy(
+    vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
     )
     if vacancy is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
-    application: ApplicationORM | None = await get_application_by_vacancy_id(
+    application: ApplicationORM | None = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
     )
     if application is None:

@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from headhunter_backend.db.crud import create_application, create_vacancy
 from headhunter_backend.db.converters import vacancy_to_orm
 from headhunter_backend.api.schemas import ApplicationAPISchema, VacancyAPISchema
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 
 async def test_api_empty_list_applications(client) -> None:
@@ -19,16 +20,16 @@ async def test_api_list_applications(
 ) -> None:
     async with session_factory() as session:
         vacancy_model.apply_link = vacancy_model.apply_link + "/1"
-        await create_vacancy(
+        await VacancyRepository.create(
             session=session, vacancy=vacancy_to_orm(schema=vacancy_model)
         )
         vacancy_model.apply_link = vacancy_model.apply_link + "/2"
-        await create_vacancy(
+        await VacancyRepository.create(
             session=session, vacancy=vacancy_to_orm(schema=vacancy_model)
         )
 
-        application1 = await create_application(session=session, vacancy_id=1)
-        application2 = await create_application(session=session, vacancy_id=2)
+        application1 = await ApplicationRepository.create(session=session, vacancy_id=1)
+        application2 = await ApplicationRepository.create(session=session, vacancy_id=2)
 
     response = client.get("/api/v1/applications")
     assert response.status_code == 200
@@ -48,11 +49,11 @@ async def test_api_get_application_by_id(
 ) -> None:
     async with session_factory() as session:
         vacancy_model.apply_link = vacancy_model.apply_link + "/1"
-        await create_vacancy(
+        await VacancyRepository.create(
             session=session, vacancy=vacancy_to_orm(schema=vacancy_model)
         )
 
-        application = await create_application(session=session, vacancy_id=1)
+        application = await ApplicationRepository.create(session=session, vacancy_id=1)
 
     response = client.get("/api/v1/applications/1")
     assert response.status_code == 200

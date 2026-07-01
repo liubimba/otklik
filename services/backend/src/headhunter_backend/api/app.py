@@ -25,11 +25,6 @@ from headhunter_backend.browser.writer import BrowserWriter
 from headhunter_backend.browser.selectors import HHRU_SELECTORS
 from headhunter_backend.orchestrator.search import SearchService
 from headhunter_backend.browser.parser import Parser
-from headhunter_backend.db.crud import (
-    list_search_history,
-    update_search_history,
-    get_settings,
-)
 from headhunter_backend.api.schemas import SearchStatusAPISchema
 from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.db.models import SettingsORM
@@ -39,13 +34,15 @@ import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from headhunter_backend.orchestrator.apply_service import AutoApplyService
 from headhunter_backend.api.errors import register_error_handlers
+from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
+from headhunter_backend.db.repositories.settings import SettingsRepository
 
 logger = get_logger(__name__)
 
 
 async def bootstrap_ai_layer(maker: async_sessionmaker[AsyncSession]) -> AILayer:
     async with maker() as session:
-        settings: SettingsORM = await get_settings(session=session)
+        settings: SettingsORM = await SettingsRepository.get(session=session)
     try:
         return AILayer(deployments=settings.llm_deployments)
     except Exception as e:
@@ -93,9 +90,9 @@ async def lifespan(app: FastAPI) -> Any:
             session=session
         )
         await app.state.cover_letter_service.recover_pending(session=session)
-        for search_history in await list_search_history(session=session):
+        for search_history in await SearchHistoryRepository.list_all(session=session):
             if search_history.status.is_active():
-                await update_search_history(
+                await SearchHistoryRepository.update(
                     session=session,
                     search_id=search_history.id,
                     finished_at=datetime.now(),

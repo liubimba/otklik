@@ -32,12 +32,15 @@ import asyncio
 from headhunter_backend.api.schemas import VacancyAPISchema
 from headhunter_backend.db.session import apply_sqlite_pragmas
 from headhunter_backend.browser.writer import SubmitResult
-from headhunter_backend.db.crud import create_vacancy
 from headhunter_backend.browser.selectors import Selectors
-from headhunter_backend.orchestrator.search import SearchAlreadyRunningError, SearchTask
+from headhunter_backend.orchestrator.search import (
+    SearchAlreadyRunningError,
+    SearchSessionTask,
+)
 from headhunter_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from headhunter_backend.ai.deployment import LLMDeployment
 from headhunter_backend.ai.layer import AILayer
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 configure_logging()
 
@@ -74,15 +77,15 @@ class FakeBrowser:
 
 class FakeSearchService:
     def __init__(self) -> None:
-        self._queue: dict[str, SearchTask] = {}
+        self._queue: dict[str, SearchSessionTask] = {}
 
     async def start_search(
         self, request: VacanciesStartSearchRequestAPISchema
-    ) -> SearchTask:
+    ) -> SearchSessionTask:
         if len(self._queue) > 0:
             raise SearchAlreadyRunningError()
         search_id: str = str(uuid.uuid4())
-        task = SearchTask(id=search_id, task=None)  # type: ignore[arg-type]
+        task = SearchSessionTask(id=search_id, task=None)  # type: ignore[arg-type]
         self._queue[search_id] = task
         return task
 
@@ -92,7 +95,7 @@ class FakeSearchService:
             return True
         return False
 
-    def get_search_task(self, search_id: str) -> SearchTask | None:
+    def get_search_task(self, search_id: str) -> SearchSessionTask | None:
         return self._queue.get(search_id)
 
     async def shutdown(self) -> None:
@@ -207,7 +210,9 @@ async def client(
     app.dependency_overrides[get_ai_layer] = lambda: ai_layer_with_router
 
     async with session_factory() as session:
-        await create_vacancy(session=session, vacancy=vacancy_to_orm(vacancy_model))
+        await VacancyRepository.create(
+            session=session, vacancy=vacancy_to_orm(vacancy_model)
+        )
 
     try:
         yield TestClient(app)

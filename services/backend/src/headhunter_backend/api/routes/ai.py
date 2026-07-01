@@ -1,12 +1,9 @@
-from fastapi import APIRouter, HTTPException
-from headhunter_backend.api.dependencies import SessionDep, AILayerDep
-from headhunter_backend.db.crud import (
-    get_vacancy,
-    get_settings,
-    get_application_by_vacancy_id,
+from fastapi import APIRouter
+from headhunter_backend.api.dependencies import (
+    SessionDep,
+    AILayerDep,
+    CoverLetterServiceDep,
 )
-from headhunter_backend.db.models import VacancyORM, SettingsORM, ApplicationORM
-from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.api.schemas import (
     AICoverLetterAPISchema,
@@ -19,30 +16,13 @@ ai_router = APIRouter(prefix="/ai", tags=["ai"])
 
 @ai_router.post("/create_cover_letter/{vacancy_id}")
 async def generate_cover_letter(
-    session: SessionDep, ai_layer: AILayerDep, vacancy_id: int
+    session: SessionDep,
+    ai_layer: AILayerDep,
+    vacancy_id: int,
+    cover_letter_service: CoverLetterServiceDep,
 ) -> AICoverLetterAPISchema:
-    if not (await ai_layer.get_health_status()).is_ready():
-        raise HTTPException(
-            status_code=409, detail="AILayer is not ready to generate cover letter"
-        )
-    vacancy_orm: VacancyORM | None = await get_vacancy(
-        session=session, vacancy_id=vacancy_id
-    )
-    if vacancy_orm is None:
-        raise HTTPException(status_code=404, detail="vacancy not found")
-    application_orm: ApplicationORM | None = await get_application_by_vacancy_id(
-        session=session, vacancy_id=vacancy_id
-    )
-    if application_orm is None:
-        raise HTTPException(
-            status_code=409, detail="vacancy was not queue for cover letter"
-        )
-    settings_orm: SettingsORM = await get_settings(session=session)
-    cover_letter: AICoverLetterResult = await ai_layer.generate_cover_letter(
-        vacancy_model=vacancy_to_schema(row=vacancy_orm),
-        resume=settings_orm.resume_text,
-        style=settings_orm.letter_style,
-        system_prompt=settings_orm.llm_system_prompt,
+    cover_letter: AICoverLetterResult = await cover_letter_service.regenerate(
+        vacancy_id=vacancy_id
     )
     return AICoverLetterAPISchema(
         text=cover_letter.text,

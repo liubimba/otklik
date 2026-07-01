@@ -8,19 +8,16 @@ from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.schemas import ProcessingState
-from headhunter_backend.db.crud import (
-    create_cover_letter,
-    get_application_by_vacancy_id,
-    get_settings,
-    get_vacancy,
-    list_applications_by_status,
-)
 from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
 from headhunter_backend.exceptions import ApplicationNotFoundError, VacancyNotFoundError
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator._transitions import transition_and_broadcast
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
+from headhunter_backend.db.repositories.settings import SettingsRepository
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 
 class CoverLetterService:
@@ -41,17 +38,19 @@ class CoverLetterService:
         if not (await self._ai_layer.get_health_status()).is_ready():
             raise AILayerUnhealthyError()
         async with self._session_maker() as session:
-            vacancy_orm: VacancyORM | None = await get_vacancy(
+            vacancy_orm: VacancyORM | None = await VacancyRepository.get_by_id(
                 session=session, vacancy_id=vacancy_id
             )
             if vacancy_orm is None:
                 raise VacancyNotFoundError()
-            application: ApplicationORM | None = await get_application_by_vacancy_id(
+            application: (
+                ApplicationORM | None
+            ) = await ApplicationRepository.get_by_vacancy_id(
                 session=session, vacancy_id=vacancy_id
             )
             if application is None:
                 raise ApplicationNotFoundError()
-            settings: SettingsORM = await get_settings(session=session)
+            settings: SettingsORM = await SettingsRepository.get(session=session)
             cover_result: AICoverLetterResult = (
                 await self._ai_layer.generate_cover_letter(
                     vacancy_model=vacancy_to_schema(vacancy_orm),
@@ -60,7 +59,7 @@ class CoverLetterService:
                     system_prompt=settings.llm_system_prompt,
                 )
             )
-            await create_cover_letter(
+            await CoverLetterRepository.create(
                 session=session,
                 application_id=application.id,
                 text=cover_result.text,
@@ -74,7 +73,7 @@ class CoverLetterService:
             return cover_result
 
     async def recover_pending(self, session: AsyncSession) -> int:
-        applications = await list_applications_by_status(
+        applications = await ApplicationRepository.list_by_status(
             session=session, status=ProcessingState.LETTER_PENDING
         )
         for application in applications:

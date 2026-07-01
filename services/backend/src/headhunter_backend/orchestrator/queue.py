@@ -3,13 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from typing import Sequence
 
 from headhunter_backend.log import get_logger
-from headhunter_backend.db.crud import (
-    list_active_applications,
-    get_application_by_id,
-    get_latest_cover_letter,
-    get_vacancy,
-    log_submission,
-)
 from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.writer import (
@@ -25,12 +18,15 @@ from headhunter_backend.api.events import (
 )
 from headhunter_backend.orchestrator._transitions import transition_and_broadcast
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
-from headhunter_backend.orchestrator.rate_limiter import (
-    ensure_within_limits,
-    RateLimitExceeded,
-)
 from headhunter_backend.api.schemas import AuthStatusAPISchema, ProcessingState
 from headhunter_backend.exceptions import ApplicationNotFoundError
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
+from headhunter_backend.db.repositories.rate_limits import (
+    RateLimitExceeded,
+    RateLimitRepository,
+)
+from headhunter_backend.db.repositories.vacancies import VacancyRepository
 
 
 class Orchestrator:
@@ -78,7 +74,9 @@ class Orchestrator:
         return list(self._pending)
 
     async def recover_from_db(self, session: AsyncSession) -> int:
-        applications: Sequence[ApplicationORM] = await list_active_applications(session)
+        applications: Sequence[
+            ApplicationORM
+        ] = await ApplicationRepository.list_active(session)
         for application in applications:
             await self.enqueue(application_id=application.id)
         return len(applications)
@@ -132,7 +130,7 @@ class Orchestrator:
         rate_limit_backoff_sec: float,
     ) -> None:
         async with session_maker() as session:
-            app: ApplicationORM | None = await get_application_by_id(
+            app: ApplicationORM | None = await ApplicationRepository.get_by_id(
                 session=session, application_id=application_id
             )
             if app is None:
@@ -166,7 +164,7 @@ class Orchestrator:
 
             # 2 Rate-limit
             try:
-                await ensure_within_limits(session=session)
+                await RateLimitRepository.ensure_within_limits(session=session)
             except RateLimitExceeded:
                 self._log.warning("Rate limit hit -- re-enqueue + backoff")
                 await self.enqueue(application_id=app.id)
@@ -174,7 +172,9 @@ class Orchestrator:
                 return
 
             # 3 Get cover letter
-            letter: CoverLetterORM | None = await get_latest_cover_letter(
+            letter: (
+                CoverLetterORM | None
+            ) = await CoverLetterRepository.get_latest_by_application_id(
                 session=session, application_id=app.id
             )
             if letter is None:
@@ -193,7 +193,7 @@ class Orchestrator:
                 )
                 return
 
-            vacancy: VacancyORM | None = await get_vacancy(
+            vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
                 session=session, vacancy_id=app.vacancy_id
             )
             if vacancy is None:
@@ -225,7 +225,7 @@ class Orchestrator:
             )
             match result.type:
                 case SubmitResultType.SUBMITTED:
-                    await log_submission(session=session)
+                    await RateLimitRepository.log_submission(session=session)
                     try:
                         await transition_and_broadcast(
                             session=session,

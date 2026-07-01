@@ -6,16 +6,9 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from headhunter_backend.ai.deployment import LLMDeployment
 
-
-class ProcessingState(str, Enum):
-    PARSED = "parsed"
-    LETTER_PENDING = "letter_pending"
-    LETTER_READY = "letter_ready"
-    LETTER_REVIEWING = "letter_reviewing"
-    LETTER_SENDING = "letter_sending"
-    LETTER_SENT = "letter_sent"
-    ERROR = "error"
-    SKIPPED = "skipped"
+# ProcessingState canonical location is core/state.py; re-exported here for
+# call-site compatibility until every import is migrated (removed in stage 3.2+).
+from headhunter_backend.core.state import ProcessingState as ProcessingState
 
 
 class WorkFormat(str, Enum):

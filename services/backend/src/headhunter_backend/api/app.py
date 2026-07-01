@@ -19,7 +19,9 @@ from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.log import configure_logging, get_logger
 from headhunter_backend.orchestrator.authorization_service import AuthorizationService
 from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
+from headhunter_backend.orchestrator.listeners.auto_submit import AutoSubmitListener
 from headhunter_backend.orchestrator.state_service import StateTransitionService
+from headhunter_backend.orchestrator.workers.letter_pending import LetterPendingWorker
 from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
 from headhunter_backend.browser.writer import BrowserWriter
@@ -86,10 +88,22 @@ async def lifespan(app: FastAPI) -> Any:
         ai_layer=app.state.ai_layer,
         state_service=app.state.state_service,
     )
+    app.state.letter_pending_worker = LetterPendingWorker(
+        cover_letter_service=app.state.cover_letter_service,
+        state_service=app.state.state_service,
+        session_maker=session_maker,
+        broadcaster=app.state.broadcaster,
+    )
+    app.state.letter_pending_worker.start()
+    app.state.auto_submit_listener = AutoSubmitListener(
+        state_service=app.state.state_service,
+        session_maker=session_maker,
+        broadcaster=app.state.broadcaster,
+    )
+    app.state.auto_submit_listener.start()
     app.state.apply_service = AutoApplyService(
         session_maker=session_maker,
-        ai_layer=app.state.ai_layer,
-        orchestrator=app.state.orchestrator,
+        state_service=app.state.state_service,
     )
     app.state.authorization_service = AuthorizationService(
         broadcaster=app.state.broadcaster, core=app.state.browser
@@ -97,7 +111,8 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.apply_service.start(broadcaster=app.state.broadcaster)
     async with session_maker() as session:
         recovered_count: int = await app.state.orchestrator.recover(session=session)
-        await app.state.cover_letter_service.recover_pending(session=session)
+        pending_count = await app.state.letter_pending_worker.recover(session=session)
+        ready_count = await app.state.auto_submit_listener.recover(session=session)
         for search_history in await SearchHistoryRepository.list_all(session=session):
             if search_history.status.is_active():
                 await SearchHistoryRepository.update(
@@ -107,23 +122,34 @@ async def lifespan(app: FastAPI) -> Any:
                     status=SearchStatusAPISchema.INTERRUPTED,
                 )
 
-        logger.info(f"Recovered {recovered_count} applications from the database.")
+        logger.info(
+            "Recovery complete",
+            sending=recovered_count,
+            pending=pending_count,
+            ready_resubmitted=ready_count,
+        )
 
     apply_sqlite_pragmas(target_engine=engine)
     await app.state.browser.start()
 
     consumer_task = asyncio.create_task(app.state.orchestrator.run())
+    letter_task = asyncio.create_task(app.state.letter_pending_worker.run())
 
     try:
         yield
     finally:
         consumer_task.cancel()
+        letter_task.cancel()
         app.state.orchestrator.stop()
+        app.state.letter_pending_worker.stop()
+        app.state.auto_submit_listener.stop()
+        app.state.apply_service.stop()
         await app.state.search_service.shutdown()
-        try:
-            await consumer_task
-        except asyncio.CancelledError:
-            pass
+        for task in (consumer_task, letter_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         await app.state.browser.stop()
     logger.info("Shutting down Headhunter AI Backend API")
 

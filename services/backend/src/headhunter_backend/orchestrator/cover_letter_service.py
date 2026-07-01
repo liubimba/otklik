@@ -1,22 +1,18 @@
-import asyncio
-
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from statemachine.exceptions import TransitionNotAllowed
 
 from headhunter_backend.ai.exceptions import AILayerUnhealthyError
 from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.ai.result import AICoverLetterResult
-from headhunter_backend.core.state import ProcessingState
 from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
-from headhunter_backend.exceptions import ApplicationNotFoundError, VacancyNotFoundError
-from headhunter_backend.log import get_logger
-from headhunter_backend.orchestrator.state_machine import ApplicationEvent
-from headhunter_backend.orchestrator.state_service import StateTransitionService
 from headhunter_backend.db.repositories.applications import ApplicationRepository
 from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
 from headhunter_backend.db.repositories.settings import SettingsRepository
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from headhunter_backend.exceptions import ApplicationNotFoundError, VacancyNotFoundError
+from headhunter_backend.log import get_logger
+from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.orchestrator.state_service import StateTransitionService
 
 
 class CoverLetterService:
@@ -30,8 +26,6 @@ class CoverLetterService:
         self._ai_layer = ai_layer
         self._state_service = state_service
         self._log = get_logger(__name__)
-        # Holds references to fire-and-forget recovery tasks so they aren't GC'd before completion.
-        self._tasks: set[asyncio.Task[None]] = set()
 
     async def regenerate(self, vacancy_id: int) -> AICoverLetterResult:
         if not (await self._ai_layer.get_health_status()).is_ready():
@@ -69,36 +63,3 @@ class CoverLetterService:
                 event=ApplicationEvent.LETTER_GENERATED,
             )
             return cover_result
-
-    async def recover_pending(self, session: AsyncSession) -> int:
-        applications = await ApplicationRepository.list_by_status(
-            session=session, status=ProcessingState.LETTER_PENDING
-        )
-        for application in applications:
-            task = asyncio.create_task(
-                self._safe_regenerate(vacancy_id=application.vacancy_id)
-            )
-            self._tasks.add(task)
-            task.add_done_callback(self._tasks.discard)
-        if applications:
-            self._log.info(
-                "Scheduled letter regeneration for stuck applications",
-                count=len(applications),
-            )
-        return len(applications)
-
-    async def _safe_regenerate(self, vacancy_id: int) -> None:
-        try:
-            await self.regenerate(vacancy_id=vacancy_id)
-        except TransitionNotAllowed:
-            # Application moved out of LETTER_PENDING between scan and regenerate — recovery raced.
-            self._log.warning(
-                "Recovery skipped: application no longer in LETTER_PENDING",
-                vacancy_id=vacancy_id,
-            )
-        except Exception as e:
-            self._log.error(
-                "Recovery regenerate failed",
-                vacancy_id=vacancy_id,
-                error=str(e),
-            )

@@ -1,25 +1,19 @@
 import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from typing import Sequence
 
-from headhunter_backend.log import get_logger
-from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.browser.core import BrowserCore
+from headhunter_backend.browser.selectors import Selectors
 from headhunter_backend.browser.writer import (
     BrowserWriter,
-    SubmitResultType,
     SubmitResult,
+    SubmitResultType,
 )
-from headhunter_backend.browser.selectors import Selectors
-from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.events import (
-    CaptchaWSEvent,
-    CaptchaData,
-)
-from headhunter_backend.orchestrator._transitions import transition_and_broadcast
-from headhunter_backend.orchestrator.state_machine import ApplicationEvent
-from headhunter_backend.api.schemas import AuthStatusAPISchema, ProcessingState
-from headhunter_backend.exceptions import ApplicationNotFoundError
+from headhunter_backend.core.events import CaptchaData, CaptchaWSEvent
+from headhunter_backend.core.state import ProcessingState
+from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from headhunter_backend.db.repositories.applications import ApplicationRepository
 from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
 from headhunter_backend.db.repositories.rate_limits import (
@@ -27,11 +21,16 @@ from headhunter_backend.db.repositories.rate_limits import (
     RateLimitRepository,
 )
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from headhunter_backend.exceptions import ApplicationNotFoundError
+from headhunter_backend.log import get_logger
+from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.orchestrator.state_service import StateTransitionService
 
 
 class Orchestrator:
-    def __init__(self) -> None:
+    def __init__(self, state_service: StateTransitionService) -> None:
         self._log = get_logger(__name__)
+        self._state_service = state_service
         self._queue: asyncio.Queue[int] = asyncio.Queue()
         self._pending: list[int] = []
         self._resume_event = asyncio.Event()
@@ -139,12 +138,13 @@ class Orchestrator:
 
             if app.status != ProcessingState.LETTER_SENDING:
                 self._log.warning(
-                    "Skipping application not in LETTER_SENDING", application_id=app.id
+                    "Skipping application not in LETTER_SENDING",
+                    application_id=app.id,
                 )
                 return
 
             # 1 Auth
-            auth_status: AuthStatusAPISchema = await browser.get_auth_status()
+            auth_status = await browser.get_auth_status()
             if not auth_status.is_authorized():
                 self._log.warning(
                     "Not authorized -- fail. Pause until authorized, use resume() to resume orchestrator",
@@ -156,9 +156,7 @@ class Orchestrator:
                 await self._fail(
                     application_id=app.id,
                     session=session,
-                    vacancy_id=app.vacancy_id,
                     reason="not authorized",
-                    broadcaster=broadcaster,
                 )
                 return
 
@@ -187,9 +185,7 @@ class Orchestrator:
                 await self._fail(
                     application_id=app.id,
                     session=session,
-                    vacancy_id=app.vacancy_id,
                     reason="missing cover leter",
-                    broadcaster=broadcaster,
                 )
                 return
 
@@ -201,9 +197,7 @@ class Orchestrator:
                 await self._fail(
                     application_id=app.id,
                     session=session,
-                    vacancy_id=app.vacancy_id,
                     reason="missing vacancy",
-                    broadcaster=broadcaster,
                 )
                 return
             if vacancy.response_link is None:
@@ -211,9 +205,7 @@ class Orchestrator:
                 await self._fail(
                     application_id=app.id,
                     session=session,
-                    vacancy_id=app.vacancy_id,
                     reason="missing response link",
-                    broadcaster=broadcaster,
                 )
                 return
 
@@ -227,11 +219,10 @@ class Orchestrator:
                 case SubmitResultType.SUBMITTED:
                     await RateLimitRepository.log_submission(session=session)
                     try:
-                        await transition_and_broadcast(
+                        await self._state_service.transition(
                             session=session,
-                            broadcaster=broadcaster,
                             application_id=app.id,
-                            to_state=ApplicationEvent.SUBMISSION_OK,
+                            event=ApplicationEvent.SUBMISSION_OK,
                         )
                     except ApplicationNotFoundError:
                         self._log.error("Failed to transition to SUBMISSION_OK")
@@ -250,25 +241,20 @@ class Orchestrator:
                     await self._fail(
                         application_id=app.id,
                         session=session,
-                        vacancy_id=app.vacancy_id,
                         reason=result.reason or "unknown",
-                        broadcaster=broadcaster,
                     )
 
     async def _fail(
         self,
         application_id: int,
         session: AsyncSession,
-        vacancy_id: int,
         reason: str,
-        broadcaster: EventBroadcaster,
     ) -> None:
         try:
-            await transition_and_broadcast(
+            await self._state_service.transition(
                 session=session,
-                broadcaster=broadcaster,
                 application_id=application_id,
-                to_state=ApplicationEvent.SUBMISSION_FAILED,
+                event=ApplicationEvent.SUBMISSION_FAILED,
                 reason=reason,
             )
         except ApplicationNotFoundError:

@@ -1,20 +1,18 @@
 from fastapi import APIRouter, HTTPException, status
-
 from statemachine.exceptions import TransitionNotAllowed
 
 from headhunter_backend.api.dependencies import (
-    BroadcasterDep,
     OrchestratorDep,
     SessionDep,
+    StateServiceDep,
 )
 from headhunter_backend.api.schemas import ApplicationAPISchema
 from headhunter_backend.db.converters import application_to_schema
 from headhunter_backend.db.models import ApplicationORM, VacancyORM
-from headhunter_backend.log import get_logger
-from headhunter_backend.orchestrator._transitions import transition_and_broadcast
-from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from headhunter_backend.db.repositories.applications import ApplicationRepository
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from headhunter_backend.log import get_logger
+from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 
 submission_router = APIRouter(prefix="/vacancies", tags=["vacancies"])
 log = get_logger(__name__)
@@ -27,7 +25,7 @@ async def submit(
     vacancy_id: int,
     session: SessionDep,
     orchestrator: OrchestratorDep,
-    broadcaster: BroadcasterDep,
+    state_service: StateServiceDep,
 ) -> ApplicationAPISchema:
     vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
@@ -42,11 +40,10 @@ async def submit(
             status_code=409, detail="Vacancy is not queued for a cover letter"
         )
     try:
-        application = await transition_and_broadcast(
+        application = await state_service.transition(
             session=session,
-            broadcaster=broadcaster,
             application_id=application.id,
-            to_state=ApplicationEvent.SUBMIT,
+            event=ApplicationEvent.SUBMIT,
         )
     except TransitionNotAllowed as e:
         raise HTTPException(
@@ -59,7 +56,7 @@ async def submit(
 
 @submission_router.post("/{vacancy_id}/skip")
 async def skip(
-    session: SessionDep, vacancy_id: int, broadcaster: BroadcasterDep
+    session: SessionDep, vacancy_id: int, state_service: StateServiceDep
 ) -> ApplicationAPISchema:
     vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
@@ -72,11 +69,10 @@ async def skip(
     if application is None:
         raise HTTPException(status_code=409, detail="Vacancy not queued for letter")
     try:
-        application = await transition_and_broadcast(
+        application = await state_service.transition(
             session=session,
-            broadcaster=broadcaster,
             application_id=application.id,
-            to_state=ApplicationEvent.SKIP,
+            event=ApplicationEvent.SKIP,
         )
     except TransitionNotAllowed as e:
         raise HTTPException(

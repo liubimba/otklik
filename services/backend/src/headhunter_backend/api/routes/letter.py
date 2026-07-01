@@ -1,23 +1,25 @@
 from fastapi import APIRouter, HTTPException
-
 from statemachine.exceptions import TransitionNotAllowed
 
-from headhunter_backend.api.dependencies import BroadcasterDep, SessionDep
-from headhunter_backend.api.events import ApplicationData, ApplicationWSEvent
+from headhunter_backend.api.dependencies import (
+    BroadcasterDep,
+    SessionDep,
+    StateServiceDep,
+)
 from headhunter_backend.api.schemas import (
     ApplicationAPISchema,
     CoverLetterAPISchema,
     CoverLetterRequestAPISchema,
     ProcessingState,
 )
+from headhunter_backend.core.events import ApplicationData, ApplicationWSEvent
 from headhunter_backend.db.converters import application_to_schema
 from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
-from headhunter_backend.log import get_logger
-from headhunter_backend.orchestrator._transitions import transition_and_broadcast
-from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from headhunter_backend.db.repositories.applications import ApplicationRepository
 from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from headhunter_backend.log import get_logger
+from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 
 letter_router = APIRouter(prefix="/vacancies", tags=["vacancies"])
 log = get_logger(__name__)
@@ -25,7 +27,7 @@ log = get_logger(__name__)
 
 @letter_router.post("/{vacancy_id}/queue_for_letter")
 async def queue_for_letter(
-    vacancy_id: int, session: SessionDep, broadcaster: BroadcasterDep
+    vacancy_id: int, session: SessionDep, state_service: StateServiceDep
 ) -> ApplicationAPISchema:
     if (
         await VacancyRepository.get_by_id(session=session, vacancy_id=vacancy_id)
@@ -43,11 +45,10 @@ async def queue_for_letter(
         session=session, vacancy_id=vacancy_id
     )
     try:
-        application = await transition_and_broadcast(
+        application = await state_service.transition(
             session=session,
-            broadcaster=broadcaster,
             application_id=application.id,
-            to_state=ApplicationEvent.ENQUEUE_FOR_LETTER,
+            event=ApplicationEvent.ENQUEUE_FOR_LETTER,
         )
     except TransitionNotAllowed as e:
         raise HTTPException(
@@ -118,7 +119,7 @@ async def post_cover_letter(
 
 @letter_router.post("/{vacancy_id}/review")
 async def review(
-    session: SessionDep, vacancy_id: int, broadcaster: BroadcasterDep
+    session: SessionDep, vacancy_id: int, state_service: StateServiceDep
 ) -> ApplicationAPISchema:
     vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
@@ -131,11 +132,10 @@ async def review(
     if application is None:
         raise HTTPException(status_code=409, detail="Vacancy not queued for letter")
     try:
-        application = await transition_and_broadcast(
+        application = await state_service.transition(
             session=session,
-            broadcaster=broadcaster,
             application_id=application.id,
-            to_state=ApplicationEvent.SEND_FOR_REVIEW,
+            event=ApplicationEvent.SEND_FOR_REVIEW,
         )
     except TransitionNotAllowed as e:
         raise HTTPException(
@@ -146,7 +146,7 @@ async def review(
 
 @letter_router.post("/{vacancy_id}/retry")
 async def retry(
-    vacancy_id: int, session: SessionDep, broadcaster: BroadcasterDep
+    vacancy_id: int, session: SessionDep, state_service: StateServiceDep
 ) -> ApplicationAPISchema:
     vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
         session=session, vacancy_id=vacancy_id
@@ -161,11 +161,10 @@ async def retry(
             status_code=409, detail="Vacancy is not queued for a cover letter"
         )
     try:
-        application = await transition_and_broadcast(
+        application = await state_service.transition(
             session=session,
-            broadcaster=broadcaster,
             application_id=application.id,
-            to_state=ApplicationEvent.RETRY,
+            event=ApplicationEvent.RETRY,
         )
     except TransitionNotAllowed as e:
         raise HTTPException(

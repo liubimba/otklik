@@ -1,0 +1,80 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+from statemachine.exceptions import TransitionNotAllowed
+
+from headhunter_backend.api.broadcaster import EventBroadcaster
+from headhunter_backend.core.events import ApplicationData, ApplicationWSEvent
+from headhunter_backend.db.models import ApplicationORM
+from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.exceptions import ApplicationNotFoundError
+from headhunter_backend.log import get_logger
+from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+
+
+class StateTransitionService:
+    def __init__(self, broadcaster: EventBroadcaster) -> None:
+        self._broadcaster = broadcaster
+        self._log = get_logger(__name__)
+
+    async def transition(
+        self,
+        session: AsyncSession,
+        application_id: int,
+        event: ApplicationEvent,
+        error_message: str | None = None,
+        reason: str | None = None,
+    ) -> ApplicationORM:
+        # Broadcast is fired via asyncio.create_task in EventBroadcaster; if the
+        # process dies between commit and delivery the event is lost. Recovery
+        # scans on startup are the canonical fix, not a retry loop here.
+        application = await ApplicationRepository.transition(
+            session=session,
+            application_id=application_id,
+            to_state=event,
+            error_message=error_message,
+        )
+        if application is None:
+            raise ApplicationNotFoundError()
+        await self._broadcaster.publish(
+            event=ApplicationWSEvent(
+                data=ApplicationData(
+                    vacancy_id=application.vacancy_id,
+                    application_id=application.id,
+                    status=application.status,
+                    reason=(
+                        reason if reason is not None else application.error_message
+                    ),
+                )
+            )
+        )
+        return application
+
+    async def transition_or_skip(
+        self,
+        session: AsyncSession,
+        application_id: int,
+        event: ApplicationEvent,
+        error_message: str | None = None,
+        reason: str | None = None,
+    ) -> ApplicationORM | None:
+        try:
+            return await self.transition(
+                session=session,
+                application_id=application_id,
+                event=event,
+                error_message=error_message,
+                reason=reason,
+            )
+        except TransitionNotAllowed:
+            self._log.warning(
+                "Transition not allowed — skipping",
+                application_id=application_id,
+                event=event.value,
+            )
+            return None
+        except ApplicationNotFoundError:
+            self._log.warning(
+                "Application missing — skipping transition",
+                application_id=application_id,
+                event=event.value,
+            )
+            return None

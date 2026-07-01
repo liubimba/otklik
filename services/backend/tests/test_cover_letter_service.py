@@ -12,6 +12,7 @@ from headhunter_backend.db.converters import vacancy_to_orm
 from headhunter_backend.db.models import SettingsORM
 from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.orchestrator.state_service import StateTransitionService
 from headhunter_backend.db.repositories.applications import ApplicationRepository
 from headhunter_backend.db.repositories.settings import SettingsRepository
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
@@ -80,7 +81,7 @@ async def test_recover_pending_idempotent(
     service = CoverLetterService(
         session_maker=session_factory,
         ai_layer=ai_layer,
-        broadcaster=broadcaster,
+        state_service=StateTransitionService(broadcaster=broadcaster),
     )
 
     async with session_factory() as session:
@@ -143,7 +144,7 @@ async def test_recover_pending_swallows_transition_race(
     service = CoverLetterService(
         session_maker=session_factory,
         ai_layer=ai_layer,
-        broadcaster=broadcaster,
+        state_service=StateTransitionService(broadcaster=broadcaster),
     )
 
     # Manually queue regenerate even though the application has moved on.

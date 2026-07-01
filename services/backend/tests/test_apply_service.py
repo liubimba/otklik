@@ -80,7 +80,11 @@ async def _make_service_and_broadcast(
     orchestrator: Orchestrator | None = None,
 ) -> tuple[AutoApplyService, EventBroadcaster, Orchestrator]:
     broadcaster = EventBroadcaster()
-    orch = orchestrator or Orchestrator()
+    from headhunter_backend.orchestrator.state_service import StateTransitionService
+
+    orch = orchestrator or Orchestrator(
+        state_service=StateTransitionService(broadcaster=broadcaster)
+    )
     service = AutoApplyService(
         session_maker=session_factory,
         ai_layer=ai_layer,

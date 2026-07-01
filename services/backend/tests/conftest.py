@@ -9,6 +9,7 @@ from headhunter_backend.api.dependencies import (
     get_browser,
     get_session,
     get_orchestrator,
+    get_state_service,
     get_writer,
     get_search_service,
 )
@@ -16,6 +17,7 @@ from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.schemas import AuthStatusAPISchema
 from headhunter_backend.db.base import Base
 from headhunter_backend.orchestrator.queue import Orchestrator
+from headhunter_backend.orchestrator.state_service import StateTransitionService
 from headhunter_backend.db.converters import vacancy_to_orm
 from typing import AsyncIterator
 from sqlalchemy.ext.asyncio import (
@@ -133,8 +135,17 @@ def recording_broadcaster() -> RecordingBroadcaster:
 
 
 @pytest.fixture
-def fake_orchestrator() -> Orchestrator:
-    return Orchestrator()
+def fake_state_service(
+    recording_broadcaster: RecordingBroadcaster,
+) -> StateTransitionService:
+    return StateTransitionService(broadcaster=recording_broadcaster)
+
+
+@pytest.fixture
+def fake_orchestrator(
+    fake_state_service: StateTransitionService,
+) -> Orchestrator:
+    return Orchestrator(state_service=fake_state_service)
 
 
 @pytest.fixture
@@ -191,6 +202,7 @@ async def client(
     fake_browser: FakeBrowser,
     recording_broadcaster: RecordingBroadcaster,
     fake_orchestrator: Orchestrator,
+    fake_state_service: StateTransitionService,
     fake_writer: FakeWriter,
     vacancy_model: VacancyAPISchema,
     session_factory: async_sessionmaker[AsyncSession],
@@ -205,6 +217,7 @@ async def client(
     app.dependency_overrides[get_browser] = lambda: fake_browser
     app.dependency_overrides[get_broadcaster] = lambda: recording_broadcaster
     app.dependency_overrides[get_orchestrator] = lambda: fake_orchestrator
+    app.dependency_overrides[get_state_service] = lambda: fake_state_service
     app.dependency_overrides[get_writer] = lambda: fake_writer
     app.dependency_overrides[get_search_service] = lambda: fake_search_service
     app.dependency_overrides[get_ai_layer] = lambda: ai_layer_with_router

@@ -6,14 +6,13 @@ from statemachine.exceptions import TransitionNotAllowed
 from headhunter_backend.ai.exceptions import AILayerUnhealthyError
 from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.ai.result import AICoverLetterResult
-from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.schemas import ProcessingState
+from headhunter_backend.core.state import ProcessingState
 from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
 from headhunter_backend.exceptions import ApplicationNotFoundError, VacancyNotFoundError
 from headhunter_backend.log import get_logger
-from headhunter_backend.orchestrator._transitions import transition_and_broadcast
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from headhunter_backend.orchestrator.state_service import StateTransitionService
 from headhunter_backend.db.repositories.applications import ApplicationRepository
 from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
 from headhunter_backend.db.repositories.settings import SettingsRepository
@@ -25,11 +24,11 @@ class CoverLetterService:
         self,
         session_maker: async_sessionmaker[AsyncSession],
         ai_layer: AILayer,
-        broadcaster: EventBroadcaster,
+        state_service: StateTransitionService,
     ) -> None:
         self._session_maker = session_maker
         self._ai_layer = ai_layer
-        self._broadcaster = broadcaster
+        self._state_service = state_service
         self._log = get_logger(__name__)
         # Holds references to fire-and-forget recovery tasks so they aren't GC'd before completion.
         self._tasks: set[asyncio.Task[None]] = set()
@@ -64,11 +63,10 @@ class CoverLetterService:
                 application_id=application.id,
                 text=cover_result.text,
             )
-            await transition_and_broadcast(
+            await self._state_service.transition(
                 session=session,
-                broadcaster=self._broadcaster,
                 application_id=application.id,
-                to_state=ApplicationEvent.LETTER_GENERATED,
+                event=ApplicationEvent.LETTER_GENERATED,
             )
             return cover_result
 

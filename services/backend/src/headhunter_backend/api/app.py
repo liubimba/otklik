@@ -20,6 +20,7 @@ from headhunter_backend.log import configure_logging, get_logger
 from headhunter_backend.orchestrator.authorization_service import AuthorizationService
 from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
 from headhunter_backend.orchestrator.queue import Orchestrator
+from headhunter_backend.orchestrator.state_service import StateTransitionService
 from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
 from headhunter_backend.browser.writer import BrowserWriter
 from headhunter_backend.browser.selectors import HHRU_SELECTORS
@@ -59,7 +60,8 @@ async def lifespan(app: FastAPI) -> Any:
     logger.info("Starting Headhunter AI Backend API")
     app.state.browser = BrowserCore()
     app.state.broadcaster = EventBroadcaster()
-    app.state.orchestrator = Orchestrator()
+    app.state.state_service = StateTransitionService(broadcaster=app.state.broadcaster)
+    app.state.orchestrator = Orchestrator(state_service=app.state.state_service)
     app.state.writer = BrowserWriter(
         core=app.state.browser, min_delay_ms=800, jitter_delay_ms=400
     )
@@ -74,7 +76,7 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.cover_letter_service = CoverLetterService(
         session_maker=session_maker,
         ai_layer=app.state.ai_layer,
-        broadcaster=app.state.broadcaster,
+        state_service=app.state.state_service,
     )
     app.state.apply_service = AutoApplyService(
         session_maker=session_maker,

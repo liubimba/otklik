@@ -195,6 +195,73 @@ async def test_submit_from_error_state_transitions_and_saves_text(
     assert result.latest_letter.text == "Edited after failure"
 
 
+async def test_generate_from_error_state_transitions_to_letter_ready(
+    client, session_factory, ai_layer_with_router
+):
+    """Regression: POST /application/generate against an ERROR-state app
+    used to crash with 500 (`TransitionNotAllowed: Can't Letter generated
+    when in Error`) because the state machine had no ERROR arc on
+    `letter_generated`. Now returns 200 and lands in LETTER_READY."""
+    from tests.test_ai import _fake_model_response
+
+    ai_layer_with_router._router.acompletion.return_value = _fake_model_response(
+        content="Fresh letter"
+    )
+
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.FAIL,
+        )
+
+    detail_before = ApplicationDetailAPISchema.model_validate(
+        client.get("/api/v1/vacancies/1/application").json()
+    )
+    assert detail_before.status == ProcessingState.ERROR
+
+    response: Response = client.post("/api/v1/vacancies/1/application/generate")
+    assert response.status_code == 200, response.text
+    assert response.json()["text"] == "Fresh letter"
+
+    after = ApplicationDetailAPISchema.model_validate(
+        client.get("/api/v1/vacancies/1/application").json()
+    )
+    assert after.status == ProcessingState.LETTER_READY
+    assert after.latest_letter is not None
+    assert after.latest_letter.text == "Fresh letter"
+
+
+async def test_generate_returns_409_when_application_is_terminal(
+    client, session_factory, ai_layer_with_router
+):
+    """Regression: /generate crashed with 500 on any TransitionNotAllowed.
+    Wrap the call so terminal / in-flight states (LETTER_SENT here) get
+    409 instead of a stack trace."""
+    from tests.test_ai import _fake_model_response
+
+    ai_layer_with_router._router.acompletion.return_value = _fake_model_response(
+        content="unused"
+    )
+
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        # Walk the state machine into LETTER_SENT (terminal-ish).
+        await ApplicationRepository.transition(
+            session=session, application_id=app_id, to_state=ApplicationEvent.SUBMIT
+        )
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.SUBMISSION_OK,
+        )
+
+    response: Response = client.post("/api/v1/vacancies/1/application/generate")
+    assert response.status_code == 409
+    assert "Cannot regenerate letter" in response.json()["detail"]
+
+
 async def test_submit_from_error_without_text_reuses_existing_letter(
     client, session_factory
 ):

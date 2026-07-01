@@ -85,3 +85,51 @@ def test_error_state_offers_both_submit_and_retry_paths() -> None:
         sm = _at(ProcessingState.ERROR)
         sm.send(event.value)
         assert sm.current_state_value == expected
+
+
+def test_letter_generated_from_error_moves_to_letter_ready() -> None:
+    """Regression: POST /application/generate against an ERROR-state app
+    crashed with 500 because `letter_generated` did not include ERROR as
+    a source state. The UI-driven "Сгенерировать заново" button now has
+    a synchronous path — the RETRY path stays available for the worker
+    queue variant."""
+    sm = _at(ProcessingState.ERROR)
+    sm.send(ApplicationEvent.LETTER_GENERATED.value)
+    assert sm.current_state_value == ProcessingState.LETTER_READY
+
+
+@pytest.mark.parametrize(
+    "state, expected",
+    [
+        (ProcessingState.LETTER_PENDING, ProcessingState.LETTER_READY),
+        (ProcessingState.LETTER_READY, ProcessingState.LETTER_READY),
+        (ProcessingState.LETTER_REVIEWING, ProcessingState.LETTER_REVIEWING),
+        (ProcessingState.ERROR, ProcessingState.LETTER_READY),
+    ],
+)
+def test_letter_generated_arcs(
+    state: ProcessingState, expected: ProcessingState
+) -> None:
+    """Documents every source state from which `letter_generated` succeeds."""
+    sm = _at(state)
+    sm.send(ApplicationEvent.LETTER_GENERATED.value)
+    assert sm.current_state_value == expected
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        ProcessingState.PARSED,
+        ProcessingState.LETTER_SENDING,
+        ProcessingState.LETTER_SENT,
+        ProcessingState.SKIPPED,
+    ],
+)
+def test_letter_generated_forbidden_from_terminal_or_pre_pending_states(
+    state: ProcessingState,
+) -> None:
+    """Anything that isn't yet 'letter-authoring' (PARSED) or has already
+    moved past authoring (SENDING/SENT/SKIPPED) must reject LETTER_GENERATED."""
+    sm = _at(state)
+    with pytest.raises(TransitionNotAllowed):
+        sm.send(ApplicationEvent.LETTER_GENERATED.value)

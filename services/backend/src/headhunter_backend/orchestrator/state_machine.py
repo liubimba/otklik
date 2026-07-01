@@ -28,6 +28,12 @@ class ProcessingStateMachine(StateMachine):
         _.LETTER_PENDING.to(_.LETTER_READY)
         | _.LETTER_READY.to(_.LETTER_READY)
         | _.LETTER_REVIEWING.to(_.LETTER_REVIEWING)
+        # ERROR → LETTER_READY: mirrors the SUBMIT arc for the "regenerate"
+        # button in the error-state footer. The user explicitly asked the
+        # LLM for a fresh letter — deliver it. The RETRY path also lands
+        # in LETTER_READY (via LETTER_PENDING + worker), but goes through
+        # the queue; this arc is the synchronous UI-driven variant.
+        | _.ERROR.to(_.LETTER_READY)
     )
     send_for_review = _.LETTER_READY.to(_.LETTER_REVIEWING)
     submit = (

@@ -126,9 +126,18 @@ async def generate(
                 status_code=409,
                 detail=f"Cannot enqueue for letter: {e}",
             )
-    result: AICoverLetterResult = await cover_letter_service.regenerate(
-        vacancy_id=vacancy_id
-    )
+    try:
+        result: AICoverLetterResult = await cover_letter_service.regenerate(
+            vacancy_id=vacancy_id
+        )
+    except TransitionNotAllowed as e:
+        # Terminal states (LETTER_SENDING/LETTER_SENT/SKIPPED) — no arc into
+        # LETTER_READY. Return 409 instead of 500. This used to crash when
+        # the frontend hit /generate on a vacancy that was already ERROR;
+        # that particular case is now legal via the ERROR arc on
+        # `letter_generated`, but the guard stays for the remaining terminal
+        # states.
+        raise HTTPException(status_code=409, detail=f"Cannot regenerate letter: {e}")
     return AICoverLetterAPISchema(
         text=result.text,
         model_used=result.model_used,

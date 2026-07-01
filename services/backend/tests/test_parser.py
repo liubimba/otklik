@@ -4,8 +4,8 @@ from headhunter_backend.log import get_logger
 import pytest
 
 from headhunter_backend.browser.core import BrowserCore
-from headhunter_backend.browser.parser import Parser
-from headhunter_backend.browser.selectors import HHRU_SELECTORS
+from headhunter_backend.sites.hh_ru.parser import HHRUParser
+from headhunter_backend.sites.hh_ru.selectors import HHRU_SELECTORS
 from headhunter_backend.api.schemas import VacancyAPISchema
 
 pytestmark = pytest.mark.skipif(
@@ -41,7 +41,7 @@ async def test_parser_returns_fifty_vacancies(tmp_path: Path) -> None:
         # Wait until result cards are rendered before handing the page over.
         await search_page.wait_for_selector(HHRU_SELECTORS.search.apply_link)
 
-        parser = Parser(browser)
+        parser = HHRUParser(browser)
 
         # parse() is an unbounded stream; the consumer caps it at TARGET_COUNT.
         async for vacancy in parser.parse(search_page, HHRU_SELECTORS):

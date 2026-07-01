@@ -14,9 +14,8 @@ from headhunter_backend.api.schemas import (
     SearchStatusAPISchema,
     VacancyAPISchema,
 )
-from headhunter_backend.browser.selectors import HHRU_SELECTORS, Selectors
 from headhunter_backend.db.models import VacancyORM
-from headhunter_backend.api.events import SearchWSEvent, VacancyWSEvent
+from headhunter_backend.core.events import SearchWSEvent, VacancyWSEvent
 
 from tests.conftest import RecordingBroadcaster, wait_until
 
@@ -59,7 +58,7 @@ class FakeParser:
         self.calls = 0
 
     async def parse(
-        self, search_page: FakeBrowserPage, selectors: Selectors
+        self, search_page: FakeBrowserPage
     ) -> AsyncIterator[VacancyAPISchema]:
         idx = self.calls
         self.calls += 1
@@ -73,7 +72,7 @@ class SlowParser:
     """Зависает навсегда — для тестов cancel/shutdown."""
 
     async def parse(
-        self, search_page: FakeBrowserPage, selectors: Selectors
+        self, search_page: FakeBrowserPage
     ) -> AsyncIterator[VacancyAPISchema]:
         await asyncio.sleep(10)
         yield _vacancy(0)  # никогда не доходит
@@ -116,7 +115,6 @@ def _make_service(
         parser=parser,  # type: ignore[arg-type]
         broadcaster=broadcaster,
         session_maker=session_factory,
-        selectors=HHRU_SELECTORS,
     )
 
 
@@ -160,7 +158,7 @@ async def test_publishes_vacancy_new_event_per_parsed_vacancy(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     """SearchService must publish a VacancyWSEvent after each upsert_vacancy.
-    Without it AutoApplyService never gets triggered and UI VacancyList never
+    Without it AutoApplyListener never gets triggered and UI VacancyList never
     refreshes live."""
     parser = FakeParser([[_vacancy(1), _vacancy(2)]])
     svc = _make_service(

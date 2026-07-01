@@ -14,36 +14,37 @@ from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from headhunter_backend.orchestrator.state_service import StateTransitionService
 
 
-class AutoApplyService:
+class AutoApplyListener:
     """Turn a freshly parsed VacancyWSEvent into a PARSED → LETTER_PENDING
     application when auto_submit is enabled. The rest of the cascade
     (LLM generation, review, submit) is driven by LetterPendingWorker,
     AutoSubmitListener and LetterSendingWorker via the ApplicationWSEvent
-    subscription chain — this service only owns the initial hand-off.
+    subscription chain — this listener only owns the initial hand-off.
     """
 
     def __init__(
         self,
         session_maker: async_sessionmaker[AsyncSession],
         state_service: StateTransitionService,
+        broadcaster: EventBroadcaster,
     ) -> None:
         self._session_maker = session_maker
         self._state_service = state_service
+        self._broadcaster = broadcaster
         self._log = get_logger(__name__)
         self._subscriber: CallbackEventSubscriber | None = None
-        self._broadcaster: EventBroadcaster | None = None
 
-    def start(self, broadcaster: EventBroadcaster) -> None:
-        self._log.info("Starting service")
-        self._subscriber = CallbackEventSubscriber.from_callback(
+    def start(self) -> None:
+        self._log.info("Starting listener")
+        subscriber = CallbackEventSubscriber.from_callback(
             lambda event: self._handle_event(event=event)
         )
-        self._broadcaster = broadcaster
-        broadcaster.register(self._subscriber)
+        self._broadcaster.register(subscriber)
+        self._subscriber = subscriber
 
     def stop(self) -> None:
-        self._log.info("Terminating service")
-        if self._broadcaster is not None and self._subscriber is not None:
+        self._log.info("Terminating listener")
+        if self._subscriber is not None:
             self._broadcaster.unregister(self._subscriber)
             self._subscriber = None
 

@@ -1,6 +1,5 @@
-from headhunter_backend.orchestrator.queue import Orchestrator
+from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from headhunter_backend.db.models import ApplicationORM
 from headhunter_backend.db.converters import vacancy_to_orm
 from headhunter_backend.api.schemas import ProcessingState, VacancyAPISchema
 from tests.conftest import (
@@ -12,61 +11,60 @@ from tests.conftest import (
 
 import asyncio
 
-from headhunter_backend.browser.writer import SubmitResult
-from headhunter_backend.browser.selectors import HHRU_SELECTORS
+from headhunter_backend.core.site.result import SubmissionResult
 from headhunter_backend.db.models import RateLimitEventORM
-from headhunter_backend.api.events import CaptchaWSEvent, ApplicationWSEvent
+from headhunter_backend.core.events import CaptchaWSEvent, ApplicationWSEvent
 from headhunter_backend.db.repositories.applications import ApplicationRepository
 from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
 from sqlalchemy import select, func
 
 
-async def test_recover_from_db_pushes_applications(
-    fake_orchestrator: Orchestrator, session_factory: async_sessionmaker[AsyncSession]
+async def test_recover_picks_up_letter_sending_only(
+    fake_orchestrator: LetterSendingWorker,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    applications: list[ApplicationORM] = []
+    """LetterSendingWorker.recover() must enqueue only apps whose status matches
+    handled_status (LETTER_SENDING). Apps stuck in other statuses belong to a
+    different worker's recover() and must be ignored here."""
+    picked: list[int] = []
     async with session_factory() as session:
-        for _ in range(4):
+        for index in range(4):
             await VacancyRepository.create(
                 session=session,
                 vacancy=vacancy_to_orm(
                     VacancyAPISchema(
-                        title="test", apply_link=f"test{_}", description="test"
+                        title="t", apply_link=f"link{index}", description="d"
                     )
                 ),
             )
 
-        applications.append(
-            await ApplicationRepository.create(session=session, vacancy_id=1)
-        )
-        applications.append(
-            await ApplicationRepository.create(session=session, vacancy_id=2)
-        )
-
-        application: ApplicationORM = await ApplicationRepository.create(
-            session=session, vacancy_id=3
-        )
-        application.status = ProcessingState.LETTER_SENT
+        for vacancy_id, status in (
+            (1, ProcessingState.LETTER_SENDING),
+            (2, ProcessingState.LETTER_SENDING),
+            (3, ProcessingState.LETTER_SENT),
+            (4, ProcessingState.SKIPPED),
+        ):
+            app = await ApplicationRepository.create(
+                session=session, vacancy_id=vacancy_id
+            )
+            app.status = status
+            if status == ProcessingState.LETTER_SENDING:
+                picked.append(app.id)
         await session.commit()
 
-        application: ApplicationORM = await ApplicationRepository.create(
-            session=session, vacancy_id=4
-        )
-        application.status = ProcessingState.SKIPPED
-        await session.commit()
-
-        recovered_count: int = await fake_orchestrator.recover_from_db(session=session)
-        assert recovered_count == len(applications)
-        assert fake_orchestrator.qsize() == len(applications)
-        assert {
+        recovered = await fake_orchestrator.recover(session=session)
+        assert recovered == len(picked)
+        assert fake_orchestrator.qsize() == len(picked)
+        drained = {
             await fake_orchestrator.get_next(),
             await fake_orchestrator.get_next(),
-        } == {applications[0].id, applications[1].id}
+        }
+        assert drained == set(picked)
         assert fake_orchestrator.qsize() == 0
 
 
-async def test_enqueue_then_get_next(fake_orchestrator: Orchestrator) -> None:
+async def test_enqueue_then_get_next(fake_orchestrator: LetterSendingWorker) -> None:
     await fake_orchestrator.enqueue(application_id=42)
     assert fake_orchestrator.qsize() == 1
     next_id: int = await fake_orchestrator.get_next()
@@ -101,23 +99,15 @@ async def seed_app_in_letter_sending(
         return app.id
 
 
-# ─ хелпер: стартовать consume() как фоновую задачу ───────────────────
+# ─ хелпер: стартовать run() как фоновую задачу ───────────────────
 async def start_consumer(
-    orchestrator: Orchestrator,
-    writer: FakeWriter,
+    orchestrator: LetterSendingWorker,
+    writer: FakeWriter,  # kept in signature so callsites don't have to change
     browser: FakeBrowser,
     broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> asyncio.Task:
-    return asyncio.create_task(
-        orchestrator.consume(
-            writer=writer,
-            session_maker=session_factory,
-            browser=browser,
-            broadcaster=broadcaster,
-            selectors=HHRU_SELECTORS,
-        )
-    )
+    return asyncio.create_task(orchestrator.run())
 
 
 async def stop_consumer(task: asyncio.Task) -> None:
@@ -132,14 +122,14 @@ async def stop_consumer(task: asyncio.Task) -> None:
 
 
 async def test_consume_submitted_transitions_and_logs(
-    fake_orchestrator: Orchestrator,
+    fake_orchestrator: LetterSendingWorker,
     fake_writer: FakeWriter,
     authenticated_browser: FakeBrowser,
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     app_id = await seed_app_in_letter_sending(session_factory)
-    fake_writer.queue(SubmitResult.submitted())
+    fake_writer.queue(SubmissionResult.submitted())
 
     task = await start_consumer(
         fake_orchestrator,
@@ -186,7 +176,7 @@ async def test_consume_failed_transitions_to_error(
     session_factory,
 ) -> None:
     app_id = await seed_app_in_letter_sending(session_factory)
-    fake_writer.queue(SubmitResult.failed(reason="boom"))
+    fake_writer.queue(SubmissionResult.failed(reason="boom"))
 
     task = await start_consumer(
         fake_orchestrator,
@@ -225,7 +215,7 @@ async def test_consume_captcha_pauses_and_reenqueues(
     session_factory,
 ) -> None:
     app_id = await seed_app_in_letter_sending(session_factory)
-    fake_writer.queue(SubmitResult.captcha())
+    fake_writer.queue(SubmissionResult.captcha())
 
     task = await start_consumer(
         fake_orchestrator,

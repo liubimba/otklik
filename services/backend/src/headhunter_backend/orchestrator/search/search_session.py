@@ -11,18 +11,17 @@ from statemachine import StateMachine
 from statemachine.states import States
 
 from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.events import SearchData, SearchWSEvent, VacancyWSEvent
 from headhunter_backend.api.schemas import SearchStatusAPISchema
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.page import BrowserPage
-from headhunter_backend.browser.parser import Parser
-from headhunter_backend.browser.selectors import Selectors
+from headhunter_backend.core.events import SearchData, SearchWSEvent, VacancyWSEvent
+from headhunter_backend.core.site import SiteParser
 from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.db.models import VacancyORM
-from headhunter_backend.log import get_logger
-from headhunter_backend.orchestrator.exceptions import SearchAlreadyRunningError
 from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from headhunter_backend.log import get_logger
+from headhunter_backend.orchestrator.exceptions import SearchAlreadyRunningError
 
 
 class SearchStateEvent(str, Enum):
@@ -73,8 +72,7 @@ class SearchSession:
         core: BrowserCore,
         session_maker: async_sessionmaker[AsyncSession],
         broadcaster: EventBroadcaster,
-        parser: Parser,
-        selectors: Selectors,
+        parser: SiteParser,
         max_pages: int,
         max_vacancies: int,
     ) -> None:
@@ -84,7 +82,6 @@ class SearchSession:
         self._session_maker = session_maker
         self._broadcaster = broadcaster
         self._parser = parser
-        self._selectors = selectors
         self._max_pages = max_pages
         self._max_vacancies = max_vacancies
         self._search_task: SearchSessionTask | None = None
@@ -155,8 +152,7 @@ class SearchSession:
         core: BrowserCore,
         session_maker: async_sessionmaker[AsyncSession],
         broadcaster: EventBroadcaster,
-        parser: Parser,
-        selectors: Selectors,
+        parser: SiteParser,
         max_pages: int,
         max_vacancies: int,
     ) -> Self:
@@ -165,7 +161,6 @@ class SearchSession:
             session_maker=session_maker,
             broadcaster=broadcaster,
             parser=parser,
-            selectors=selectors,
             max_pages=max_pages,
             max_vacancies=max_vacancies,
         )
@@ -218,7 +213,6 @@ class SearchSession:
         while True:
             async for parsed_vacancy in self._parser.parse(
                 search_page=search_page,
-                selectors=self._selectors,
             ):
                 async with self._session_maker() as session:
                     vacancy_orm: VacancyORM = await VacancyRepository.upsert(

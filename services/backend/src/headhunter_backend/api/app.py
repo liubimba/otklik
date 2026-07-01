@@ -35,7 +35,6 @@ async def lifespan(app: FastAPI) -> Any:
 
     for component in ctx.event_listeners():
         component.start()
-    ctx.apply_service.start(broadcaster=ctx.broadcaster)
 
     async with session_maker() as session:
         for recoverable in ctx.recoverables():
@@ -61,7 +60,6 @@ async def lifespan(app: FastAPI) -> Any:
             task.cancel()
         for component in ctx.event_listeners():
             component.stop()
-        ctx.apply_service.stop()
         await ctx.search_service.shutdown()
         for task in tasks:
             try:

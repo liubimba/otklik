@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from headhunter_backend.browser.core import BrowserCore
-from headhunter_backend.browser.parser import Parser
-from headhunter_backend.browser.selectors import Selectors
+from headhunter_backend.core.site import SiteParser
+from headhunter_backend.db.repositories.settings import SettingsRepository
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator.exceptions import (
     FilterSessionNotFoundError,
@@ -17,24 +17,21 @@ from headhunter_backend.orchestrator.search.search_session import (
     SearchSession,
     SearchSessionTask,
 )
-from headhunter_backend.db.repositories.settings import SettingsRepository
 
 
 class SearchService:
     def __init__(
         self,
         core: BrowserCore,
-        parser: Parser,
+        parser: SiteParser,
         broadcaster: EventBroadcaster,
         session_maker: async_sessionmaker[AsyncSession],
-        selectors: Selectors,
     ) -> None:
         self._log = get_logger(__name__)
         self._core = core
         self._parser = parser
         self._broadcaster = broadcaster
         self._session_maker = session_maker
-        self._selectors = selectors
         self._filter_session: FilterSession | None = None
         self._search_session: SearchSession | None = None
 
@@ -98,7 +95,6 @@ class SearchService:
             session_maker=self._session_maker,
             broadcaster=self._broadcaster,
             parser=self._parser,
-            selectors=self._selectors,
             max_pages=max_pages,
             max_vacancies=max_vacancies,
         )

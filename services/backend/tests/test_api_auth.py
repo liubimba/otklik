@@ -1,6 +1,6 @@
 from fastapi import Response
 from headhunter_backend.api.schemas import AuthStatusAPISchema
-from headhunter_backend.api.events import AuthWSEvent
+from headhunter_backend.core.events import AuthWSEvent
 
 
 def test_api_auth_status(client, fake_browser):

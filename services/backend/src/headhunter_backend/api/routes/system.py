@@ -1,25 +1,50 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter
 
 from headhunter_backend.ai.health import AILayerHealthStatus
-from headhunter_backend.api.dependencies import AILayerDep, OrchestratorDep, SessionDep
+from headhunter_backend.api.dependencies import (
+    AILayerDep,
+    OrchestratorDep,
+    SessionDep,
+)
 from headhunter_backend.api.schemas import (
     AIHealthStatusAPISchema,
     OrchestratorStatusAPISchema,
+    RateLimitInfoAPISchema,
     RateLimitsBudgetAPISchema,
+    SettingsAPISchema,
 )
-from headhunter_backend.orchestrator.rate_limiter import (
-    get_used_daily_limits,
-    get_used_hourly_limits,
-)
+from headhunter_backend.db.converters import settings_to_schema
+from headhunter_backend.db.repositories.rate_limits import RateLimitRepository
+from headhunter_backend.db.repositories.settings import SettingsRepository
 
 system_router = APIRouter(prefix="/system", tags=["system"])
 
 
 @system_router.get("/rate-limits")
 async def rate_limits(session: SessionDep) -> RateLimitsBudgetAPISchema:
+    settings: SettingsAPISchema = settings_to_schema(
+        orm=await SettingsRepository.get(session=session)
+    )
+    now = datetime.now()
+    hourly_used = await RateLimitRepository.count_submissions_since(
+        session=session, since=now - timedelta(hours=1)
+    )
+    daily_used = await RateLimitRepository.count_submissions_since(
+        session=session, since=now - timedelta(days=1)
+    )
     return RateLimitsBudgetAPISchema(
-        hourly=await get_used_hourly_limits(session=session),
-        daily=await get_used_daily_limits(session=session),
+        hourly=RateLimitInfoAPISchema(
+            used=hourly_used,
+            limit=settings.rate_limits.hourly_limit,
+            resets_at=now + timedelta(hours=1),
+        ),
+        daily=RateLimitInfoAPISchema(
+            used=daily_used,
+            limit=settings.rate_limits.daily_limit,
+            resets_at=now + timedelta(days=1),
+        ),
     )
 
 

@@ -1,12 +1,26 @@
-# SubmissionResult / SubmissionResultType are the canonical domain result of
-# a per-site submit attempt. The current implementation still lives under
-# browser.writer.SubmitResult / SubmitResultType — this module re-exports
-# them as SubmissionResult / SubmissionResultType so downstream code depends
-# on the domain-level names, not on browser/. The physical move to
-# core/site/result.py as the source-of-truth happens in stage 5.2.
-from headhunter_backend.browser.writer import (
-    SubmitResult as SubmissionResult,
-    SubmitResultType as SubmissionResultType,
-)
+from dataclasses import dataclass
+from enum import Enum
 
-__all__ = ["SubmissionResult", "SubmissionResultType"]
+
+class SubmissionResultType(str, Enum):
+    CAPTCHA = "captcha"
+    SUBMITTED = "submitted"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class SubmissionResult:
+    type: SubmissionResultType
+    reason: str | None = None
+
+    @classmethod
+    def submitted(cls) -> "SubmissionResult":
+        return cls(type=SubmissionResultType.SUBMITTED)
+
+    @classmethod
+    def captcha(cls) -> "SubmissionResult":
+        return cls(type=SubmissionResultType.CAPTCHA)
+
+    @classmethod
+    def failed(cls, reason: str) -> "SubmissionResult":
+        return cls(type=SubmissionResultType.FAILED, reason=reason)

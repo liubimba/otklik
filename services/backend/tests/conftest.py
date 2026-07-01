@@ -18,10 +18,8 @@ from headhunter_backend.api.dependencies import (
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.schemas import AuthStatusAPISchema
 from headhunter_backend.db.base import Base
-from headhunter_backend.orchestrator.queue import Orchestrator
-from headhunter_backend.orchestrator.state_service import StateTransitionService
 from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
-from headhunter_backend.browser.selectors import HHRU_SELECTORS
+from headhunter_backend.orchestrator.state_service import StateTransitionService
 from headhunter_backend.db.converters import vacancy_to_orm
 from typing import AsyncIterator
 from sqlalchemy.ext.asyncio import (
@@ -37,8 +35,7 @@ import uuid
 import asyncio
 from headhunter_backend.api.schemas import VacancyAPISchema
 from headhunter_backend.db.session import apply_sqlite_pragmas
-from headhunter_backend.browser.writer import SubmitResult
-from headhunter_backend.browser.selectors import Selectors
+from headhunter_backend.core.site.result import SubmissionResult
 from headhunter_backend.orchestrator.search import (
     SearchAlreadyRunningError,
     SearchSessionTask,
@@ -71,7 +68,11 @@ class RecordingBroadcaster(EventBroadcaster):
 
 
 class FakeBrowser:
-    def __init__(self):
+    """Dual-purpose fake: implements the SiteAuthFlow protocol (so tests can
+    inject it as `auth_flow`) while also being a stand-in for a BrowserCore
+    handle. The real code has these split — the test seam does not need to."""
+
+    def __init__(self) -> None:
         self._authenticated = AuthStatusAPISchema.unauthorized()
 
     async def get_auth_status(self) -> AuthStatusAPISchema:
@@ -79,6 +80,9 @@ class FakeBrowser:
 
     async def wait_for_login(self, poll_interval: float = 1.0) -> None:
         self._authenticated = AuthStatusAPISchema.authorized()
+
+    async def unauthorize(self) -> None:
+        self._authenticated = AuthStatusAPISchema.unauthorized()
 
 
 class FakeSearchService:
@@ -114,22 +118,20 @@ class FakeSearchService:
 
 
 class FakeWriter:
-    def __init__(self, results: list[SubmitResult] | None = None) -> None:
-        self._results: list[SubmitResult] = list(results) if results else []
+    def __init__(self, results: list[SubmissionResult] | None = None) -> None:
+        self._results: list[SubmissionResult] = list(results) if results else []
         self.calls: list[dict[str, str]] = []
         self.invoked: asyncio.Event = asyncio.Event()
 
-    def queue(self, *results: SubmitResult) -> None:
+    def queue(self, *results: SubmissionResult) -> None:
         self._results.extend(results)
 
-    async def submit(
-        self, vacancy_url: str, letter_text: str, selectors: Selectors
-    ) -> SubmitResult:
+    async def submit(self, vacancy_url: str, letter_text: str) -> SubmissionResult:
         self.calls.append({"uri": vacancy_url, "text": letter_text})
         self.invoked.set()
         if self._results:
             return self._results.pop(0)
-        return SubmitResult.submitted()
+        return SubmissionResult.submitted()
 
 
 @pytest.fixture
@@ -161,10 +163,9 @@ def fake_orchestrator(
     return LetterSendingWorker(
         state_service=fake_state_service,
         session_maker=session_factory,
-        browser=fake_browser,  # type: ignore[arg-type]
+        auth_flow=fake_browser,  # type: ignore[arg-type]
         writer=fake_writer,  # type: ignore[arg-type]
         broadcaster=recording_broadcaster,
-        selectors=HHRU_SELECTORS,
         rate_limit_backoff_sec=0.05,
     )
 
@@ -222,7 +223,7 @@ def ai_layer_with_router(make_ai_layer) -> AILayer:
 async def client(
     fake_browser: FakeBrowser,
     recording_broadcaster: RecordingBroadcaster,
-    fake_orchestrator: Orchestrator,
+    fake_orchestrator: LetterSendingWorker,
     fake_state_service: StateTransitionService,
     fake_writer: FakeWriter,
     vacancy_model: VacancyAPISchema,
@@ -240,7 +241,7 @@ async def client(
     from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
 
     authorization_service = AuthorizationService(
-        broadcaster=recording_broadcaster, core=fake_browser
+        broadcaster=recording_broadcaster, auth_flow=fake_browser
     )
     cover_letter_service = CoverLetterService(
         session_maker=session_factory,

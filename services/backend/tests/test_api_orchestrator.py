@@ -2,11 +2,11 @@ from fastapi import Response
 from fastapi.testclient import TestClient
 
 from headhunter_backend.api.schemas import OrchestratorStatusAPISchema
-from headhunter_backend.orchestrator.queue import Orchestrator
+from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 
 
 def test_resume_unpauses_paused_orchestrator(
-    client: TestClient, fake_orchestrator: Orchestrator
+    client: TestClient, fake_orchestrator: LetterSendingWorker
 ) -> None:
     fake_orchestrator.pause()
     assert fake_orchestrator.is_paused() is True
@@ -18,7 +18,7 @@ def test_resume_unpauses_paused_orchestrator(
 
 
 def test_resume_is_idempotent_when_not_paused(
-    client: TestClient, fake_orchestrator: Orchestrator
+    client: TestClient, fake_orchestrator: LetterSendingWorker
 ) -> None:
     assert fake_orchestrator.is_paused() is False
 
@@ -39,7 +39,7 @@ def test_status_default(client: TestClient) -> None:
 
 
 def test_status_paused_with_reason(
-    client: TestClient, fake_orchestrator: Orchestrator
+    client: TestClient, fake_orchestrator: LetterSendingWorker
 ) -> None:
     fake_orchestrator.pause(reason="captcha")
     response: Response = client.get("/api/v1/system/orchestrator/status")
@@ -49,7 +49,7 @@ def test_status_paused_with_reason(
 
 
 def test_status_reason_cleared_on_resume(
-    client: TestClient, fake_orchestrator: Orchestrator
+    client: TestClient, fake_orchestrator: LetterSendingWorker
 ) -> None:
     fake_orchestrator.pause(reason="captcha")
     fake_orchestrator.resume()
@@ -60,7 +60,7 @@ def test_status_reason_cleared_on_resume(
 
 
 async def test_status_queue_contents(
-    client: TestClient, fake_orchestrator: Orchestrator
+    client: TestClient, fake_orchestrator: LetterSendingWorker
 ) -> None:
     await fake_orchestrator.enqueue(application_id=11)
     await fake_orchestrator.enqueue(application_id=22)
@@ -71,7 +71,7 @@ async def test_status_queue_contents(
 
 
 def test_resume_clears_pause_reason(
-    client: TestClient, fake_orchestrator: Orchestrator
+    client: TestClient, fake_orchestrator: LetterSendingWorker
 ) -> None:
     fake_orchestrator.pause(reason="captcha")
     assert fake_orchestrator.get_pause_reason() == "captcha"

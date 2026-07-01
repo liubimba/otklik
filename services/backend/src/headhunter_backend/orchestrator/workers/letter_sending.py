@@ -5,18 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.subscribers import CallbackEventSubscriber
-from headhunter_backend.browser.core import BrowserCore
-from headhunter_backend.browser.selectors import Selectors
-from headhunter_backend.browser.writer import (
-    BrowserWriter,
-    SubmitResult,
-    SubmitResultType,
-)
 from headhunter_backend.core.events import (
     ApplicationWSEvent,
     CaptchaData,
     CaptchaWSEvent,
 )
+from headhunter_backend.core.site import SiteAuthFlow, SiteWriter
+from headhunter_backend.core.site.result import SubmissionResult, SubmissionResultType
 from headhunter_backend.core.state import ProcessingState
 from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from headhunter_backend.db.repositories.applications import ApplicationRepository
@@ -37,19 +32,17 @@ class LetterSendingWorker(Worker):
         self,
         state_service: StateTransitionService,
         session_maker: async_sessionmaker[AsyncSession],
-        browser: BrowserCore,
-        writer: BrowserWriter,
+        auth_flow: SiteAuthFlow,
+        writer: SiteWriter,
         broadcaster: EventBroadcaster,
-        selectors: Selectors,
         rate_limit_backoff_sec: float = 60,
     ) -> None:
         super().__init__()
         self._state_service = state_service
         self._session_maker = session_maker
-        self._browser = browser
+        self._auth_flow = auth_flow
         self._writer = writer
         self._broadcaster = broadcaster
-        self._selectors = selectors
         self._rate_limit_backoff_sec = rate_limit_backoff_sec
         self._resume_event = asyncio.Event()
         self._resume_event.set()
@@ -122,11 +115,6 @@ class LetterSendingWorker(Worker):
             self._log.info("Consumer cancelled")
             raise
 
-    async def consume(self, **_ignored: object) -> None:
-        # Legacy signature — deps are in __init__ now; kept for test_orchestrator
-        # and back-compat during Stage 4 migration.
-        await self.run()
-
     async def _process_one(self, application_id: int) -> None:
         async with self._session_maker() as session:
             app: ApplicationORM | None = await ApplicationRepository.get_by_id(
@@ -143,7 +131,7 @@ class LetterSendingWorker(Worker):
                 )
                 return
 
-            match await auth_gate(browser=self._browser):
+            match await auth_gate(auth_flow=self._auth_flow):
                 case GateResult.NOT_AUTHORIZED:
                     self._log.warning(
                         "Not authorized -- fail. Pause until authorized, use resume() to resume worker",
@@ -208,13 +196,12 @@ class LetterSendingWorker(Worker):
                 )
                 return
 
-            result: SubmitResult = await self._writer.submit(
+            result: SubmissionResult = await self._writer.submit(
                 vacancy_url=vacancy.response_link,
                 letter_text=letter.text,
-                selectors=self._selectors,
             )
             match result.type:
-                case SubmitResultType.SUBMITTED:
+                case SubmissionResultType.SUBMITTED:
                     await RateLimitRepository.log_submission(session=session)
                     try:
                         await self._state_service.transition(
@@ -225,7 +212,7 @@ class LetterSendingWorker(Worker):
                     except ApplicationNotFoundError:
                         self._log.error("Failed to transition to SUBMISSION_OK")
                         return
-                case SubmitResultType.CAPTCHA:
+                case SubmissionResultType.CAPTCHA:
                     await self.enqueue(application_id=app.id)
                     self.pause(reason="captcha")
                     await self._broadcaster.publish(
@@ -235,7 +222,7 @@ class LetterSendingWorker(Worker):
                             )
                         )
                     )
-                case SubmitResultType.FAILED:
+                case SubmissionResultType.FAILED:
                     await self._fail(
                         application_id=app.id,
                         session=session,

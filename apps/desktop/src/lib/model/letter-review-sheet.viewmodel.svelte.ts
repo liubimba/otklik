@@ -64,6 +64,15 @@ class LetterReviewSheetCoverLetter {
 	readonly latest: CoverLetter | null;
 	readonly isEditable: boolean;
 	readonly isReadOnly: boolean;
+	/**
+	 * Whether the Save button should be rendered in the footer. Mirrors
+	 * `isEditable` on purpose — if the user can type into the textarea,
+	 * they must have a way to persist the edit. Prior to 2026-07-01 the
+	 * template gated Save on `status ∈ {letter_ready, letter_reviewing}`
+	 * only, silently dropping the button in the ERROR state where the
+	 * textarea is still editable (regression noted by the user).
+	 */
+	readonly showSaveButton: boolean;
 	readonly isDirty: boolean;
 
 	constructor(private readonly applicationStatus: ApplicationQuery) {
@@ -80,6 +89,8 @@ class LetterReviewSheetCoverLetter {
 				this.applicationStatus.data?.status === "letter_sent" ||
 				this.applicationStatus.data?.status === "skipped",
 		);
+
+		this.showSaveButton = $derived(this.isEditable);
 
 		this.isDirty = $derived(
 			this.latest

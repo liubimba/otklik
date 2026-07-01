@@ -229,6 +229,40 @@ describe("LetterReviewSheetCoverLetter — editability", () => {
 		expect(vm.cover_letter.isEditable).toBe(expected);
 	});
 
+	// The Save button visibility MUST mirror isEditable — otherwise there
+	// are states where the user can type but cannot persist their edits
+	// (the exact regression reported on 2026-07-01: no Save button in ERROR
+	// state after a failed submit).
+	it.each<ProcessingState>([
+		"parsed",
+		"letter_pending",
+		"letter_ready",
+		"letter_reviewing",
+		"letter_sending",
+		"letter_sent",
+		"error",
+		"skipped",
+	])(
+		"showSaveButton === isEditable for status=%s (Save is always available when editable)",
+		(status) => {
+			const vm = makeVM({
+				data: detail({ status }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.cover_letter.showSaveButton).toBe(vm.cover_letter.isEditable);
+		},
+	);
+
+	it("showSaveButton is true in the ERROR state (regression)", () => {
+		const vm = makeVM({
+			data: detail({ status: "error", reason: "network" }),
+			isPending: false,
+			isError: false,
+		});
+		expect(vm.cover_letter.showSaveButton).toBe(true);
+	});
+
 	it.each<[ProcessingState, boolean]>([
 		["letter_sending", true],
 		["letter_sent", true],

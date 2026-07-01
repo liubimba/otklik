@@ -297,13 +297,15 @@
                     >
                         {m.review_button_regenerate()}
                     </Button>
-                    <Button
-                        variant="outline"
-                        onclick={view.save}
-                        disabled={!model.cover_letter.isDirty}
-                    >
-                        {m.review_button_save()}
-                    </Button>
+                    {#if model.cover_letter.showSaveButton}
+                        <Button
+                            variant="outline"
+                            onclick={view.save}
+                            disabled={!model.cover_letter.isDirty}
+                        >
+                            {m.review_button_save()}
+                        </Button>
+                    {/if}
                     <Button
                         onclick={view.submit}
                         disabled={model.review.isSubmitting}
@@ -317,9 +319,20 @@
                 <Button variant="ghost" onclick={view.skip}>
                     {m.review_button_skip()}
                 </Button>
-                <Button onclick={view.retry}>
-                    {m.review_button_retry()}
-                </Button>
+                <div class="flex gap-2">
+                    {#if model.cover_letter.showSaveButton}
+                        <Button
+                            variant="outline"
+                            onclick={view.save}
+                            disabled={!model.cover_letter.isDirty}
+                        >
+                            {m.review_button_save()}
+                        </Button>
+                    {/if}
+                    <Button onclick={view.retry}>
+                        {m.review_button_retry()}
+                    </Button>
+                </div>
             {:else}
                 <div></div>
                 <Button variant="ghost" onclick={view.close}>

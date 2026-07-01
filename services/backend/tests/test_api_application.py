@@ -88,6 +88,43 @@ async def test_save_409_no_application(client):
     assert response.status_code == 409
 
 
+async def test_save_works_in_error_state(client, session_factory):
+    """Regression: the UI keeps the textarea editable in ERROR state so the
+    user can polish the draft after a failed submit / LLM error. The save
+    endpoint must accept the write without a status guard — it does not
+    touch the state machine, only appends a new CoverLetter version."""
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.FAIL,
+        )
+
+    # Sanity: we are actually in ERROR.
+    detail = ApplicationDetailAPISchema.model_validate(
+        client.get("/api/v1/vacancies/1/application").json()
+    )
+    assert detail.status == ProcessingState.ERROR
+
+    response: Response = client.post(
+        "/api/v1/vacancies/1/application/save",
+        json=CoverLetterRequestAPISchema(text="Repaired draft").model_dump(),
+    )
+    assert response.status_code == 200
+    letter = CoverLetterAPISchema.model_validate(response.json())
+    assert letter.text == "Repaired draft"
+    assert letter.version == 2
+
+    # Status stays ERROR — save does NOT move the state machine.
+    after = ApplicationDetailAPISchema.model_validate(
+        client.get("/api/v1/vacancies/1/application").json()
+    )
+    assert after.status == ProcessingState.ERROR
+    assert after.latest_letter is not None
+    assert after.latest_letter.text == "Repaired draft"
+
+
 async def test_submit_transitions_and_atomically_saves_text(client, session_factory):
     await _seed_letter_ready(session_factory)
 

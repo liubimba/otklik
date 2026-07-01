@@ -1,0 +1,246 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// $lib/log pulls in @tauri-apps/plugin-log, which calls window.__TAURI_INTERNALS__
+// on every log line. In Node/jsdom that throws unhandled rejections and pollutes
+// the report. Stub the module before importing the client so its top-level
+// getLogger() gets the noop version.
+vi.mock("$lib/log", () => ({
+	getLogger: () => ({
+		debug: () => {},
+		info: () => {},
+		warn: () => {},
+		error: () => {},
+	}),
+}));
+
+const { API } = await import("./client");
+const { APIError } = await import("./error");
+
+interface RecordedCall {
+	url: string;
+	init: RequestInit | undefined;
+}
+
+let calls: RecordedCall[] = [];
+let fetchMock: ReturnType<typeof vi.fn>;
+
+function jsonResponse(body: unknown, status = 200): Response {
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: { "Content-Type": "application/json" },
+	});
+}
+
+function textResponse(body: string, status = 200): Response {
+	return new Response(body, {
+		status,
+		headers: { "Content-Type": "text/plain" },
+	});
+}
+
+function noContent(): Response {
+	return new Response(null, { status: 204 });
+}
+
+beforeEach(() => {
+	calls = [];
+	// Stub only fetch — the client reads VITE_BACKEND_IP/PORT from
+	// import.meta.env, which vitest resolves at import time. The URLs asserted
+	// below use `/api/v1/…` — the host prefix is irrelevant to the test.
+	fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+		calls.push({ url, init });
+		return jsonResponse({});
+	});
+	vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
+
+function respondWith(response: Response): void {
+	fetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
+		calls.push({ url, init });
+		return response;
+	});
+}
+
+function respondWithSequence(...responses: Response[]): void {
+	for (const response of responses) {
+		respondWith(response);
+	}
+}
+
+function bodyOf(call: RecordedCall): unknown {
+	const raw = call.init?.body;
+	if (raw == null) return undefined;
+	if (typeof raw !== "string") throw new Error("Non-string body in test");
+	return JSON.parse(raw);
+}
+
+describe("API URL construction", () => {
+	it("auth endpoints hit /api/v1/auth/*", async () => {
+		respondWithSequence(
+			jsonResponse({ status: "authorized" }),
+			jsonResponse({ status: "authorizing" }),
+			jsonResponse({ status: "unauthorized" }),
+			jsonResponse({ status: "unauthorized" }),
+		);
+		await API.auth.status();
+		await API.auth.signIn();
+		await API.auth.signOut();
+		await API.auth.signInCancel();
+
+		expect(calls.map((c) => `${c.init?.method ?? "GET"} ${c.url}`)).toEqual([
+			expect.stringMatching(/GET .*\/api\/v1\/auth\/status$/),
+			expect.stringMatching(/POST .*\/api\/v1\/auth\/sign-in$/),
+			expect.stringMatching(/POST .*\/api\/v1\/auth\/sign-out$/),
+			expect.stringMatching(/POST .*\/api\/v1\/auth\/sign-in\/cancel$/),
+		]);
+	});
+
+	it("search parse endpoints use /search/parse (not /search/vacancies)", async () => {
+		respondWithSequence(
+			jsonResponse({ search_id: "sid" }),
+			jsonResponse({ search_id: "sid" }),
+			jsonResponse({}),
+		);
+		await API.search.parse.start("https://hh.ru/x", 5, 25);
+		await API.search.parse.current();
+		await API.search.parse.cancel("sid");
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/search\/parse\/start$/);
+		expect(bodyOf(calls[0])).toEqual({
+			url: "https://hh.ru/x",
+			max_pages: 5,
+			max_vacancies: 25,
+		});
+		expect(calls[1].url).toMatch(/\/api\/v1\/search\/parse\/current$/);
+		expect(calls[2].url).toMatch(/\/api\/v1\/search\/parse\/sid$/);
+		expect(calls[2].init?.method).toBe("DELETE");
+	});
+
+	it("application endpoints route through /vacancies/{id}/application/*", async () => {
+		respondWithSequence(
+			jsonResponse({}), // get
+			jsonResponse([]), // letters
+			jsonResponse({}), // generate
+			jsonResponse({}), // save
+			jsonResponse({}), // skip
+			jsonResponse({}), // retry
+		);
+		await API.application.get(42);
+		await API.application.letters(42);
+		await API.application.generate(42);
+		await API.application.save(42, "hi");
+		await API.application.skip(42);
+		await API.application.retry(42);
+
+		expect(calls.map((c) => c.url)).toEqual([
+			expect.stringMatching(/\/api\/v1\/vacancies\/42\/application$/),
+			expect.stringMatching(/\/api\/v1\/vacancies\/42\/application\/letters$/),
+			expect.stringMatching(/\/api\/v1\/vacancies\/42\/application\/generate$/),
+			expect.stringMatching(/\/api\/v1\/vacancies\/42\/application\/save$/),
+			expect.stringMatching(/\/api\/v1\/vacancies\/42\/application\/skip$/),
+			expect.stringMatching(/\/api\/v1\/vacancies\/42\/application\/retry$/),
+		]);
+		// save sends the letter in the body
+		expect(bodyOf(calls[3])).toEqual({ text: "hi" });
+	});
+
+	it("system endpoints hit /api/v1/system/*", async () => {
+		respondWithSequence(
+			jsonResponse({}),
+			jsonResponse({ status: "healthy" }),
+			jsonResponse({}),
+			jsonResponse({}),
+		);
+		await API.system.rateLimits();
+		await API.system.aiHealth();
+		await API.system.orchestrator.status();
+		await API.system.orchestrator.resume();
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/system\/rate-limits$/);
+		expect(calls[1].url).toMatch(/\/api\/v1\/system\/ai\/health$/);
+		expect(calls[2].url).toMatch(/\/api\/v1\/system\/orchestrator\/status$/);
+		expect(calls[3].url).toMatch(/\/api\/v1\/system\/orchestrator\/resume$/);
+		expect(calls[3].init?.method).toBe("POST");
+	});
+});
+
+describe("API.application.submit — dirty-submit body semantics", () => {
+	it("sends { text } when text is provided (atomic dirty-submit)", async () => {
+		respondWith(jsonResponse({}));
+		await API.application.submit(7, "final draft");
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/vacancies\/7\/application\/submit$/);
+		expect(bodyOf(calls[0])).toEqual({ text: "final draft" });
+	});
+
+	it("sends {} when text is omitted (submit existing letter)", async () => {
+		respondWith(jsonResponse({}));
+		await API.application.submit(7);
+
+		expect(bodyOf(calls[0])).toEqual({});
+	});
+});
+
+describe("Response handling", () => {
+	it("throws APIError with detail from the JSON body on 4xx/5xx", async () => {
+		respondWith(
+			jsonResponse({ detail: "Vacancy not found" }, 404),
+		);
+		await expect(API.vacancies.get(999)).rejects.toMatchObject({
+			status: 404,
+			detail: "Vacancy not found",
+		});
+	});
+
+	it("flattens FastAPI-style validation errors from `detail`", async () => {
+		respondWith(
+			jsonResponse(
+				{
+					detail: [
+						{ loc: ["body", "text"], msg: "String too short", type: "err" },
+					],
+				},
+				422,
+			),
+		);
+		try {
+			await API.application.save(1, "");
+			expect.unreachable();
+		} catch (error) {
+			expect(error).toBeInstanceOf(APIError);
+			expect((error as InstanceType<typeof APIError>).status).toBe(422);
+			expect((error as InstanceType<typeof APIError>).detail).toContain(
+				"body.text: String too short",
+			);
+		}
+	});
+
+	it("tolerates a non-JSON error body", async () => {
+		respondWith(textResponse("Internal Server Error", 500));
+		await expect(API.vacancies.list()).rejects.toMatchObject({
+			status: 500,
+			detail: "unknown error",
+		});
+	});
+
+	it("API.application.get returns null on 404 (api404Null path)", async () => {
+		respondWith(jsonResponse({ detail: "not found" }, 404));
+		const result = await API.application.get(1);
+		expect(result).toBeNull();
+	});
+
+	it("API.application.get rethrows non-404 errors", async () => {
+		respondWith(jsonResponse({ detail: "boom" }, 500));
+		await expect(API.application.get(1)).rejects.toBeInstanceOf(APIError);
+	});
+
+	it("API.search.parse.current returns null on 204 (no active parse)", async () => {
+		respondWith(noContent());
+		const result = await API.search.parse.current();
+		expect(result).toBeNull();
+	});
+});

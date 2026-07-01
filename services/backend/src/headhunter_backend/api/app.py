@@ -1,117 +1,49 @@
-from fastapi import FastAPI, APIRouter
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.concurrency import asynccontextmanager
-from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.routes import (
-    settings,
-    ws,
-    vacancies,
-    letter,
-    submission,
-    auth,
-    orchestrator,
-    ai,
-    rate_limits,
-    applications,
-    search,
-)
-from headhunter_backend.browser.core import BrowserCore
-from headhunter_backend.log import configure_logging, get_logger
-from headhunter_backend.orchestrator.authorization_service import AuthorizationService
-from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
-from headhunter_backend.orchestrator.listeners.auto_submit import AutoSubmitListener
-from headhunter_backend.orchestrator.state_service import StateTransitionService
-from headhunter_backend.orchestrator.workers.letter_pending import LetterPendingWorker
-from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
-from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
-from headhunter_backend.browser.writer import BrowserWriter
-from headhunter_backend.orchestrator.search import SearchService
-from headhunter_backend.sites.hh_ru import HHRUParser, HHRU_SELECTORS
-from headhunter_backend.api.schemas import SearchStatusAPISchema
-from headhunter_backend.ai.layer import AILayer
-from headhunter_backend.db.models import SettingsORM
-from typing import Any
-from datetime import datetime
 import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from headhunter_backend.orchestrator.apply_service import AutoApplyService
+from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, FastAPI
+from fastapi.concurrency import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+
 from headhunter_backend.api.errors import register_error_handlers
+from headhunter_backend.api.routes import (
+    ai,
+    applications,
+    auth,
+    letter,
+    orchestrator,
+    rate_limits,
+    search,
+    settings,
+    submission,
+    vacancies,
+    ws,
+)
+from headhunter_backend.api.schemas import SearchStatusAPISchema
+from headhunter_backend.core.builder import BackendBuilder
 from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
-from headhunter_backend.db.repositories.settings import SettingsRepository
+from headhunter_backend.db.session import apply_sqlite_pragmas, engine, session_maker
+from headhunter_backend.log import configure_logging, get_logger
 
 logger = get_logger(__name__)
-
-
-async def bootstrap_ai_layer(maker: async_sessionmaker[AsyncSession]) -> AILayer:
-    async with maker() as session:
-        settings: SettingsORM = await SettingsRepository.get(session=session)
-    try:
-        return AILayer(deployments=settings.llm_deployments)
-    except Exception as e:
-        logger.error(
-            "Failed to initialize AI Layer with error: %s. Initializing with no deployments.",
-            str(e),
-        )
-        return AILayer()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
     configure_logging()
     logger.info("Starting Headhunter AI Backend API")
-    app.state.browser = BrowserCore()
-    app.state.broadcaster = EventBroadcaster()
-    app.state.state_service = StateTransitionService(broadcaster=app.state.broadcaster)
-    app.state.writer = BrowserWriter(
-        core=app.state.browser, min_delay_ms=800, jitter_delay_ms=400
-    )
-    app.state.search_service = SearchService(
-        core=app.state.browser,
-        parser=HHRUParser(core=app.state.browser),
-        broadcaster=app.state.broadcaster,
-        session_maker=session_maker,
-        selectors=HHRU_SELECTORS,
-    )
-    app.state.orchestrator = LetterSendingWorker(
-        state_service=app.state.state_service,
-        session_maker=session_maker,
-        browser=app.state.browser,
-        writer=app.state.writer,
-        broadcaster=app.state.broadcaster,
-        selectors=HHRU_SELECTORS,
-    )
-    app.state.orchestrator.start()
-    app.state.ai_layer = await bootstrap_ai_layer(maker=session_maker)
-    app.state.cover_letter_service = CoverLetterService(
-        session_maker=session_maker,
-        ai_layer=app.state.ai_layer,
-        state_service=app.state.state_service,
-    )
-    app.state.letter_pending_worker = LetterPendingWorker(
-        cover_letter_service=app.state.cover_letter_service,
-        state_service=app.state.state_service,
-        session_maker=session_maker,
-        broadcaster=app.state.broadcaster,
-    )
-    app.state.letter_pending_worker.start()
-    app.state.auto_submit_listener = AutoSubmitListener(
-        state_service=app.state.state_service,
-        session_maker=session_maker,
-        broadcaster=app.state.broadcaster,
-    )
-    app.state.auto_submit_listener.start()
-    app.state.apply_service = AutoApplyService(
-        session_maker=session_maker,
-        state_service=app.state.state_service,
-    )
-    app.state.authorization_service = AuthorizationService(
-        broadcaster=app.state.broadcaster, core=app.state.browser
-    )
-    app.state.apply_service.start(broadcaster=app.state.broadcaster)
+    ctx = await BackendBuilder(session_maker=session_maker).build()
+    for attr, value in ctx.__dict__.items():
+        setattr(app.state, attr, value)
+
+    for component in ctx.event_listeners():
+        component.start()
+    ctx.apply_service.start(broadcaster=ctx.broadcaster)
+
     async with session_maker() as session:
-        recovered_count: int = await app.state.orchestrator.recover(session=session)
-        pending_count = await app.state.letter_pending_worker.recover(session=session)
-        ready_count = await app.state.auto_submit_listener.recover(session=session)
+        for recoverable in ctx.recoverables():
+            await recoverable.recover(session=session)
         for search_history in await SearchHistoryRepository.list_all(session=session):
             if search_history.status.is_active():
                 await SearchHistoryRepository.update(
@@ -120,36 +52,27 @@ async def lifespan(app: FastAPI) -> Any:
                     finished_at=datetime.now(),
                     status=SearchStatusAPISchema.INTERRUPTED,
                 )
-
-        logger.info(
-            "Recovery complete",
-            sending=recovered_count,
-            pending=pending_count,
-            ready_resubmitted=ready_count,
-        )
+    logger.info("Recovery complete")
 
     apply_sqlite_pragmas(target_engine=engine)
-    await app.state.browser.start()
+    await ctx.browser.start()
 
-    consumer_task = asyncio.create_task(app.state.orchestrator.run())
-    letter_task = asyncio.create_task(app.state.letter_pending_worker.run())
-
+    tasks = [asyncio.create_task(r.run()) for r in ctx.runnables()]
     try:
         yield
     finally:
-        consumer_task.cancel()
-        letter_task.cancel()
-        app.state.orchestrator.stop()
-        app.state.letter_pending_worker.stop()
-        app.state.auto_submit_listener.stop()
-        app.state.apply_service.stop()
-        await app.state.search_service.shutdown()
-        for task in (consumer_task, letter_task):
+        for task in tasks:
+            task.cancel()
+        for component in ctx.event_listeners():
+            component.stop()
+        ctx.apply_service.stop()
+        await ctx.search_service.shutdown()
+        for task in tasks:
             try:
                 await task
             except asyncio.CancelledError:
                 pass
-        await app.state.browser.stop()
+        await ctx.browser.stop()
     logger.info("Shutting down Headhunter AI Backend API")
 
 

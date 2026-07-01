@@ -18,6 +18,8 @@ from headhunter_backend.api.schemas import AuthStatusAPISchema
 from headhunter_backend.db.base import Base
 from headhunter_backend.orchestrator.queue import Orchestrator
 from headhunter_backend.orchestrator.state_service import StateTransitionService
+from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from headhunter_backend.browser.selectors import HHRU_SELECTORS
 from headhunter_backend.db.converters import vacancy_to_orm
 from typing import AsyncIterator
 from sqlalchemy.ext.asyncio import (
@@ -144,8 +146,20 @@ def fake_state_service(
 @pytest.fixture
 def fake_orchestrator(
     fake_state_service: StateTransitionService,
-) -> Orchestrator:
-    return Orchestrator(state_service=fake_state_service)
+    fake_browser: "FakeBrowser",
+    fake_writer: "FakeWriter",
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> LetterSendingWorker:
+    return LetterSendingWorker(
+        state_service=fake_state_service,
+        session_maker=session_factory,
+        browser=fake_browser,  # type: ignore[arg-type]
+        writer=fake_writer,  # type: ignore[arg-type]
+        broadcaster=recording_broadcaster,
+        selectors=HHRU_SELECTORS,
+        rate_limit_backoff_sec=0.05,
+    )
 
 
 @pytest.fixture

@@ -124,6 +124,10 @@ class AutoApplyService:
                     application_id=application.id,
                     to_state=ApplicationEvent.LETTER_GENERATED,
                 )
+                # SUBMIT via ApplicationRepository (no broadcast) + explicit
+                # LetterSendingWorker.enqueue — LetterSendingWorker will pick
+                # the application up via its ApplicationWSEvent subscription
+                # once apply_service is rewritten to broadcast in stage 4.3.
                 await ApplicationRepository.transition(
                     session=session,
                     application_id=application.id,

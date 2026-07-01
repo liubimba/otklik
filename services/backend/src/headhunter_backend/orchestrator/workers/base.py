@@ -44,5 +44,14 @@ class Worker(ABC):
             await self.enqueue(application_id=application.id)
         return len(applications)
 
+    async def recover_from_db(self, session: AsyncSession) -> int:
+        # Legacy alias that recovers ALL non-terminal applications, not just
+        # this worker's handled_status. Kept for test_orchestrator; remove
+        # when tests migrate to per-status seeding.
+        applications = await ApplicationRepository.list_active(session=session)
+        for application in applications:
+            await self.enqueue(application_id=application.id)
+        return len(applications)
+
     @abstractmethod
     async def _process_one(self, application_id: int) -> None: ...

@@ -74,17 +74,27 @@ async def _seed_vacancy(
         return orm.id
 
 
+class _StubOrchestrator:
+    def __init__(self) -> None:
+        self._pending: list[int] = []
+
+    async def enqueue(self, application_id: int) -> None:
+        self._pending.append(application_id)
+
+    def qsize(self) -> int:
+        return len(self._pending)
+
+    def get_application_ids(self) -> list[int]:
+        return list(self._pending)
+
+
 async def _make_service_and_broadcast(
     session_factory: async_sessionmaker[AsyncSession],
     ai_layer: AILayer,
     orchestrator: Orchestrator | None = None,
 ) -> tuple[AutoApplyService, EventBroadcaster, Orchestrator]:
     broadcaster = EventBroadcaster()
-    from headhunter_backend.orchestrator.state_service import StateTransitionService
-
-    orch = orchestrator or Orchestrator(
-        state_service=StateTransitionService(broadcaster=broadcaster)
-    )
+    orch = orchestrator or _StubOrchestrator()  # type: ignore[assignment]
     service = AutoApplyService(
         session_maker=session_factory,
         ai_layer=ai_layer,

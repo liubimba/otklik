@@ -1,8 +1,10 @@
 import asyncio
 
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from headhunter_backend.api.broadcaster import EventBroadcaster
+from headhunter_backend.api.subscribers import CallbackEventSubscriber
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.selectors import Selectors
 from headhunter_backend.browser.writer import (
@@ -10,7 +12,11 @@ from headhunter_backend.browser.writer import (
     SubmitResult,
     SubmitResultType,
 )
-from headhunter_backend.core.events import CaptchaData, CaptchaWSEvent
+from headhunter_backend.core.events import (
+    ApplicationWSEvent,
+    CaptchaData,
+    CaptchaWSEvent,
+)
 from headhunter_backend.core.state import ProcessingState
 from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from headhunter_backend.db.repositories.applications import ApplicationRepository
@@ -48,6 +54,35 @@ class LetterSendingWorker(Worker):
         self._resume_event = asyncio.Event()
         self._resume_event.set()
         self._pause_reason: str | None = None
+        self._subscriber: CallbackEventSubscriber | None = None
+
+    def start(self) -> None:
+        # Subscribe to ApplicationWSEvent — self-enqueue on LETTER_SENDING.
+        # Callback wraps enqueue in try/except so a broadcaster _deliver
+        # failure never unregisters the worker.
+        subscriber = CallbackEventSubscriber.from_callback(
+            lambda event: self._on_event(event=event)
+        )
+        self._broadcaster.register(subscriber)
+        self._subscriber = subscriber
+
+    def stop(self) -> None:
+        if self._subscriber is not None:
+            self._broadcaster.unregister(self._subscriber)
+            self._subscriber = None
+
+    async def _on_event(self, event: BaseModel) -> None:
+        try:
+            if not isinstance(event, ApplicationWSEvent):
+                return
+            if event.data.status != self.handled_status:
+                return
+            await self.enqueue(application_id=event.data.application_id)
+        except Exception as e:
+            self._log.warning(
+                "Failed to handle ApplicationWSEvent",
+                error=str(e),
+            )
 
     def pause(self, reason: str | None = None) -> None:
         self._resume_event.clear()
@@ -86,6 +121,11 @@ class LetterSendingWorker(Worker):
         except asyncio.CancelledError:
             self._log.info("Consumer cancelled")
             raise
+
+    async def consume(self, **_ignored: object) -> None:
+        # Legacy signature — deps are in __init__ now; kept for test_orchestrator
+        # and back-compat during Stage 4 migration.
+        await self.run()
 
     async def _process_one(self, application_id: int) -> None:
         async with self._session_maker() as session:

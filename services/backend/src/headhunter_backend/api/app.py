@@ -19,8 +19,8 @@ from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.log import configure_logging, get_logger
 from headhunter_backend.orchestrator.authorization_service import AuthorizationService
 from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
-from headhunter_backend.orchestrator.queue import Orchestrator
 from headhunter_backend.orchestrator.state_service import StateTransitionService
+from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from headhunter_backend.db.session import session_maker, apply_sqlite_pragmas, engine
 from headhunter_backend.browser.writer import BrowserWriter
 from headhunter_backend.browser.selectors import HHRU_SELECTORS
@@ -61,7 +61,6 @@ async def lifespan(app: FastAPI) -> Any:
     app.state.browser = BrowserCore()
     app.state.broadcaster = EventBroadcaster()
     app.state.state_service = StateTransitionService(broadcaster=app.state.broadcaster)
-    app.state.orchestrator = Orchestrator(state_service=app.state.state_service)
     app.state.writer = BrowserWriter(
         core=app.state.browser, min_delay_ms=800, jitter_delay_ms=400
     )
@@ -72,6 +71,15 @@ async def lifespan(app: FastAPI) -> Any:
         session_maker=session_maker,
         selectors=HHRU_SELECTORS,
     )
+    app.state.orchestrator = LetterSendingWorker(
+        state_service=app.state.state_service,
+        session_maker=session_maker,
+        browser=app.state.browser,
+        writer=app.state.writer,
+        broadcaster=app.state.broadcaster,
+        selectors=HHRU_SELECTORS,
+    )
+    app.state.orchestrator.start()
     app.state.ai_layer = await bootstrap_ai_layer(maker=session_maker)
     app.state.cover_letter_service = CoverLetterService(
         session_maker=session_maker,
@@ -88,9 +96,7 @@ async def lifespan(app: FastAPI) -> Any:
     )
     app.state.apply_service.start(broadcaster=app.state.broadcaster)
     async with session_maker() as session:
-        recovered_count: int = await app.state.orchestrator.recover_from_db(
-            session=session
-        )
+        recovered_count: int = await app.state.orchestrator.recover(session=session)
         await app.state.cover_letter_service.recover_pending(session=session)
         for search_history in await SearchHistoryRepository.list_all(session=session):
             if search_history.status.is_active():
@@ -106,20 +112,13 @@ async def lifespan(app: FastAPI) -> Any:
     apply_sqlite_pragmas(target_engine=engine)
     await app.state.browser.start()
 
-    consumer_task = asyncio.create_task(
-        app.state.orchestrator.consume(
-            writer=app.state.writer,
-            session_maker=session_maker,
-            browser=app.state.browser,
-            broadcaster=app.state.broadcaster,
-            selectors=HHRU_SELECTORS,
-        )
-    )
+    consumer_task = asyncio.create_task(app.state.orchestrator.run())
 
     try:
         yield
     finally:
         consumer_task.cancel()
+        app.state.orchestrator.stop()
         await app.state.search_service.shutdown()
         try:
             await consumer_task

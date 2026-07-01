@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, status
 from statemachine.exceptions import TransitionNotAllowed
 
 from headhunter_backend.api.dependencies import (
-    OrchestratorDep,
     SessionDep,
     StateServiceDep,
 )
@@ -24,7 +23,6 @@ log = get_logger(__name__)
 async def submit(
     vacancy_id: int,
     session: SessionDep,
-    orchestrator: OrchestratorDep,
     state_service: StateServiceDep,
 ) -> ApplicationAPISchema:
     vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
@@ -50,7 +48,8 @@ async def submit(
             status_code=409,
             detail=f"Unavailable state for to submit cover letter. Error: {e}",
         )
-    await orchestrator.enqueue(application_id=application.id)
+    # LetterSendingWorker self-enqueues on the ApplicationWSEvent published
+    # by state_service.transition — no explicit enqueue here.
     return application_to_schema(orm=application)
 
 

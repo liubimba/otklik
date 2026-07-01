@@ -1,26 +1,11 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 from headhunter_backend.api.dependencies import BroadcasterDep
-from headhunter_backend.log import get_logger
-from headhunter_backend.api.events import VacancyWSEvent
-from headhunter_backend.api.dependencies import SessionDep
-from headhunter_backend.db.converters import vacancy_to_schema
-from headhunter_backend.db.models import VacancyORM
-from typing import Sequence
 from headhunter_backend.api.subscribers import WSEventSubscriber
-from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from headhunter_backend.log import get_logger
 
 ws_router: APIRouter = APIRouter(prefix="/ws", tags=["websocket"])
 logger = get_logger(__name__)
-
-
-@ws_router.websocket("/vacancies")
-async def websocket_vacancies(websocket: WebSocket, session: SessionDep) -> None:
-    await websocket.accept()
-    vacancies: Sequence[VacancyORM] = await VacancyRepository.list_all(session=session)
-    for vacancy in vacancies:
-        event: VacancyWSEvent = VacancyWSEvent(data=vacancy_to_schema(row=vacancy))
-        await websocket.send_json(data=event.model_dump(mode="json"))
-    await websocket.close()
 
 
 @ws_router.websocket("/events")

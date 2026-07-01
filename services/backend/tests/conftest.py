@@ -5,8 +5,10 @@ from headhunter_backend.api.schemas import WorkFormat, EmploymentType
 from headhunter_backend.api.app import app
 from headhunter_backend.api.dependencies import (
     get_ai_layer,
+    get_authorization_service,
     get_broadcaster,
     get_browser,
+    get_cover_letter_service,
     get_session,
     get_orchestrator,
     get_state_service,
@@ -83,7 +85,7 @@ class FakeSearchService:
     def __init__(self) -> None:
         self._queue: dict[str, SearchSessionTask] = {}
 
-    async def start_search(
+    async def open_search_session(
         self, request: VacanciesStartSearchRequestAPISchema
     ) -> SearchSessionTask:
         if len(self._queue) > 0:
@@ -93,14 +95,19 @@ class FakeSearchService:
         self._queue[search_id] = task
         return task
 
-    async def cancel_search(self, search_id: str) -> bool:
+    async def cancel_search_session(self, search_id: str) -> bool:
         if search_id in self._queue:
             del self._queue[search_id]
             return True
         return False
 
-    def get_search_task(self, search_id: str) -> SearchSessionTask | None:
+    def find_search_task(self, search_id: str) -> SearchSessionTask | None:
         return self._queue.get(search_id)
+
+    def get_current_search_task(self) -> SearchSessionTask | None:
+        for task in self._queue.values():
+            return task
+        return None
 
     async def shutdown(self) -> None:
         self._queue.clear()
@@ -227,6 +234,20 @@ async def client(
         async with session_factory() as session:
             yield session
 
+    from headhunter_backend.orchestrator.authorization_service import (
+        AuthorizationService,
+    )
+    from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
+
+    authorization_service = AuthorizationService(
+        broadcaster=recording_broadcaster, core=fake_browser
+    )
+    cover_letter_service = CoverLetterService(
+        session_maker=session_factory,
+        ai_layer=ai_layer_with_router,
+        state_service=fake_state_service,
+    )
+
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[get_browser] = lambda: fake_browser
     app.dependency_overrides[get_broadcaster] = lambda: recording_broadcaster
@@ -235,6 +256,8 @@ async def client(
     app.dependency_overrides[get_writer] = lambda: fake_writer
     app.dependency_overrides[get_search_service] = lambda: fake_search_service
     app.dependency_overrides[get_ai_layer] = lambda: ai_layer_with_router
+    app.dependency_overrides[get_authorization_service] = lambda: authorization_service
+    app.dependency_overrides[get_cover_letter_service] = lambda: cover_letter_service
 
     async with session_factory() as session:
         await VacancyRepository.create(

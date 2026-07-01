@@ -13,6 +13,7 @@ class ApplicationEvent(str, Enum):
     SUBMISSION_OK = "submission_ok"
     SUBMISSION_FAILED = "submission_failed"
     RETRY = "retry"
+    FAIL = "fail"
 
 
 class ProcessingStateMachine(StateMachine):
@@ -36,3 +37,8 @@ class ProcessingStateMachine(StateMachine):
     submission_ok = _.LETTER_SENDING.to(_.LETTER_SENT)
     submission_failed = _.LETTER_SENDING.to(_.ERROR)
     retry = _.ERROR.to(_.LETTER_PENDING)
+    fail = (
+        _.LETTER_PENDING.to(_.ERROR)
+        | _.LETTER_READY.to(_.ERROR)
+        | _.LETTER_REVIEWING.to(_.ERROR)
+    )

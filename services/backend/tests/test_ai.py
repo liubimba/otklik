@@ -1,7 +1,7 @@
 from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.ai.health import AILayerHealthStatus
 from headhunter_backend.ai.result import AICoverLetterResult
-from headhunter_backend.ai.exceptions import GenerationCoverLetterException
+from headhunter_backend.ai.exceptions import GenerationCoverLetterError
 from headhunter_backend.ai.deployment import LLMDeployment
 from headhunter_backend.api.schemas import VacancyAPISchema
 from litellm import ModelResponse
@@ -50,9 +50,7 @@ async def test_ai_generate_cover_letter_no_deployments(
     make_ai_layer, vacancy_model: VacancyAPISchema
 ) -> None:
     layer: AILayer = make_ai_layer()
-    with pytest.raises(
-        GenerationCoverLetterException, match="no deployments configured"
-    ):
+    with pytest.raises(GenerationCoverLetterError, match="no deployments configured"):
         await layer.generate_cover_letter(
             vacancy_model=vacancy_model, resume="", style=""
         )
@@ -86,7 +84,7 @@ async def test_ai_generate_raises_when_router_fails(
         _fake_model_response(content="pong"),  # health ping
         Exception("boom"),  # actual generation call
     ]
-    with pytest.raises(GenerationCoverLetterException, match="boom"):
+    with pytest.raises(GenerationCoverLetterError, match="boom"):
         await layer.generate_cover_letter(
             vacancy_model=vacancy_model, resume="", style=""
         )

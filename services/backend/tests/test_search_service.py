@@ -133,7 +133,7 @@ async def test_start_search_persists_and_finishes(
         fake_browser_core, parser, recording_broadcaster, session_factory
     )
 
-    search_task = await svc.start_search(request=_filter(max_pages=1))
+    search_task = await svc.open_search_session(request=_filter(max_pages=1))
     search_id = search_task.id
 
     await search_task.task
@@ -167,7 +167,7 @@ async def test_publishes_vacancy_new_event_per_parsed_vacancy(
         fake_browser_core, parser, recording_broadcaster, session_factory
     )
 
-    search_task = await svc.start_search(request=_filter(max_pages=1))
+    search_task = await svc.open_search_session(request=_filter(max_pages=1))
     await search_task.task
 
     vacancy_events = [
@@ -190,9 +190,9 @@ async def test_second_start_search_raises_already_running(
         session_factory,
     )
 
-    await svc.start_search(request=_filter(max_pages=99))
+    await svc.open_search_session(request=_filter(max_pages=99))
     with pytest.raises(SearchAlreadyRunningError):
-        await svc.start_search(request=_filter(max_pages=99))
+        await svc.open_search_session(request=_filter(max_pages=99))
 
     await svc.shutdown()
 
@@ -207,7 +207,9 @@ async def test_max_vacancies_cap_respected(
         fake_browser_core, parser, recording_broadcaster, session_factory
     )
 
-    search_task = await svc.start_search(request=_filter(max_vacancies=2, max_pages=1))
+    search_task = await svc.open_search_session(
+        request=_filter(max_vacancies=2, max_pages=1)
+    )
     search_id = search_task.id
 
     await search_task.task
@@ -228,7 +230,7 @@ async def test_cancel_running_search(
         recording_broadcaster,
         session_factory,
     )
-    search_task = await svc.start_search(request=_filter())
+    search_task = await svc.open_search_session(request=_filter())
     search_id = search_task.id
 
     # Дать таску стартануть (state_machine перешёл в RUNNING)
@@ -237,7 +239,7 @@ async def test_cancel_running_search(
         == SearchStatusAPISchema.RUNNING
     )
 
-    cancelled = await svc.cancel_search(search_id=search_id)
+    cancelled = await svc.cancel_search_session(search_id=search_id)
     assert cancelled is True
     # CancelledError → state_machine.send(CANCELED) в except-блоке
     await wait_until(
@@ -261,7 +263,7 @@ async def test_cancel_unknown_search_returns_false(
         recording_broadcaster,
         session_factory,
     )
-    assert await svc.cancel_search(search_id="does-not-exist") is False
+    assert await svc.cancel_search_session(search_id="does-not-exist") is False
 
 
 async def test_get_search_task_unknown_returns_none(
@@ -289,7 +291,7 @@ async def test_shutdown_cancels_running_tasks(
         recording_broadcaster,
         session_factory,
     )
-    search_task = await svc.start_search(request=_filter())
+    search_task = await svc.open_search_session(request=_filter())
 
     await asyncio.sleep(0.05)
     await svc.shutdown()

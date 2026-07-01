@@ -22,7 +22,7 @@ def test_api_auth_status(client, fake_browser):
 def test_api_auth(client, fake_browser):
     with client.websocket_connect("/ws/events") as ws:
         fake_browser._authenticated = AuthStatusAPISchema.unauthorized()
-        response: Response = client.post("/api/v1/auth")
+        response: Response = client.post("/api/v1/auth/sign-in")
         assert response.status_code == 200
         payload = response.json()
         status: AuthStatusAPISchema = AuthStatusAPISchema.model_validate(payload)

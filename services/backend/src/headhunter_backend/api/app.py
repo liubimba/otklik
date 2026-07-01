@@ -8,15 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from headhunter_backend.api.errors import register_error_handlers
 from headhunter_backend.api.routes import (
-    ai,
-    applications,
+    application,
     auth,
-    letter,
-    orchestrator,
-    rate_limits,
     search,
     settings,
-    submission,
+    system,
     vacancies,
     ws,
 )
@@ -78,15 +74,11 @@ async def lifespan(app: FastAPI) -> Any:
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(vacancies.vacancies_router)
-router.include_router(letter.letter_router)
-router.include_router(submission.submission_router)
-router.include_router(settings.settings_router)
-router.include_router(auth.user_router)
-router.include_router(orchestrator.orchestrator_router)
-router.include_router(ai.ai_router)
-router.include_router(rate_limits.rate_limits_router)
-router.include_router(applications.applications_router)
+router.include_router(application.application_router)
+router.include_router(auth.auth_router)
 router.include_router(search.search_router)
+router.include_router(settings.settings_router)
+router.include_router(system.system_router)
 
 app = FastAPI(title="Headhunter Backend API", version="0.0.1", lifespan=lifespan)
 app.include_router(router)

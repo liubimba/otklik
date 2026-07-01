@@ -19,10 +19,8 @@ class EventBroadcaster:
         self._subscribers.discard(subscriber)
 
     async def publish(self, event: BaseModel) -> None:
-        if event.model_dump().get("type") is None:
-            raise ValueError("Event must have a 'type' field")
-        if event.model_dump().get("data") is None:
-            raise ValueError("Event must have a 'data' field")
+        assert event.model_dump().get("type") is not None, "Event type is required"
+        assert event.model_dump().get("data") is not None, "Event data is required"
         self._logger.info(f"Publishing event: {event.model_dump()}")
         for subscriber in list(self._subscribers):
             task = asyncio.create_task(

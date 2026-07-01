@@ -1,33 +1,32 @@
-from fastapi import APIRouter, BackgroundTasks
-from headhunter_backend.api.dependencies import BrowserDep, BroadcasterDep
-from headhunter_backend.api.events import AuthWSEvent
+from fastapi import APIRouter
+
+from headhunter_backend.api.dependencies import AuthorizationServiceDep
 from headhunter_backend.api.schemas import AuthStatusAPISchema
-from headhunter_backend.log import get_logger
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
-logger = get_logger("auth_router")
 
 
 @auth_router.get("/status")
-async def status(browser: BrowserDep) -> AuthStatusAPISchema:
-    logger.info("Requested for status of authentication")
-    return await browser.get_auth_status()
+async def status(authorization_service: AuthorizationServiceDep) -> AuthStatusAPISchema:
+    return await authorization_service.status()
 
 
-@auth_router.post("")
-async def auth(
-    browser: BrowserDep, broadcaster: BroadcasterDep, background_tasks: BackgroundTasks
+@auth_router.post("/sign-in")
+async def sign_in(
+    authorization_service: AuthorizationServiceDep,
 ) -> AuthStatusAPISchema:
-    logger.info("Requested for authentication")
-    auth_status: AuthStatusAPISchema = await browser.get_auth_status()
-    if auth_status.is_authorized():
-        return AuthStatusAPISchema.authorized()
-    background_tasks.add_task(_wait_and_announce, browser, broadcaster)
-    return AuthStatusAPISchema.authorizing()
+    return await authorization_service.authorize()
 
 
-async def _wait_and_announce(browser: BrowserDep, broadcaster: BroadcasterDep) -> None:
-    logger.info("Waiting for user to authenticate...")
-    await browser.wait_for_login()
-    logger.info("User authenticated, broadcasting event...")
-    await broadcaster.publish(AuthWSEvent(data=await browser.get_auth_status()))
+@auth_router.post("/sign-in/cancel")
+async def sign_in_cancel(
+    authorization_service: AuthorizationServiceDep,
+) -> AuthStatusAPISchema:
+    return await authorization_service.cancel()
+
+
+@auth_router.post("/sign-out")
+async def sign_out(
+    authorization_service: AuthorizationServiceDep,
+) -> AuthStatusAPISchema:
+    return await authorization_service.unauthorize()

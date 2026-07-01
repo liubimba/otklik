@@ -1,14 +1,18 @@
 import asyncio
 
-from patchright.async_api import async_playwright
+from patchright.async_api import async_playwright, Error
 from pathlib import Path
 from headhunter_backend.log import get_logger
 from headhunter_backend.api.schemas import AuthStatusAPISchema
 from .page import BrowserPage
 from patchright.async_api import BrowserContext, Playwright, Page, Cookie
+from headhunter_backend.browser.exceptions import BrowserNetworkError
 
 AUTH_COOKIE_NAME = "hhrole"
 AUTHENTICATED_ROLES = frozenset({"applicant", "employer"})
+
+MAX_ATTEMPTS = 3
+RETRY_DELAY = 1
 
 
 class BrowserCore:
@@ -74,19 +78,48 @@ class BrowserCore:
             while not await self._is_authorized():
                 self.logger.info("User is not authenticated yet, waiting...")
                 await asyncio.sleep(poll_interval)
-            self._auth_status = AuthStatusAPISchema.authorized()
-            self.logger.info("User has logged in")
+                if page.is_closed():
+                    page = await self.new_page(f"{self.base_url}/login")
         finally:
+            if await self._is_authorized():
+                self.logger.info("User has logged in")
+                self._auth_status = AuthStatusAPISchema.authorized()
+            else:
+                self._auth_status = AuthStatusAPISchema.unauthorized()
             await page.close()
 
     async def new_page(self, url: str) -> BrowserPage:
-        self.logger.info("Opening page: ", url=url)
         if self._context is None:
             self.logger.error("BrowserCore is not started")
             raise RuntimeError("BrowserCore is not started")
-        page: Page = await self._context.new_page()
-        await page.goto(url)
-        return BrowserPage(page)
+        for attempt in range(MAX_ATTEMPTS):
+            page: Page | None = None
+            try:
+                self.logger.info("Opening page: ", url=url, attempt=attempt)
+                page = await self._context.new_page()
+                await page.goto(url)
+                return BrowserPage(page)
+            except Exception as e:
+                if page is not None:
+                    await page.close()
+                if isinstance(e, Error):
+                    self.logger.error(
+                        "Failed to open page", url=url, attempt=attempt, error=str(e)
+                    )
+                else:
+                    raise e
+                if attempt < MAX_ATTEMPTS - 1:
+                    self.logger.info(
+                        "Sleep before next retry", url=url, delay=RETRY_DELAY
+                    )
+                    await asyncio.sleep(RETRY_DELAY)
+                    raise BrowserNetworkError() from e
+        raise RuntimeError("Unreachable")
+
+    async def unauthorize(self) -> None:
+        if self._context is None:
+            raise RuntimeError("BrowserCore is not started yet")
+        await self._context.clear_cookies()
 
     async def _is_authorized(self) -> bool:
         self.logger.info("Checking authentication status")

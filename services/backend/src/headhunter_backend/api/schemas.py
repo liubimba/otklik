@@ -127,6 +127,22 @@ class CoverLetterAPISchema(BaseModel):
     created_at: datetime
 
 
+class ApplicationDetailAPISchema(BaseModel):
+    vacancy_id: int
+    application_id: int
+    retry_count: int
+    status: ProcessingState
+    reason: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    latest_letter: Optional[CoverLetterAPISchema] = None
+    letters_count: int
+
+
+class SubmitApplicationRequestAPISchema(BaseModel):
+    text: Optional[str] = None
+
+
 class RateLimitsAPISchema(BaseModel):
     daily_limit: int = 30
     hourly_limit: int = 5

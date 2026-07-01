@@ -9,7 +9,7 @@ from litellm.router import Router
 from headhunter_backend.api.schemas import VacancyAPISchema
 from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.ai.prompts import PromptBuilder
-from headhunter_backend.ai.exceptions import GenerationCoverLetterException
+from headhunter_backend.ai.exceptions import GenerationCoverLetterError
 from headhunter_backend.ai.health import AILayerHealthStatus
 from headhunter_backend.log import get_logger
 
@@ -38,12 +38,12 @@ class AILayer:
             self._log.error(
                 "Failed to generate cover letter: no deployments configured"
             )
-            raise GenerationCoverLetterException("no deployments configured")
+            raise GenerationCoverLetterError("no deployments configured")
         if not health_status.is_ready():
             self._log.error(
                 "Failed to generate cover letter: ai layer is not ready to generate cover letter"
             )
-            raise GenerationCoverLetterException(
+            raise GenerationCoverLetterError(
                 "ai layer is not ready to generate cover letter"
             )
         try:
@@ -79,7 +79,7 @@ class AILayer:
             )
         except Exception as e:
             self._log.error("Failed to generate cover letter: %s", str(e))
-            raise GenerationCoverLetterException(reason=str(e))
+            raise GenerationCoverLetterError(detail=str(e))
 
     async def get_health_status(self) -> AILayerHealthStatus:
         self._log.info("Check health status...")

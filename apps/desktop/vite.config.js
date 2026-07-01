@@ -1,6 +1,7 @@
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
+import { svelteTesting } from "@testing-library/svelte/vite";
 import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -14,6 +15,7 @@ export default defineConfig(async () => ({
 		}),
 		sveltekit(),
 		tailwindcss(),
+		svelteTesting(),
 	],
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -41,5 +43,7 @@ export default defineConfig(async () => ({
 	test: {
 		include: ["src/**/*.{test,spec}.{js,ts}"],
 		exclude: ["src-tauri/**", "node_modules/**"],
+		environment: "jsdom",
+		setupFiles: ["./src/lib/test-setup.ts"],
 	},
 }));

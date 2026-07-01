@@ -7,6 +7,7 @@ from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.api.subscribers import CallbackEventSubscriber
 from headhunter_backend.core.events import (
     ApplicationWSEvent,
+    AuthWSEvent,
     CaptchaData,
     CaptchaWSEvent,
 )
@@ -64,18 +65,46 @@ class LetterSendingWorker(Worker):
             self._broadcaster.unregister(self._subscriber)
             self._subscriber = None
 
+    # Marker string for the pause reason set on NOT_AUTHORIZED. Kept as a
+    # class-level constant so the AuthWSEvent auto-resume path can compare
+    # against exactly the same value without a magic string.
+    PAUSE_REASON_NOT_AUTHORIZED: str = "not authorized"
+
     async def _on_event(self, event: BaseModel) -> None:
         try:
-            if not isinstance(event, ApplicationWSEvent):
+            if isinstance(event, AuthWSEvent):
+                self._on_auth_event(event=event)
                 return
-            if event.data.status != self.handled_status:
-                return
-            await self.enqueue(application_id=event.data.application_id)
+            if isinstance(event, ApplicationWSEvent):
+                if event.data.status != self.handled_status:
+                    return
+                await self.enqueue(application_id=event.data.application_id)
         except Exception as e:
             self._log.warning(
-                "Failed to handle ApplicationWSEvent",
+                "Failed to handle event",
                 error=str(e),
             )
+
+    def _on_auth_event(self, event: AuthWSEvent) -> None:
+        """Auto-resume when the user re-authenticates.
+
+        The worker pauses itself on `auth_gate → NOT_AUTHORIZED` so a burst
+        of pending applications isn't wholesale-failed while the session is
+        broken. Without this hook the user would have to hit
+        `POST /system/orchestrator/resume` by hand after every re-login,
+        even though the fix (an authorized session) is already visible on
+        the broadcaster.
+        """
+        if not self.is_paused():
+            return
+        if self._pause_reason != self.PAUSE_REASON_NOT_AUTHORIZED:
+            # Captcha pauses and any other cause are handled elsewhere —
+            # do not steal them.
+            return
+        if not event.data.is_authorized():
+            return
+        self._log.info("Auth restored — auto-resuming worker")
+        self.resume()
 
     def pause(self, reason: str | None = None) -> None:
         self._resume_event.clear()
@@ -134,15 +163,15 @@ class LetterSendingWorker(Worker):
             match await auth_gate(auth_flow=self._auth_flow):
                 case GateResult.NOT_AUTHORIZED:
                     self._log.warning(
-                        "Not authorized -- fail. Pause until authorized, use resume() to resume worker",
+                        "Not authorized -- fail. Worker paused; AuthWSEvent(authorized) will resume it automatically",
                         application_id=app.id,
                     )
-                    self.pause(reason="not authorized")
+                    self.pause(reason=self.PAUSE_REASON_NOT_AUTHORIZED)
                     await self.enqueue(application_id=app.id)
                     await self._fail(
                         application_id=app.id,
                         session=session,
-                        reason="not authorized",
+                        reason=self.PAUSE_REASON_NOT_AUTHORIZED,
                     )
                     return
                 case _:

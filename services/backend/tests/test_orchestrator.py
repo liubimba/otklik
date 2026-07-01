@@ -251,6 +251,104 @@ async def test_consume_captcha_pauses_and_reenqueues(
         await stop_consumer(task)
 
 
+async def test_worker_auto_resumes_on_authorized_ws_event(
+    fake_orchestrator: LetterSendingWorker,
+    recording_broadcaster: RecordingBroadcaster,
+) -> None:
+    """Regression: after a NOT_AUTHORIZED gate result the worker paused
+    itself and stayed paused until the user hit /system/orchestrator/resume
+    by hand — a hidden step. Now the worker listens for AuthWSEvent and
+    auto-resumes when auth is restored.
+
+    Drive the pause + event flow directly (no session/queue seeding) —
+    this test asserts the listener wiring in isolation. Because the
+    broadcaster delivers events fire-and-forget via asyncio.create_task
+    the assertion is wrapped in `wait_until`."""
+    from headhunter_backend.api.schemas import AuthStatusAPISchema
+    from headhunter_backend.core.events import AuthWSEvent
+
+    fake_orchestrator.start()
+    try:
+        fake_orchestrator.pause(reason=fake_orchestrator.PAUSE_REASON_NOT_AUTHORIZED)
+        assert fake_orchestrator.is_paused()
+
+        await recording_broadcaster.publish(
+            event=AuthWSEvent(data=AuthStatusAPISchema.authorized())
+        )
+
+        await wait_until(lambda: not fake_orchestrator.is_paused())
+        assert fake_orchestrator.get_pause_reason() is None
+    finally:
+        fake_orchestrator.stop()
+
+
+async def test_worker_does_not_auto_resume_when_still_unauthorized(
+    fake_orchestrator: LetterSendingWorker,
+    recording_broadcaster: RecordingBroadcaster,
+) -> None:
+    """AuthWSEvent(unauthorized) or (authorizing) must not touch the pause
+    state — only a successful re-auth clears the block."""
+    from headhunter_backend.api.schemas import AuthStatusAPISchema
+    from headhunter_backend.core.events import AuthWSEvent
+
+    fake_orchestrator.start()
+    try:
+        fake_orchestrator.pause(reason=fake_orchestrator.PAUSE_REASON_NOT_AUTHORIZED)
+        for status in (
+            AuthStatusAPISchema.unauthorized(),
+            AuthStatusAPISchema.authorizing(),
+        ):
+            await recording_broadcaster.publish(event=AuthWSEvent(data=status))
+        # Give delivery tasks a chance to run.
+        await asyncio.sleep(0.05)
+        assert fake_orchestrator.is_paused()
+    finally:
+        fake_orchestrator.stop()
+
+
+async def test_worker_does_not_auto_resume_when_paused_for_other_reason(
+    fake_orchestrator: LetterSendingWorker,
+    recording_broadcaster: RecordingBroadcaster,
+) -> None:
+    """Captcha pauses (and any future pause reasons) must not be lifted by
+    the auth listener — they need their own resume path."""
+    from headhunter_backend.api.schemas import AuthStatusAPISchema
+    from headhunter_backend.core.events import AuthWSEvent
+
+    fake_orchestrator.start()
+    try:
+        fake_orchestrator.pause(reason="captcha")
+        await recording_broadcaster.publish(
+            event=AuthWSEvent(data=AuthStatusAPISchema.authorized())
+        )
+        await asyncio.sleep(0.05)
+        assert fake_orchestrator.is_paused()
+        assert fake_orchestrator.get_pause_reason() == "captcha"
+    finally:
+        fake_orchestrator.stop()
+
+
+async def test_worker_auth_event_is_a_no_op_when_not_paused(
+    fake_orchestrator: LetterSendingWorker,
+    recording_broadcaster: RecordingBroadcaster,
+) -> None:
+    """Sanity: incoming AuthWSEvent while the worker is running normally
+    shouldn't call resume() and shouldn't panic."""
+    from headhunter_backend.api.schemas import AuthStatusAPISchema
+    from headhunter_backend.core.events import AuthWSEvent
+
+    fake_orchestrator.start()
+    try:
+        assert not fake_orchestrator.is_paused()
+        await recording_broadcaster.publish(
+            event=AuthWSEvent(data=AuthStatusAPISchema.authorized())
+        )
+        await asyncio.sleep(0.05)
+        assert not fake_orchestrator.is_paused()
+    finally:
+        fake_orchestrator.stop()
+
+
 async def test_consume_not_authorized_fails(
     fake_orchestrator,
     fake_writer,

@@ -177,14 +177,6 @@
                     </div>
                 {:else}
                     <div class="space-y-3 p-6">
-                        {#if model.review.status === "error"}
-                            <div
-                                    class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
-                            >
-                                <span>{m.error()}: {model.review.error ? model.review.error : m.review_sent_unknown_error()}</span>
-                            </div>
-                        {/if}
-
                         {#if model.review.isSubmitting}
                             <p
                                 class="flex items-center gap-2 text-sm text-muted-foreground"
@@ -202,11 +194,20 @@
                             <Badge variant="ghost">
                                 {m.review_skipped_status()}
                             </Badge>
-                        {:else if model.review.status === "error" && model.applicationStatus.data?.reason}
+                        {/if}
+
+                        {#if model.review.status === "error"}
+                            <!--
+                                Single error banner rendered right above the
+                                textarea. Prior to 2026-07-01 the template
+                                duplicated this: one banner at the top of the
+                                content block, one after the status area.
+                            -->
                             <div
                                 class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
                             >
-                                {model.applicationStatus.data.reason}
+                                {m.error()}: {model.review.error ??
+                                    m.review_sent_unknown_error()}
                             </div>
                         {/if}
 
@@ -361,8 +362,18 @@
                             {m.review_button_save()}
                         </Button>
                     {/if}
-                    <Button onclick={view.retry}>
-                        {m.review_button_retry()}
+                    <!--
+                        Reuses view.submit — same button label as the
+                        letter_ready branch, unified UX. Backed by the
+                        ERROR → LETTER_SENDING arc in the state machine.
+                    -->
+                    <Button
+                        onclick={view.submit}
+                        disabled={model.review.isSubmitting}
+                    >
+                        {model.review.isSubmitting
+                            ? m.review_button_submitting()
+                            : m.review_button_submit()}
                     </Button>
                 </div>
             {:else}

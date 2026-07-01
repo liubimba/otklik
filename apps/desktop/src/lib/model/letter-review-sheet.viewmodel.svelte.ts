@@ -22,6 +22,14 @@ class Review {
 	readonly vacancy: Vacancy | null;
 	readonly isGenerating: boolean;
 	readonly isSubmitting: boolean;
+	/**
+	 * Whether the "Отправить" button should be shown in the footer. Mirrors
+	 * the SUBMIT-event arcs on the backend state machine (letter_ready,
+	 * letter_reviewing, error). ERROR was added on 2026-07-01 to let the
+	 * user re-submit an existing letter after a transient failure without
+	 * a forced LLM regeneration (which is what RETRY does).
+	 */
+	readonly canSubmit: boolean;
 	readonly error;
 
 	constructor(
@@ -45,6 +53,12 @@ class Review {
 
 		this.isGenerating = $derived(this.status === "letter_pending");
 		this.isSubmitting = $derived(this.status === "letter_sending");
+
+		this.canSubmit = $derived(
+			this.status === "letter_ready" ||
+				this.status === "letter_reviewing" ||
+				this.status === "error",
+		);
 
 		this.vacancy = $derived.by((): Vacancy | null => {
 			const id = this.store.vacancyId;

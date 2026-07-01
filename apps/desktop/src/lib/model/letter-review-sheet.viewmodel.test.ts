@@ -177,6 +177,37 @@ describe("Review — derived state from ApplicationQuery", () => {
 		expect(vm.review.error).toBe("captcha");
 	});
 
+	// canSubmit mirrors the SUBMIT arcs on the backend state machine
+	// (letter_ready, letter_reviewing, error). The ERROR arc lets the user
+	// re-submit an existing letter after a transient failure without
+	// forcing an LLM regeneration (which is what RETRY does).
+	it.each<[ProcessingState, boolean]>([
+		["letter_ready", true],
+		["letter_reviewing", true],
+		["error", true],
+		["parsed", false],
+		["letter_pending", false],
+		["letter_sending", false],
+		["letter_sent", false],
+		["skipped", false],
+	])("canSubmit for status=%s → %p", (status, expected) => {
+		const vm = makeVM({
+			data: detail({ status }),
+			isPending: false,
+			isError: false,
+		});
+		expect(vm.review.canSubmit).toBe(expected);
+	});
+
+	it("canSubmit is true in ERROR (regression: unified with letter_ready)", () => {
+		const vm = makeVM({
+			data: detail({ status: "error", reason: "captcha" }),
+			isPending: false,
+			isError: false,
+		});
+		expect(vm.review.canSubmit).toBe(true);
+	});
+
 	it("looks up the vacancy in the QueryClient cache by id", () => {
 		const cachedVacancy: Vacancy = {
 			id: 1,

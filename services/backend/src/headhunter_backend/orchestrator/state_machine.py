@@ -30,8 +30,14 @@ class ProcessingStateMachine(StateMachine):
         | _.LETTER_REVIEWING.to(_.LETTER_REVIEWING)
     )
     send_for_review = _.LETTER_READY.to(_.LETTER_REVIEWING)
-    submit = _.LETTER_READY.to(_.LETTER_SENDING) | _.LETTER_REVIEWING.to(
-        _.LETTER_SENDING
+    submit = (
+        _.LETTER_READY.to(_.LETTER_SENDING)
+        | _.LETTER_REVIEWING.to(_.LETTER_SENDING)
+        # ERROR → LETTER_SENDING lets the user re-submit after a failed
+        # send without going through RETRY (which regenerates the letter
+        # via the LLM and clobbers any manual edits). Pairs with the UI
+        # "Отправить" button in the error-state footer.
+        | _.ERROR.to(_.LETTER_SENDING)
     )
     skip = _.LETTER_REVIEWING.to(_.SKIPPED)
     submission_ok = _.LETTER_SENDING.to(_.LETTER_SENT)

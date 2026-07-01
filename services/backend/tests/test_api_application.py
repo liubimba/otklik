@@ -161,6 +161,65 @@ async def test_submit_404_when_vacancy_missing(client):
     assert response.status_code == 404
 
 
+async def test_submit_from_error_state_transitions_and_saves_text(
+    client, session_factory
+):
+    """The UI collapses the error-state Retry button into Submit — a failed
+    submit should be re-attempted without a forced LLM regeneration. This
+    exercises the ERROR → LETTER_SENDING arc added to the state machine,
+    plus the atomic dirty-submit path (text saved before the transition)."""
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.FAIL,
+        )
+
+    # Sanity: we're actually in ERROR.
+    detail = ApplicationDetailAPISchema.model_validate(
+        client.get("/api/v1/vacancies/1/application").json()
+    )
+    assert detail.status == ProcessingState.ERROR
+
+    response: Response = client.post(
+        "/api/v1/vacancies/1/application/submit",
+        json=SubmitApplicationRequestAPISchema(
+            text="Edited after failure"
+        ).model_dump(),
+    )
+    assert response.status_code == 200
+    result = ApplicationDetailAPISchema.model_validate(response.json())
+    assert result.status == ProcessingState.LETTER_SENDING
+    assert result.latest_letter is not None
+    assert result.latest_letter.text == "Edited after failure"
+
+
+async def test_submit_from_error_without_text_reuses_existing_letter(
+    client, session_factory
+):
+    """Same transition, but the client did not send `text` — the existing
+    latest letter is used verbatim. Confirms the endpoint doesn't require
+    a body override to move ERROR → LETTER_SENDING."""
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.FAIL,
+        )
+
+    response: Response = client.post(
+        "/api/v1/vacancies/1/application/submit",
+        json=SubmitApplicationRequestAPISchema().model_dump(),
+    )
+    assert response.status_code == 200
+    result = ApplicationDetailAPISchema.model_validate(response.json())
+    assert result.status == ProcessingState.LETTER_SENDING
+    assert result.latest_letter is not None
+    assert result.latest_letter.text == "Seed letter"
+
+
 async def test_skip_transitions(client, session_factory):
     await _seed_letter_ready(session_factory)
     # LETTER_READY → LETTER_REVIEWING → SKIPPED per state machine

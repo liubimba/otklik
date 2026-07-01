@@ -244,3 +244,79 @@ describe("Response handling", () => {
 		expect(result).toBeNull();
 	});
 });
+
+describe("Vacancies + settings + filter endpoints", () => {
+	it("GET /vacancies/ and GET /vacancies/{id}", async () => {
+		respondWithSequence(jsonResponse([]), jsonResponse({ id: 7 }));
+		await API.vacancies.list();
+		await API.vacancies.get(7);
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/vacancies\/$/);
+		expect(calls[0].init?.method ?? "GET").toBe("GET");
+		expect(calls[1].url).toMatch(/\/api\/v1\/vacancies\/7$/);
+	});
+
+	it("GET /settings and PUT /settings — body forwarded verbatim", async () => {
+		respondWithSequence(jsonResponse({}), jsonResponse({}));
+		await API.settings.get();
+		const settingsPayload = {
+			search: { max_pages: 5, max_vacancies: 50 },
+			user: { auto_submit: false },
+			rate_limits: {
+				daily_limit: 30,
+				hourly_limit: 5,
+				min_delay_ms: 800,
+				delay_jitter_ms: 400,
+			},
+			llm: {
+				resume_text: "",
+				letter_style: "",
+				system_prompt: null,
+				deployments: [],
+			},
+		};
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		await API.settings.update(settingsPayload as any);
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/settings$/);
+		expect(calls[0].init?.method ?? "GET").toBe("GET");
+
+		expect(calls[1].init?.method).toBe("PUT");
+		expect(bodyOf(calls[1])).toEqual(settingsPayload);
+	});
+
+	it("search filter open/confirm/cancel URLs", async () => {
+		respondWithSequence(
+			jsonResponse({ session_id: "sid" }),
+			jsonResponse({ url: "https://hh.ru/x" }),
+			jsonResponse({}),
+		);
+		await API.search.filter.open();
+		await API.search.filter.confirm("sid");
+		await API.search.filter.cancel("sid");
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/search\/filter\/new$/);
+		expect(calls[0].init?.method).toBe("POST");
+		expect(calls[1].url).toMatch(/\/api\/v1\/search\/filter\/sid\/confirm$/);
+		expect(calls[2].url).toMatch(/\/api\/v1\/search\/filter\/sid\/cancel$/);
+	});
+
+	it("Content-Type: application/json header is always set", async () => {
+		respondWith(jsonResponse({}));
+		await API.auth.status();
+
+		const headers = new Headers(calls[0].init?.headers);
+		expect(headers.get("Content-Type")).toBe("application/json");
+	});
+
+	it("start(url, undefined, undefined) sends nulls in the body", async () => {
+		respondWith(jsonResponse({ search_id: "x" }));
+		await API.search.parse.start("https://hh.ru/x");
+
+		expect(bodyOf(calls[0])).toEqual({
+			url: "https://hh.ru/x",
+			max_pages: undefined,
+			max_vacancies: undefined,
+		});
+	});
+});

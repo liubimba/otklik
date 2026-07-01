@@ -1,6 +1,7 @@
 from typing import Sequence
 
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from statemachine.exceptions import TransitionNotAllowed
 
 from headhunter_backend.ai.result import AICoverLetterResult
@@ -29,7 +30,7 @@ application_router = APIRouter(
 log = get_logger(__name__)
 
 
-async def _load_or_404(session, vacancy_id: int) -> VacancyORM:
+async def _load_or_404(session: AsyncSession, vacancy_id: int) -> VacancyORM:
     vacancy = await VacancyRepository.get_by_id(session=session, vacancy_id=vacancy_id)
     if vacancy is None:
         raise HTTPException(status_code=404, detail="Vacancy not found")
@@ -37,7 +38,7 @@ async def _load_or_404(session, vacancy_id: int) -> VacancyORM:
 
 
 async def _build_detail(
-    session, application: ApplicationORM
+    session: AsyncSession, application: ApplicationORM
 ) -> ApplicationDetailAPISchema:
     letters: Sequence[
         CoverLetterORM

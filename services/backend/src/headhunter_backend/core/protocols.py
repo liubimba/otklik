@@ -11,3 +11,10 @@ class Runnable(Protocol):
 @runtime_checkable
 class Recoverable(Protocol):
     async def recover(self, session: AsyncSession) -> int: ...
+
+
+@runtime_checkable
+class EventListener(Protocol):
+    def start(self) -> None: ...
+
+    def stop(self) -> None: ...

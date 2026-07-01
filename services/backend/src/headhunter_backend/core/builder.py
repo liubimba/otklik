@@ -6,6 +6,7 @@ from headhunter_backend.ai.layer import AILayer
 from headhunter_backend.api.broadcaster import EventBroadcaster
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.writer import BrowserWriter
+from headhunter_backend.core.protocols import EventListener, Recoverable, Runnable
 from headhunter_backend.db.models import SettingsORM
 from headhunter_backend.db.repositories.settings import SettingsRepository
 from headhunter_backend.log import get_logger
@@ -37,11 +38,11 @@ class AppContext:
     apply_service: AutoApplyService
     authorization_service: AuthorizationService
 
-    def runnables(self) -> list:
+    def runnables(self) -> list[Runnable]:
         # Background consumer loops the lifespan should spawn.
         return [self.orchestrator, self.letter_pending_worker]
 
-    def recoverables(self) -> list:
+    def recoverables(self) -> list[Recoverable]:
         # Startup DB scans that repopulate queues / re-emit stuck transitions.
         return [
             self.orchestrator,
@@ -49,7 +50,7 @@ class AppContext:
             self.auto_submit_listener,
         ]
 
-    def event_listeners(self) -> list:
+    def event_listeners(self) -> list[EventListener]:
         # Anything with .start()/.stop() that subscribes to the broadcaster.
         # AutoApplyService.start requires the broadcaster reference; use the
         # dedicated wire step in the lifespan for it.

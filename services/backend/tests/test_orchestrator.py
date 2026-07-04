@@ -76,7 +76,6 @@ async def test_enqueue_then_get_next(fake_orchestrator: LetterSendingWorker) -> 
 async def seed_app_in_letter_sending(
     session_factory: async_sessionmaker[AsyncSession],
     apply_link: str = "https://hh.ru/vacancy/1",
-    response_link: str = "https://hh.ru/applicant/vacancy_response?vacancyId=1",
 ) -> int:
     async with session_factory() as session:
         await VacancyRepository.create(
@@ -85,7 +84,6 @@ async def seed_app_in_letter_sending(
                 VacancyAPISchema(
                     title="t",
                     apply_link=apply_link,
-                    response_link=response_link,
                     description="d",
                 )
             ),
@@ -119,6 +117,40 @@ async def stop_consumer(task: asyncio.Task) -> None:
 
 
 # ─ Тесты ─────────────────────────────────────────────────────────────
+
+
+async def test_writer_receives_vacancy_apply_link_as_url(
+    fake_orchestrator: LetterSendingWorker,
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Regression: the worker used to read a separate `response_link`
+    column that the parser filled with the respond button's *text*
+    ("Откликнуться"), then hand it to Playwright as vacancy_url — which
+    crashed with "Cannot navigate to invalid URL" (reported 2026-07-02).
+    Column deleted in migration c1e5b8f92a04; worker now uses apply_link,
+    which is NOT NULL and always a valid detail-page URL. Locks that
+    behaviour so a future refactor doesn't reintroduce a stringly-typed
+    URL field.
+    """
+    apply_url = "https://hh.ru/vacancy/12345"
+    app_id = await seed_app_in_letter_sending(session_factory, apply_link=apply_url)
+
+    task = await start_consumer(
+        fake_orchestrator,
+        fake_writer,
+        authenticated_browser,
+        recording_broadcaster,
+        session_factory,
+    )
+    try:
+        await fake_orchestrator.enqueue(application_id=app_id)
+        await wait_until(lambda: len(fake_writer.calls) == 1)
+        assert fake_writer.calls[0]["uri"] == apply_url
+    finally:
+        await stop_consumer(task)
 
 
 async def test_consume_submitted_transitions_and_logs(
@@ -441,7 +473,6 @@ async def test_consume_missing_cover_letter_fails(
                 VacancyAPISchema(
                     title="t",
                     apply_link="https://hh.ru/vacancy/1",
-                    response_link="https://hh.ru/applicant/vacancy_response?vacancyId=1",
                     description="d",
                 )
             ),

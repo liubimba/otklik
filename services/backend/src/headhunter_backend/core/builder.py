@@ -97,6 +97,7 @@ class BackendBuilder:
             state_service=state_service,
             session_maker=self._session_maker,
             broadcaster=broadcaster,
+            letter_sending_worker=letter_sending_worker,
         )
         auto_apply_listener = AutoApplyListener(
             session_maker=self._session_maker,

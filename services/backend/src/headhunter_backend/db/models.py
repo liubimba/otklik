@@ -100,10 +100,14 @@ class VacancyORM(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
 
     title: Mapped[str]
+    # Canonical detail-page URL — parser extracts this from the SERP card's
+    # <a href>. It's the URL a human clicks on to open the vacancy, and the
+    # only URL the writer needs: from the detail page the writer clicks the
+    # respond link to enter the response form. There is no separate stored
+    # URL for the form itself (deliberately — see migration c1e5b8f92a04).
     apply_link: Mapped[str] = mapped_column(unique=True, index=True)
     description: Mapped[str]
 
-    response_link: Mapped[str | None]
     company_stars: Mapped[str | None]
     salary: Mapped[str | None]
     company_name: Mapped[str | None]

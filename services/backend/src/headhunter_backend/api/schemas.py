@@ -45,10 +45,13 @@ class VacancyAPISchema(BaseModel):
     id: Optional[int] = None
 
     title: str
+    # See db.models.VacancyORM.apply_link — canonical detail-page URL, the
+    # only URL the writer needs. There is no separate response_link field:
+    # the response form is reached by clicking the respond link on the
+    # detail page, not by a pre-computed URL.
     apply_link: str
     description: str
 
-    response_link: Optional[str] = None
     company_stars: Optional[str] = None
     salary: Optional[str] = None
     company_name: Optional[str] = None

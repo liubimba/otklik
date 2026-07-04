@@ -12,8 +12,6 @@
  * instantiates a fresh viewmodel with the specific fixture it needs.
  */
 
-import type { QueryClient } from "@tanstack/svelte-query";
-import { describe, expect, it } from "vitest";
 import type {
 	ApplicationDetail,
 	CoverLetter,
@@ -21,6 +19,8 @@ import type {
 	Vacancy,
 } from "$lib/api/types";
 import { LetterReviewStore } from "$lib/stores/letter_review.svelte";
+import type { QueryClient } from "@tanstack/svelte-query";
+import { describe, expect, it } from "vitest";
 import { LetterReviewSheetViewModel } from "./letter-review-sheet.viewmodel.svelte";
 
 interface QueryStub<T> {
@@ -246,7 +246,6 @@ describe("Review — derived state from ApplicationQuery", () => {
 			title: "Dev",
 			apply_link: "https://hh.ru/vacancy/1",
 			description: "d",
-			response_link: null,
 			company_stars: null,
 			salary: null,
 			company_name: null,

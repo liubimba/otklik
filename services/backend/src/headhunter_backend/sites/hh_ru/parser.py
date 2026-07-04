@@ -113,7 +113,7 @@ class HHRUParser:
         node: Node | None = vacancy_link.parent
         while node is not None:
             if node.css_matches(selector=selectors.search.vacancy_card):
-                response_link = node.css_first(selectors.search.response_link)
+                response_link = node.css_first(selectors.search.response_link_serp_card)
                 if response_link is None:
                     self._logger.warning("SERP card has no response link")
                     return None
@@ -206,9 +206,6 @@ class HHRUParser:
             title=title,
             apply_link=href,
             description=description,
-            response_link=self._extract_text(
-                page_parser, selectors.search.response_link
-            ),
             company_stars=self._extract_text(
                 page_parser, selectors.vacancy.company_stars
             ),

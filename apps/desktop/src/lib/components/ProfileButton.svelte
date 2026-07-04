@@ -1,4 +1,5 @@
 <script lang="ts">
+import { createActions } from "$lib/actions";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -7,35 +8,44 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "$lib/components/ui/dropdown-menu";
-import { auth } from "$lib/stores/auth.svelte";
+import { query } from "$lib/queries";
+// noinspection ES6UnusedImports
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+// noinspection ES6UnusedImports
 import User from "@lucide/svelte/icons/user";
+// noinspection ES6UnusedImports
 import UserCheck from "@lucide/svelte/icons/user-check";
+import { useQueryClient } from "@tanstack/svelte-query";
 
-const status = $derived(auth.getState()?.status ?? null);
+const queryClient = useQueryClient();
+const authQuery = query.auth.create();
+const actions = createActions(queryClient);
 </script>
 
 <DropdownMenu>
     <DropdownMenuTrigger class="flex items-center gap-2">
-        {#if status === "authorized"}
-            <UserCheck size={20} />
-        {:else if status === "authorizing"}
-            <LoaderCircle size={20} class="animate-spin" />
+        {#if authQuery.data?.status === "authorized"}
+            <UserCheck size={20}/>
+        {:else if authQuery.data?.status === "authorizing"}
+            <LoaderCircle size={20} class="animate-spin"/>
         {:else}
-            <User size={20} />
+            <User size={20}/>
         {/if}
     </DropdownMenuTrigger>
     <DropdownMenuContent>
         <DropdownMenuGroup>
             <DropdownMenuLabel>hh.ru</DropdownMenuLabel>
-            {#if status === "unauthorized"}
-                <DropdownMenuItem onSelect={() => auth.fetchAuthentication()}
-                    >Sign in hh.ru</DropdownMenuItem
+            {#if authQuery.data?.status === "unauthorized" || !authQuery.data}
+                <DropdownMenuItem onSelect={() => actions.auth.authenticate.mutateAsync()}
+                >Sign in hh.ru
+                </DropdownMenuItem
                 >
-            {:else if status == "authorizing"}
+            {:else if authQuery.data?.status === "authorizing"}
                 <DropdownMenuItem disabled>Authorizing...</DropdownMenuItem>
-            {:else if status == "authorized"}
-                <DropdownMenuItem>Sign out hh.ru</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => actions.auth.cancel.mutateAsync()}>Cancel</DropdownMenuItem>
+            {:else if authQuery.data?.status === "authorized"}
+                <DropdownMenuItem onSelect={() => actions.auth.unauthorize.mutateAsync()}>Sign out hh.ru
+                </DropdownMenuItem>
             {:else}
                 <DropdownMenuItem disabled>Unknown status</DropdownMenuItem>
             {/if}

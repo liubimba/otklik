@@ -4,17 +4,16 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from statemachine.exceptions import TransitionNotAllowed
 
-from headhunter_backend.ai.result import AICoverLetterResult
 from headhunter_backend.api.dependencies import (
-    CoverLetterServiceDep,
+    OrchestratorDep,
     SessionDep,
     StateServiceDep,
 )
 from headhunter_backend.api.schemas import (
-    AICoverLetterAPISchema,
     ApplicationDetailAPISchema,
     CoverLetterAPISchema,
     CoverLetterRequestAPISchema,
+    ProcessingState,
     SubmitApplicationRequestAPISchema,
 )
 from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
@@ -102,11 +101,22 @@ async def generate(
     vacancy_id: int,
     session: SessionDep,
     state_service: StateServiceDep,
-    cover_letter_service: CoverLetterServiceDep,
-) -> AICoverLetterAPISchema:
-    """One-shot generation. If no Application exists, creates it and transitions
-    PARSED → LETTER_PENDING before running the LLM. The client does not need to
-    call `queue_for_letter` first."""
+) -> ApplicationDetailAPISchema:
+    """Kick off async letter generation.
+
+    Auto-creates the Application if needed, then fires the REGENERATE
+    event so the state machine lands in LETTER_PENDING. That transition
+    publishes an ApplicationWSEvent which LetterPendingWorker picks up
+    to run the LLM — the handler does NOT wait for the LLM. Returns the
+    ApplicationDetail with status=LETTER_PENDING, so the UI can render a
+    durable spinner keyed on the state machine (backend is the source
+    of truth, frontend just displays it) until letter_ready arrives.
+
+    Prior implementation blocked here for the full LLM span and returned
+    status=LETTER_READY directly; the transient LETTER_PENDING was too
+    short-lived to catch a WS refetch, so the spinner never appeared
+    (regression reported 2026-07-02).
+    """
     await _load_or_404(session, vacancy_id)
     application = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
@@ -115,38 +125,24 @@ async def generate(
         application = await ApplicationRepository.create(
             session=session, vacancy_id=vacancy_id
         )
-        try:
-            await state_service.transition(
-                session=session,
-                application_id=application.id,
-                event=ApplicationEvent.ENQUEUE_FOR_LETTER,
-            )
-        except TransitionNotAllowed as e:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Cannot enqueue for letter: {e}",
-            )
+    if application.status == ProcessingState.LETTER_PENDING:
+        # Idempotent: an earlier /generate is already being processed by
+        # LetterPendingWorker. Return current state without firing the
+        # transition again (would be a no-op arc anyway, but avoids a
+        # duplicate WS event that would re-enqueue the same application).
+        return await _build_detail(session=session, application=application)
     try:
-        result: AICoverLetterResult = await cover_letter_service.regenerate(
-            vacancy_id=vacancy_id
+        application = await state_service.transition(
+            session=session,
+            application_id=application.id,
+            event=ApplicationEvent.REGENERATE,
         )
     except TransitionNotAllowed as e:
-        # Terminal states (LETTER_SENDING/LETTER_SENT/SKIPPED) — no arc into
-        # LETTER_READY. Return 409 instead of 500. This used to crash when
-        # the frontend hit /generate on a vacancy that was already ERROR;
-        # that particular case is now legal via the ERROR arc on
-        # `letter_generated`, but the guard stays for the remaining terminal
-        # states.
+        # Terminal/in-flight states have no arc into LETTER_PENDING:
+        # LETTER_SENDING, LETTER_SENT, SKIPPED. 409 with the cause so
+        # the UI surfaces it via toast instead of hanging.
         raise HTTPException(status_code=409, detail=f"Cannot regenerate letter: {e}")
-    return AICoverLetterAPISchema(
-        text=result.text,
-        model_used=result.model_used,
-        prompt_tokens=result.prompt_tokens,
-        completion_tokens=result.completion_tokens,
-        total_tokens=result.total_tokens,
-        was_fallback=result.was_fallback,
-        cost_usd=result.cost_usd,
-    )
+    return await _build_detail(session=session, application=application)
 
 
 @application_router.post("/save")
@@ -180,6 +176,7 @@ async def submit(
     body: SubmitApplicationRequestAPISchema,
     session: SessionDep,
     state_service: StateServiceDep,
+    orchestrator: OrchestratorDep,
 ) -> ApplicationDetailAPISchema:
     """Submit the application to hh.ru. If `text` is provided, saves it as a
     new letter version first (atomic dirty-submit)."""
@@ -190,6 +187,21 @@ async def submit(
     if application is None:
         raise HTTPException(
             status_code=409, detail="Application does not exist for this vacancy"
+        )
+    # Refuse SUBMIT when the letter-sending worker is paused: the state
+    # machine would happily accept ERROR → LETTER_SENDING (or the two
+    # other SUBMIT arcs), but the worker is blocked on `_resume_event`,
+    # so the application would just sit in LETTER_SENDING with no
+    # progress until the pause is lifted (which for NOT_AUTHORIZED
+    # requires an AuthWSEvent(authorized) — precisely the condition the
+    # user cannot satisfy while their session is broken). Surface the
+    # pause reason so the UI can prompt for re-auth / captcha resolution
+    # instead of showing an infinite spinner.
+    if orchestrator.is_paused():
+        reason = orchestrator.get_pause_reason() or "unknown"
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot submit application: worker is paused ({reason})",
         )
     if body.text is not None:
         await CoverLetterRepository.create(

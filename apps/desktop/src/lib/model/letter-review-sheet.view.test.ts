@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoverLetter } from "$lib/api/types";
 import { LetterReviewStore } from "$lib/stores/letter_review.svelte";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("svelte-sonner", () => ({
 	toast: {
@@ -50,9 +50,10 @@ interface CoverLetterVM {
 	redo: ReturnType<typeof vi.fn>;
 }
 
-function makeVM(
-	overrides: Partial<CoverLetterVM> = {},
-): { cover_letter: CoverLetterVM; tab: string } {
+function makeVM(overrides: Partial<CoverLetterVM> = {}): {
+	cover_letter: CoverLetterVM;
+	tab: string;
+} {
 	return {
 		tab: "letter",
 		cover_letter: {
@@ -71,12 +72,20 @@ function makeVM(
 let store: LetterReviewStore;
 beforeEach(() => {
 	store = new LetterReviewStore();
+	// Clear module-level vi.mock spies (toast.success/error) between tests
+	// so a success/failure asserted in one test doesn't bleed into
+	// another's `not.toHaveBeenCalled` guard.
+	vi.clearAllMocks();
 });
 
 describe("view.close — regression: no auto-save", () => {
 	it("does NOT call save() even when the buffer is dirty and editable", async () => {
 		const actions = makeActions();
-		const vm = makeVM({ localText: "unsaved", isDirty: true, isEditable: true });
+		const vm = makeVM({
+			localText: "unsaved",
+			isDirty: true,
+			isEditable: true,
+		});
 		store.open(1);
 		const view = createLetterReviewSheetView(
 			actions,
@@ -137,6 +146,42 @@ describe("view.submit — dirty text is forwarded (atomic dirty-submit)", () => 
 			vacancyId: 9,
 			text: undefined,
 		});
+	});
+});
+
+describe("view.submit — 409 from paused worker is surfaced, not swallowed", () => {
+	/**
+	 * User-observable half of the "infinite Откликаемся…" bug reported
+	 * 2026-07-02. Backend now returns 409 with a "worker paused (not
+	 * authorized)" reason when the letter-sending worker is stuck on a
+	 * broken auth session. The view must fire toast.error so the user
+	 * learns why nothing is happening — silently swallowing the failure
+	 * would leave the sheet visually identical to a successful submit
+	 * (spinner, then… nothing), which is what the user actually saw.
+	 */
+	it("shows an error toast when the submit mutation rejects", async () => {
+		const actions = makeActions();
+		const authError = new Error("worker paused: not authorized");
+		actions.letter.review.submit.mutateAsync.mockRejectedValueOnce(authError);
+		const vm = makeVM({ localText: "final", isDirty: true });
+		store.open(9);
+		const view = createLetterReviewSheetView(
+			actions,
+			store,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			vm as any,
+		);
+
+		const { toast } = await import("svelte-sonner");
+
+		await view.submit();
+
+		expect(toast.error).toHaveBeenCalledTimes(1);
+		const arg = (toast.error as ReturnType<typeof vi.fn>).mock.calls[0][0];
+		expect(arg).toContain("review_submit_failed");
+		// toast.success must NOT fire on a rejected submit — regression guard
+		// against a naïve refactor that awaits before checking the result.
+		expect(toast.success).not.toHaveBeenCalled();
 	});
 });
 

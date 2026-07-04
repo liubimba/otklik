@@ -1,6 +1,6 @@
+import type { SearchEvent, Vacancy, VacancyEvent } from "$lib/api/types";
 import type { QueryClient } from "@tanstack/svelte-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SearchEvent, Vacancy, VacancyEvent } from "$lib/api/types";
 import {
 	applySearchEvent,
 	applyVacancyEvent,
@@ -35,7 +35,6 @@ const vacancy = (id: number, title = `Vacancy ${id}`): Vacancy => ({
 	title,
 	apply_link: `https://hh.ru/vacancy/${id}`,
 	description: "d",
-	response_link: null,
 	company_stars: null,
 	salary: null,
 	company_name: null,

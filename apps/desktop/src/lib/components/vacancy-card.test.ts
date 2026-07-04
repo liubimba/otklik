@@ -1,7 +1,7 @@
+import type { Vacancy } from "$lib/api/types";
 import { render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { Vacancy } from "$lib/api/types";
 import VacancyCard from "./vacancy-card.svelte";
 
 function vacancy(overrides: Partial<Vacancy> = {}): Vacancy {
@@ -10,7 +10,6 @@ function vacancy(overrides: Partial<Vacancy> = {}): Vacancy {
 		title: "Backend engineer",
 		apply_link: "https://hh.ru/vacancy/1",
 		description: "Great vacancy",
-		response_link: null,
 		company_stars: null,
 		salary: null,
 		company_name: null,

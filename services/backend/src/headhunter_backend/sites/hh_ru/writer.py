@@ -30,6 +30,29 @@ class HHRUWriter:
         self._timeout = timeout
 
     async def submit(self, vacancy_url: str, letter_text: str) -> SubmissionResult:
+        """Drive the current (2026-mid) hh.ru response flow.
+
+        Steps, in order — the ordering is behaviourally tested in
+        tests/test_hhru_writer.py so a future refactor doesn't reintroduce
+        the "wait_for_selector on a modal element that doesn't exist yet"
+        bug:
+
+        1. Open the vacancy detail page (`vacancy_url` is apply_link — the
+           canonical detail-page URL, not the form URL).
+        2. Wait for and click `vacancy.respond_link_top` — the top respond
+           link on the detail page. hh.ru intercepts the click and opens
+           a dialog modal in place; there's no navigation to a separate
+           form URL despite the anchor's href pointing at
+           `/applicant/vacancy_response?...`.
+        3. Wait for `response.respond_button` — the modal's primary
+           submit button, present iff the modal is open. Doubles as the
+           "modal ready" marker.
+        4. Click `response.open_letter_textarea_button`
+           (`add-cover-letter`) to reveal the letter textarea.
+        5. Wait for `response.letter_textarea`, fill it.
+        6. Click `response.respond_button` — final submit.
+        7. Verify via body text.
+        """
         self._logger.info(
             f"Starting to submit: {vacancy_url}. Letter text: {letter_text}"
         )
@@ -37,6 +60,18 @@ class HHRUWriter:
         page: BrowserPage | None = None
         try:
             page = await self._core.new_page(url=vacancy_url)
+
+            # (2) Wait for and click the detail-page respond link — this
+            # opens the response modal on the same page.
+            await page.wait_for_selector(
+                selector=selectors.vacancy.respond_link_top, timeout=self._timeout
+            )
+            await self._human_delay()
+            await page.click(
+                selector=selectors.vacancy.respond_link_top, timeout=self._timeout
+            )
+
+            # (3) Modal-open marker.
             await page.wait_for_selector(
                 selector=selectors.response.respond_button, timeout=self._timeout
             )
@@ -45,10 +80,13 @@ class HHRUWriter:
             if await self._captcha_present(page=page):
                 return SubmissionResult.captcha()
 
+            # (4) Reveal the letter textarea (hidden until the user clicks
+            # "Добавить сопроводительное").
             await page.click(
                 selector=selectors.response.open_letter_textarea_button,
                 timeout=self._timeout,
             )
+            # (5) Fill the letter.
             await page.wait_for_selector(
                 selector=selectors.response.letter_textarea, timeout=self._timeout
             )
@@ -60,6 +98,7 @@ class HHRUWriter:
             )
             await self._human_delay()
 
+            # (6) Final submit.
             await page.click(
                 selector=selectors.response.respond_button, timeout=self._timeout
             )

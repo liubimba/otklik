@@ -1,19 +1,21 @@
 <script lang="ts">
-import { putSettings } from "$lib/api/client";
+import { API } from "$lib/api/client";
 import SettingsAiTab from "$lib/components/settings-ai-tab.svelte";
 import { Button } from "$lib/components/ui/button";
+// noinspection ES6UnusedImports
 import * as Form from "$lib/components/ui/form";
 import { Input } from "$lib/components/ui/input";
 import { Skeleton } from "$lib/components/ui/skeleton";
 import { Switch } from "$lib/components/ui/switch";
+// noinspection ES6UnusedImports
 import * as Tabs from "$lib/components/ui/tabs";
 import { m } from "$lib/paraglide/messages";
-import { createSettingsQuery, settingsQueryKey } from "$lib/queries/settings";
+import { query } from "$lib/queries";
+import { zform } from "$lib/schemas";
 import {
 	type LLMDeploymentForm,
 	apiDeploymentToForm,
 	formDeploymentToAPI,
-	settingsFormSchema,
 } from "$lib/schemas/settings";
 import { useQueryClient } from "@tanstack/svelte-query";
 import { untrack } from "svelte";
@@ -22,19 +24,19 @@ import { defaults, superForm } from "sveltekit-superforms";
 import { zod4 } from "sveltekit-superforms/adapters";
 
 const queryClient = useQueryClient();
-const settings = createSettingsQuery();
+const settings = query.settings.create();
 
-const form = superForm(defaults(zod4(settingsFormSchema)), {
+const form = superForm(defaults(zod4(zform.settings.schema)), {
 	SPA: true,
 	dataType: "json",
 	resetForm: false,
-	validators: zod4(settingsFormSchema),
+	validators: zod4(zform.settings.schema),
 	onUpdate: async ({ form }) => {
 		if (!form.valid) {
 			return;
 		}
 		try {
-			const saved = await putSettings({
+			const saved = await API.settings.update({
 				search: form.data.search,
 				user: form.data.user,
 				rate_limits: form.data.rate_limits,
@@ -47,7 +49,7 @@ const form = superForm(defaults(zod4(settingsFormSchema)), {
 					deployments: form.data.llm.deployments.map(formDeploymentToAPI),
 				},
 			});
-			queryClient.setQueryData(settingsQueryKey, saved);
+			queryClient.setQueryData(query.settings.key, saved);
 			toast.success(m.settings_save_success());
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : "unknown";
@@ -88,25 +90,25 @@ $effect(() => {
     {#if settings.isPending}
         <div class="space-y-6">
             <div class="flex gap-2">
-                <Skeleton class="h-9 w-24 rounded-md" />
-                <Skeleton class="h-9 w-24 rounded-md" />
-                <Skeleton class="h-9 w-24 rounded-md" />
+                <Skeleton class="h-9 w-24 rounded-md"/>
+                <Skeleton class="h-9 w-24 rounded-md"/>
+                <Skeleton class="h-9 w-24 rounded-md"/>
             </div>
             <div class="space-y-4">
                 <div class="space-y-2">
-                    <Skeleton class="h-4 w-40 rounded" />
-                    <Skeleton class="h-9 w-full rounded-md" />
+                    <Skeleton class="h-4 w-40 rounded"/>
+                    <Skeleton class="h-9 w-full rounded-md"/>
                 </div>
                 <div class="space-y-2">
-                    <Skeleton class="h-4 w-40 rounded" />
-                    <Skeleton class="h-9 w-full rounded-md" />
+                    <Skeleton class="h-4 w-40 rounded"/>
+                    <Skeleton class="h-9 w-full rounded-md"/>
                 </div>
                 <div class="space-y-2">
-                    <Skeleton class="h-4 w-40 rounded" />
-                    <Skeleton class="h-9 w-full rounded-md" />
+                    <Skeleton class="h-4 w-40 rounded"/>
+                    <Skeleton class="h-9 w-full rounded-md"/>
                 </div>
             </div>
-            <Skeleton class="h-9 w-32 rounded-md" />
+            <Skeleton class="h-9 w-32 rounded-md"/>
         </div>
     {:else if settings.isError}
         <div class="space-y-3">
@@ -124,13 +126,13 @@ $effect(() => {
             <Tabs.Root value="search" class="space-y-4">
                 <Tabs.List>
                     <Tabs.Trigger value="search"
-                        >{m.settings_tab_search()}</Tabs.Trigger
+                    >{m.settings_tab_search()}</Tabs.Trigger
                     >
                     <Tabs.Trigger value="user"
-                        >{m.settings_tab_user()}</Tabs.Trigger
+                    >{m.settings_tab_user()}</Tabs.Trigger
                     >
                     <Tabs.Trigger value="limits"
-                        >{m.settings_tab_limits()}</Tabs.Trigger
+                    >{m.settings_tab_limits()}</Tabs.Trigger
                     >
                     <Tabs.Trigger value="ai">{m.settings_tab_ai()}</Tabs.Trigger
                     >
@@ -139,139 +141,139 @@ $effect(() => {
                 <Tabs.Content value="search" class="space-y-4">
                     <Form.Field {form} name="search.max_pages">
                         <Form.Control>
-                            {#snippet children({ props })}
+                            {#snippet children({props})}
                                 <Form.Label
-                                    >{m.settings_search_max_pages()}</Form.Label
+                                >{m.settings_search_max_pages()}</Form.Label
                                 >
                                 <Input
-                                    type="number"
-                                    min="1"
-                                    {...props}
-                                    bind:value={$formData.search.max_pages}
+                                        type="number"
+                                        min="1"
+                                        {...props}
+                                        bind:value={$formData.search.max_pages}
                                 />
                             {/snippet}
                         </Form.Control>
-                        <Form.FieldErrors />
+                        <Form.FieldErrors/>
                     </Form.Field>
 
                     <Form.Field {form} name="search.max_vacancies">
                         <Form.Control>
-                            {#snippet children({ props })}
+                            {#snippet children({props})}
                                 <Form.Label
-                                    >{m.settings_search_max_vacancies()}</Form.Label
+                                >{m.settings_search_max_vacancies()}</Form.Label
                                 >
                                 <Input
-                                    type="number"
-                                    min="1"
-                                    {...props}
-                                    bind:value={$formData.search.max_vacancies}
+                                        type="number"
+                                        min="1"
+                                        {...props}
+                                        bind:value={$formData.search.max_vacancies}
                                 />
                             {/snippet}
                         </Form.Control>
-                        <Form.FieldErrors />
+                        <Form.FieldErrors/>
                     </Form.Field>
                 </Tabs.Content>
 
                 <Tabs.Content value="user" class="space-y-4">
                     <Form.Field {form} name="user.auto_submit">
                         <Form.Control>
-                            {#snippet children({ props })}
+                            {#snippet children({props})}
                                 <Form.Label
-                                    >{m.settings_user_auto_submit()}</Form.Label
+                                >{m.settings_user_auto_submit()}</Form.Label
                                 >
                                 <Form.Description
-                                    >{m.settings_user_auto_submit_hint()}</Form.Description
+                                >{m.settings_user_auto_submit_hint()}</Form.Description
                                 >
                                 <Switch
-                                    {...props}
-                                    bind:checked={$formData.user.auto_submit}
+                                        {...props}
+                                        bind:checked={$formData.user.auto_submit}
                                 />
                             {/snippet}
                         </Form.Control>
-                        <Form.FieldErrors />
+                        <Form.FieldErrors/>
                     </Form.Field>
                 </Tabs.Content>
 
                 <Tabs.Content value="limits" class="space-y-4">
                     <Form.Field {form} name="rate_limits.hourly_limit">
                         <Form.Control>
-                            {#snippet children({ props })}
+                            {#snippet children({props})}
                                 <Form.Label
-                                    >{m.settings_limits_hourly()}</Form.Label
+                                >{m.settings_limits_hourly()}</Form.Label
                                 >
                                 <Input
-                                    type="number"
-                                    min="1"
-                                    {...props}
-                                    bind:value={
+                                        type="number"
+                                        min="1"
+                                        {...props}
+                                        bind:value={
                                         $formData.rate_limits.hourly_limit
                                     }
                                 />
                             {/snippet}
                         </Form.Control>
-                        <Form.FieldErrors />
+                        <Form.FieldErrors/>
                     </Form.Field>
 
                     <Form.Field {form} name="rate_limits.daily_limit">
                         <Form.Control>
-                            {#snippet children({ props })}
+                            {#snippet children({props})}
                                 <Form.Label
-                                    >{m.settings_limits_daily()}</Form.Label
+                                >{m.settings_limits_daily()}</Form.Label
                                 >
                                 <Input
-                                    type="number"
-                                    min="1"
-                                    {...props}
-                                    bind:value={
+                                        type="number"
+                                        min="1"
+                                        {...props}
+                                        bind:value={
                                         $formData.rate_limits.daily_limit
                                     }
                                 />
                             {/snippet}
                         </Form.Control>
-                        <Form.FieldErrors />
+                        <Form.FieldErrors/>
                     </Form.Field>
 
                     <Form.Field {form} name="rate_limits.min_delay_ms">
                         <Form.Control>
-                            {#snippet children({ props })}
+                            {#snippet children({props})}
                                 <Form.Label
-                                    >{m.settings_limits_min_delay()}</Form.Label
+                                >{m.settings_limits_min_delay()}</Form.Label
                                 >
                                 <Input
-                                    type="number"
-                                    min="0"
-                                    {...props}
-                                    bind:value={
+                                        type="number"
+                                        min="0"
+                                        {...props}
+                                        bind:value={
                                         $formData.rate_limits.min_delay_ms
                                     }
                                 />
                             {/snippet}
                         </Form.Control>
-                        <Form.FieldErrors />
+                        <Form.FieldErrors/>
                     </Form.Field>
 
                     <Form.Field {form} name="rate_limits.delay_jitter_ms">
                         <Form.Control>
-                            {#snippet children({ props })}
+                            {#snippet children({props})}
                                 <Form.Label
-                                    >{m.settings_limits_jitter()}</Form.Label
+                                >{m.settings_limits_jitter()}</Form.Label
                                 >
                                 <Input
-                                    type="number"
-                                    min="0"
-                                    {...props}
-                                    bind:value={
+                                        type="number"
+                                        min="0"
+                                        {...props}
+                                        bind:value={
                                         $formData.rate_limits.delay_jitter_ms
                                     }
                                 />
                             {/snippet}
                         </Form.Control>
-                        <Form.FieldErrors />
+                        <Form.FieldErrors/>
                     </Form.Field>
                 </Tabs.Content>
 
                 <Tabs.Content value="ai" class="space-y-4">
-                    <SettingsAiTab {form} />
+                    <SettingsAiTab {form}/>
                 </Tabs.Content>
             </Tabs.Root>
 

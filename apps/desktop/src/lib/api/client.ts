@@ -1,7 +1,6 @@
 import { getLogger } from "$lib/log";
 import { APIError } from "./error";
 import type {
-	AICoverLetterResponse,
 	APIRequestError,
 	APIResponse,
 	ApplicationDetail,
@@ -140,10 +139,9 @@ export const API = {
 		letters: (vacancyId: number) =>
 			api<CoverLetter[]>(`vacancies/${vacancyId}/application/letters`),
 		generate: (vacancyId: number) =>
-			api<AICoverLetterResponse>(
-				`vacancies/${vacancyId}/application/generate`,
-				{ method: "POST" },
-			),
+			api<ApplicationDetail>(`vacancies/${vacancyId}/application/generate`, {
+				method: "POST",
+			}),
 		save: (vacancyId: number, text: string) =>
 			api<CoverLetter>(`vacancies/${vacancyId}/application/save`, {
 				method: "POST",
@@ -175,8 +173,7 @@ export const API = {
 		rateLimits: () => api<RateLimitsBudget>("system/rate-limits"),
 		aiHealth: () => api<{ status: string }>("system/ai/health"),
 		orchestrator: {
-			status: () =>
-				api<OrchestratorStatus>("system/orchestrator/status"),
+			status: () => api<OrchestratorStatus>("system/orchestrator/status"),
 			resume: () =>
 				api<APIResponse>("system/orchestrator/resume", { method: "POST" }),
 		},

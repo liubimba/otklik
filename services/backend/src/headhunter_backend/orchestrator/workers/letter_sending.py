@@ -216,17 +216,17 @@ class LetterSendingWorker(Worker):
                     reason="missing vacancy",
                 )
                 return
-            if vacancy.response_link is None:
-                self._log.warning("Missing response link", application_id=app.id)
-                await self._fail(
-                    application_id=app.id,
-                    session=session,
-                    reason="missing response link",
-                )
-                return
 
+            # Navigate to Vacancy.apply_link — the canonical detail page
+            # where the respond link lives. There is no separate stored
+            # URL for the response form: the writer reaches it by
+            # clicking through the detail page, matching human flow
+            # (better for anti-bot). apply_link is NOT NULL by schema,
+            # so no missing-URL guard is needed; a stale vacancy that no
+            # longer accepts responses is caught downstream by
+            # writer.wait_for_selector on the respond link.
             result: SubmissionResult = await self._writer.submit(
-                vacancy_url=vacancy.response_link,
+                vacancy_url=vacancy.apply_link,
                 letter_text=letter.text,
             )
             match result.type:

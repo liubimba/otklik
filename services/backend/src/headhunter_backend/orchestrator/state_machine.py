@@ -14,6 +14,11 @@ class ApplicationEvent(str, Enum):
     SUBMISSION_FAILED = "submission_failed"
     RETRY = "retry"
     FAIL = "fail"
+    # Async regeneration: any non-terminal state → LETTER_PENDING. Handed
+    # off to LetterPendingWorker via the ApplicationWSEvent it publishes.
+    # Distinct from LETTER_GENERATED (synchronous "letter arrived") and
+    # RETRY (legacy ERROR-only arc kept for the /retry endpoint).
+    REGENERATE = "regenerate"
 
 
 class ProcessingStateMachine(StateMachine):
@@ -49,6 +54,18 @@ class ProcessingStateMachine(StateMachine):
     submission_ok = _.LETTER_SENDING.to(_.LETTER_SENT)
     submission_failed = _.LETTER_SENDING.to(_.ERROR)
     retry = _.ERROR.to(_.LETTER_PENDING)
+    # `regenerate` is the async /application/generate entry point:
+    # transitions any non-terminal, non-in-flight state to
+    # LETTER_PENDING. LetterPendingWorker owns the LLM call from that
+    # point on, so the /generate endpoint can return immediately and
+    # the UI sees a durable LETTER_PENDING (spinner) instead of the
+    # transient one that the old sync-in-handler flow produced.
+    regenerate = (
+        _.PARSED.to(_.LETTER_PENDING)
+        | _.LETTER_READY.to(_.LETTER_PENDING)
+        | _.LETTER_REVIEWING.to(_.LETTER_PENDING)
+        | _.ERROR.to(_.LETTER_PENDING)
+    )
     fail = (
         _.LETTER_PENDING.to(_.ERROR)
         | _.LETTER_READY.to(_.ERROR)

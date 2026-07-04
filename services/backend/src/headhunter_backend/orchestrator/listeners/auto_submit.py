@@ -10,6 +10,7 @@ from headhunter_backend.db.repositories.settings import SettingsRepository
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator.state_machine import ApplicationEvent
 from headhunter_backend.orchestrator.state_service import StateTransitionService
+from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 
 
 class AutoSubmitListener:
@@ -18,10 +19,12 @@ class AutoSubmitListener:
         state_service: StateTransitionService,
         session_maker: async_sessionmaker[AsyncSession],
         broadcaster: EventBroadcaster,
+        letter_sending_worker: LetterSendingWorker,
     ) -> None:
         self._state_service = state_service
         self._session_maker = session_maker
         self._broadcaster = broadcaster
+        self._letter_sending_worker = letter_sending_worker
         self._log = get_logger(__name__)
         self._subscriber: CallbackEventSubscriber | None = None
 
@@ -60,6 +63,21 @@ class AutoSubmitListener:
             settings = await SettingsRepository.get(session=session)
             if not settings.auto_submit:
                 return
+            # Same guard as POST /application/submit: never move an
+            # application into LETTER_SENDING while the sending worker is
+            # paused. Auto-submit reaches here through the fresh
+            # LETTER_READY event, i.e. right when the user just clicked
+            # Regenerate to escape a NOT_AUTHORIZED failure — bypassing
+            # the HTTP guard would land the app in LETTER_SENDING with
+            # no worker to process it (the "infinite letter-sending"
+            # regression via the auto path, reported 2026-07-02).
+            if self._letter_sending_worker.is_paused():
+                self._log.info(
+                    "Auto-submit skipped — letter-sending worker is paused",
+                    application_id=application_id,
+                    reason=self._letter_sending_worker.get_pause_reason(),
+                )
+                return
             await self._state_service.transition_or_skip(
                 session=session,
                 application_id=application_id,
@@ -72,6 +90,17 @@ class AutoSubmitListener:
         # the WS event we already missed.
         settings = await SettingsRepository.get(session=session)
         if not settings.auto_submit:
+            return 0
+        if self._letter_sending_worker.is_paused():
+            # Startup edge case: the persisted browser session came back
+            # already unauthenticated (auth cookies expired between runs).
+            # Auto-resume via AuthWSEvent(authorized) will process these
+            # orphans once the user re-signs-in — publishing SUBMIT now
+            # would just stack them in LETTER_SENDING with no consumer.
+            self._log.info(
+                "Auto-submit recover skipped — letter-sending worker is paused",
+                reason=self._letter_sending_worker.get_pause_reason(),
+            )
             return 0
         pending = await ApplicationRepository.list_by_status(
             session=session, status=ProcessingState.LETTER_READY

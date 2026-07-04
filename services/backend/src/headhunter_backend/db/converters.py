@@ -72,7 +72,6 @@ def vacancy_to_orm(schema: VacancyAPISchema) -> VacancyORM:
         work_experience=schema.work_experience,
         work_formats=[wf.value for wf in schema.work_formats],
         employment_types=[et.value for et in schema.employment_types],
-        response_link=schema.response_link,
     )
 
 
@@ -91,7 +90,6 @@ def vacancy_to_schema(row: VacancyORM) -> VacancyAPISchema:
         work_experience=row.work_experience,
         work_formats=[WorkFormat(v) for v in row.work_formats],
         employment_types=[EmploymentType(v) for v in row.employment_types],
-        response_link=row.response_link,
     )
 
 

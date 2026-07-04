@@ -22,12 +22,20 @@ function handleKeydown(e: KeyboardEvent) {
 }
 </script>
 
+<!--
+	`[contain:layout_paint]` isolates each card's reflow / repaint from
+	its siblings. When the sidebar animates its width or the sheet
+	overlay compositor invalidates, WebKit was previously re-laying
+	out the whole vacancy list, producing 240 ms freezes per frame in
+	the sidebar-toggle scenario. Adding style/paint containment keeps
+	the cascade local to each card.
+-->
 <div
 	role="button"
 	tabindex="0"
 	onclick={handleClick}
 	onkeydown={handleKeydown}
-	class="bg-card text-card-foreground hover:bg-muted/40 focus-visible:ring-ring/40 flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2"
+	class="bg-card text-card-foreground hover:bg-muted/40 focus-visible:ring-ring/40 flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 [contain:layout_paint]"
 >
 	<div class="min-w-0 flex-1 space-y-1">
 		<h3 class="truncate text-base font-medium">{vacancy.title}</h3>

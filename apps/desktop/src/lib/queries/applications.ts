@@ -3,8 +3,9 @@ import type {
 	ApplicationDetail,
 	ApplicationEvent,
 	CoverLetter,
+	ProcessingState,
 } from "$lib/api/types";
-import { createQuery, type QueryClient } from "@tanstack/svelte-query";
+import { type QueryClient, createQuery } from "@tanstack/svelte-query";
 
 export const applicationQueryKey = (vacancyId: number) =>
 	["application", vacancyId] as const;
@@ -30,24 +31,73 @@ export function createApplicationQuery(getVacancyId: () => number | null) {
 }
 
 /**
- * Merge a WS application_event into the cached ApplicationDetail without
- * clobbering the latest_letter fields — the event carries only status/reason.
+ * States for which the backend actually changes letter body / letters
+ * history / reason during the transition into that state. Only these
+ * warrant a refetch — intermediate ones (letter_pending, letter_sending)
+ * flip status but leave latest_letter and letters_count untouched.
+ *
+ * Filtering here matters at perf level: during an auto-submit burst,
+ * one vacancy fires 4-6 transitions in <2 s. Invalidating on every
+ * event triggered 8-12 refetches per vacancy, which stormed the query
+ * cache and the backend. See `PERF_BASELINE.md` scenario 1.
+ */
+const LETTER_CHANGING_STATES = new Set<ProcessingState>([
+	"letter_ready",
+	"letter_sent",
+	"error",
+	"skipped",
+]);
+
+/**
+ * Handle a WS application_event.
+ *
+ * The event carries only `status` and `reason` — never letter body or
+ * version counts. Behaviour depends on the status:
+ *
+ * 1. **Cache empty** → invalidate applicationQueryKey. The next observer
+ *    will refetch the authoritative state from `/application`. This is
+ *    the recovery path for a sheet opened before the Application was
+ *    created in the DB (initial GET 404'd).
+ *
+ * 2. **Cache populated + intermediate status** (letter_pending,
+ *    letter_sending) → merge status/reason only. No refetch: those
+ *    transitions don't change letter body or history on the backend.
+ *
+ * 3. **Cache populated + letter-changing status** (letter_ready,
+ *    letter_sent, error, skipped) → merge for immediate UI update, then
+ *    invalidate both queries so latest_letter and the History tab pick
+ *    up fresh data. Merge alone wouldn't help — the event carries
+ *    neither letter body nor version count.
  */
 export function applyApplicationEvent(
 	queryClient: QueryClient,
 	event: ApplicationEvent,
 ) {
-	queryClient.setQueryData<ApplicationDetail | null>(
-		applicationQueryKey(event.data.vacancy_id),
-		(prev) => {
-			if (prev == null) return prev ?? null;
-			return {
-				...prev,
-				status: event.data.status,
-				reason: event.data.reason,
-			};
-		},
-	);
+	const key = applicationQueryKey(event.data.vacancy_id);
+	const historyKey = coverLettersHistoryQueryKey(event.data.vacancy_id);
+	const prev = queryClient.getQueryData<ApplicationDetail | null>(key);
+	const isLetterChanging = LETTER_CHANGING_STATES.has(event.data.status);
+	if (prev != null) {
+		const next: ApplicationDetail = {
+			...prev,
+			status: event.data.status,
+			reason: event.data.reason,
+		};
+		queryClient.setQueryData(key, next);
+		if (isLetterChanging) {
+			queryClient.invalidateQueries({ queryKey: key });
+			queryClient.invalidateQueries({ queryKey: historyKey });
+		}
+		return;
+	}
+	// Empty cache: always refetch the application (sheet opened before
+	// the Application existed in the DB). History is only worth
+	// invalidating if the state can actually add letter versions —
+	// otherwise it stays a spurious refetch during intermediate ticks.
+	queryClient.invalidateQueries({ queryKey: key });
+	if (isLetterChanging) {
+		queryClient.invalidateQueries({ queryKey: historyKey });
+	}
 }
 
 export function createCoverLettersHistoryQuery(

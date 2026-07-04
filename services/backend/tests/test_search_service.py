@@ -9,6 +9,7 @@ from headhunter_backend.orchestrator.search import (
     SearchService,
     SearchAlreadyRunningError,
 )
+from headhunter_backend.orchestrator.exceptions import SearchSessionNotFoundError
 from headhunter_backend.api.schemas import (
     VacanciesStartSearchRequestAPISchema,
     SearchStatusAPISchema,
@@ -136,7 +137,7 @@ async def test_start_search_persists_and_finishes(
 
     await search_task.task
 
-    task = svc.get_search_task(search_id=search_id)
+    task = svc.find_search_task(search_id=search_id)
     assert task is not None
     assert task.parsed_count == 2
     assert task.state_machine.current_state_value == SearchStatusAPISchema.FINISHED
@@ -212,7 +213,7 @@ async def test_max_vacancies_cap_respected(
 
     await search_task.task
 
-    task = svc.get_search_task(search_id=search_id)
+    task = svc.find_search_task(search_id=search_id)
     assert task is not None
     assert task.parsed_count == 2
 
@@ -245,12 +246,16 @@ async def test_cancel_running_search(
         == SearchStatusAPISchema.CANCELED
     )
 
-    task = svc.get_search_task(search_id=search_id)
-    assert task is not None
-    assert task.state_machine.current_state_value == SearchStatusAPISchema.CANCELED
+    # cancel_search_session clears the single active session, so the task
+    # is no longer findable; the CANCELED terminal state was asserted above
+    # on the held search_task ref (and is broadcast via a search_event).
+    assert svc.find_search_task(search_id=search_id) is None
+    assert (
+        search_task.state_machine.current_state_value == SearchStatusAPISchema.CANCELED
+    )
 
 
-async def test_cancel_unknown_search_returns_false(
+async def test_cancel_unknown_search_raises(
     fake_browser_core: FakeBrowserCore,
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
@@ -261,7 +266,8 @@ async def test_cancel_unknown_search_returns_false(
         recording_broadcaster,
         session_factory,
     )
-    assert await svc.cancel_search_session(search_id="does-not-exist") is False
+    with pytest.raises(SearchSessionNotFoundError):
+        await svc.cancel_search_session(search_id="does-not-exist")
 
 
 async def test_get_search_task_unknown_returns_none(
@@ -275,7 +281,7 @@ async def test_get_search_task_unknown_returns_none(
         recording_broadcaster,
         session_factory,
     )
-    assert svc.get_search_task(search_id="does-not-exist") is None
+    assert svc.find_search_task(search_id="does-not-exist") is None
 
 
 async def test_shutdown_cancels_running_tasks(
@@ -295,6 +301,6 @@ async def test_shutdown_cancels_running_tasks(
     await svc.shutdown()
     await asyncio.sleep(0.05)
 
-    task = svc.get_search_task(search_id=search_task.id)
+    task = svc.find_search_task(search_id=search_task.id)
     assert task is not None
     assert task.task.cancelled() or task.task.done()

@@ -1,6 +1,6 @@
+import type { AuthEvent } from "$lib/api/types";
 import type { QueryClient } from "@tanstack/svelte-query";
 import { describe, expect, it, vi } from "vitest";
-import type { AuthEvent } from "$lib/api/types";
 import { applyAuthEvent, authQueryKey } from "./auth";
 
 function makeFakeQueryClient() {

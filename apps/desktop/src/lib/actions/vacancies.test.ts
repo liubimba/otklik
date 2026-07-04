@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueryClient } from "@tanstack/svelte-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface MutationConfig<T, V> {
 	mutationFn: (vars: V) => Promise<T>;

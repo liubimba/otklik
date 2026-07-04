@@ -173,7 +173,9 @@ describe("API.application.submit — dirty-submit body semantics", () => {
 		respondWith(jsonResponse({}));
 		await API.application.submit(7, "final draft");
 
-		expect(calls[0].url).toMatch(/\/api\/v1\/vacancies\/7\/application\/submit$/);
+		expect(calls[0].url).toMatch(
+			/\/api\/v1\/vacancies\/7\/application\/submit$/,
+		);
 		expect(bodyOf(calls[0])).toEqual({ text: "final draft" });
 	});
 
@@ -187,9 +189,7 @@ describe("API.application.submit — dirty-submit body semantics", () => {
 
 describe("Response handling", () => {
 	it("throws APIError with detail from the JSON body on 4xx/5xx", async () => {
-		respondWith(
-			jsonResponse({ detail: "Vacancy not found" }, 404),
-		);
+		respondWith(jsonResponse({ detail: "Vacancy not found" }, 404));
 		await expect(API.vacancies.get(999)).rejects.toMatchObject({
 			status: 404,
 			detail: "Vacancy not found",

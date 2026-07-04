@@ -1,6 +1,6 @@
 import { API } from "$lib/api/client";
 import { applicationQueryKey } from "$lib/queries/applications";
-import { createMutation, type QueryClient } from "@tanstack/svelte-query";
+import { type QueryClient, createMutation } from "@tanstack/svelte-query";
 
 /**
  * Per-vacancy mutations wired to the new /vacancies/{id}/application/*

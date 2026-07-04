@@ -1,6 +1,6 @@
+import type { SearchEvent } from "$lib/api/types";
 import type { QueryClient } from "@tanstack/svelte-query";
 import { describe, expect, it, vi } from "vitest";
-import type { SearchEvent } from "$lib/api/types";
 import { applyCurrentSearchEvent, currentSearchQueryKey } from "./search";
 
 function makeFakeQueryClient() {

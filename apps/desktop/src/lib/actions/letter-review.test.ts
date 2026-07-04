@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueryClient } from "@tanstack/svelte-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * `createMutation` is Svelte-context bound (it opens a `Query` subscription

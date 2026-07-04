@@ -97,7 +97,7 @@ export function createSearchFilterActions(
 			},
 		})),
 		dismissError: createMutation(() => ({
-			mutationFn: async (params: {}) => {
+			mutationFn: async () => {
 				store.clearError();
 			},
 		})),

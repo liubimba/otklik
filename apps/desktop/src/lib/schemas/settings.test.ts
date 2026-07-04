@@ -74,9 +74,7 @@ describe("settingsFormSchema — coercion + validation", () => {
 			user: {},
 			rate_limits: {},
 			llm: {
-				deployments: [
-					{ id: "x", model: "", api_key: "k", api_base: "" },
-				],
+				deployments: [{ id: "x", model: "", api_key: "k", api_base: "" }],
 			},
 		});
 		expect(bad.success).toBe(false);

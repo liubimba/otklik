@@ -96,7 +96,9 @@ describe("saveConsent", () => {
 		expect(parsed.consentGiven).toBe(false);
 		expect(parsed.termsVersion).toBe(TERMS_VERSION);
 		// acceptedAt is a valid ISO string
-		expect(() => new Date(parsed.acceptedAt as string).toISOString()).not.toThrow();
+		expect(() =>
+			new Date(parsed.acceptedAt as string).toISOString(),
+		).not.toThrow();
 	});
 });
 

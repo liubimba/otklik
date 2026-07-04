@@ -3,7 +3,7 @@ import {
 	applicationQueryKey,
 	coverLettersHistoryQueryKey,
 } from "$lib/queries/applications";
-import { createMutation, type QueryClient } from "@tanstack/svelte-query";
+import { type QueryClient, createMutation } from "@tanstack/svelte-query";
 
 async function invalidate(queryClient: QueryClient, vacancyId: number) {
 	await Promise.all([

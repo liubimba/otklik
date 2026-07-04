@@ -1,5 +1,5 @@
 import { API } from "$lib/api/client";
-import { createMutation, type QueryClient } from "@tanstack/svelte-query";
+import { type QueryClient, createMutation } from "@tanstack/svelte-query";
 
 /**
  * AI generation is now folded into /vacancies/{id}/application/generate.

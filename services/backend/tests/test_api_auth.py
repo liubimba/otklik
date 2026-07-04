@@ -27,6 +27,9 @@ def test_api_auth(client, fake_browser):
         payload = response.json()
         status: AuthStatusAPISchema = AuthStatusAPISchema.model_validate(payload)
         assert status.status == "authorizing"
-        payload = ws.receive_json()
-        auth_event: AuthWSEvent = AuthWSEvent.model_validate(payload)
-        assert auth_event.data.is_authorized()
+        # authorize() emits two WS events: first `authorizing`, then
+        # `authorized` once _wait_and_announce finishes the login.
+        authorizing_event = AuthWSEvent.model_validate(ws.receive_json())
+        assert authorizing_event.data.status == "authorizing"
+        authorized_event = AuthWSEvent.model_validate(ws.receive_json())
+        assert authorized_event.data.is_authorized()

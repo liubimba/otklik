@@ -140,7 +140,7 @@ $effect(() => {
                 <div class="space-y-2">
                     <p class="font-medium text-destructive">
                         {m.picker_error_prefix({
-                            message: store.search.filter.state.message,
+                            message: store.search.filter.state.message ?? "",
                         })}
                     </p>
                     <Button variant="outline" onclick={view.search.filter.dismissError}>

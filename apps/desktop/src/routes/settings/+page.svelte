@@ -5,10 +5,9 @@ import { Button } from "$lib/components/ui/button";
 // noinspection ES6UnusedImports
 import * as Form from "$lib/components/ui/form";
 import { Input } from "$lib/components/ui/input";
+import { Separator } from "$lib/components/ui/separator";
 import { Skeleton } from "$lib/components/ui/skeleton";
 import { Switch } from "$lib/components/ui/switch";
-// noinspection ES6UnusedImports
-import * as Tabs from "$lib/components/ui/tabs";
 import { m } from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import { zform } from "$lib/schemas";
@@ -84,30 +83,17 @@ $effect(() => {
 });
 </script>
 
-<div class="container mx-auto p-6 space-y-6">
+<div class="container mx-auto max-w-2xl p-6 space-y-6">
     <h1 class="text-2xl font-semibold">{m.settings_title()}</h1>
 
     {#if settings.isPending}
         <div class="space-y-6">
-            <div class="flex gap-2">
-                <Skeleton class="h-9 w-24 rounded-md"/>
-                <Skeleton class="h-9 w-24 rounded-md"/>
-                <Skeleton class="h-9 w-24 rounded-md"/>
-            </div>
-            <div class="space-y-4">
+            {#each [0, 1, 2, 3, 4] as row (row)}
                 <div class="space-y-2">
                     <Skeleton class="h-4 w-40 rounded"/>
                     <Skeleton class="h-9 w-full rounded-md"/>
                 </div>
-                <div class="space-y-2">
-                    <Skeleton class="h-4 w-40 rounded"/>
-                    <Skeleton class="h-9 w-full rounded-md"/>
-                </div>
-                <div class="space-y-2">
-                    <Skeleton class="h-4 w-40 rounded"/>
-                    <Skeleton class="h-9 w-full rounded-md"/>
-                </div>
-            </div>
+            {/each}
             <Skeleton class="h-9 w-32 rounded-md"/>
         </div>
     {:else if settings.isError}
@@ -123,22 +109,16 @@ $effect(() => {
         </div>
     {:else}
         <form method="POST" use:enhance class="space-y-6">
-            <Tabs.Root value="search" class="space-y-4">
-                <Tabs.List>
-                    <Tabs.Trigger value="search"
-                    >{m.settings_tab_search()}</Tabs.Trigger
-                    >
-                    <Tabs.Trigger value="user"
-                    >{m.settings_tab_user()}</Tabs.Trigger
-                    >
-                    <Tabs.Trigger value="limits"
-                    >{m.settings_tab_limits()}</Tabs.Trigger
-                    >
-                    <Tabs.Trigger value="ai">{m.settings_tab_ai()}</Tabs.Trigger
-                    >
-                </Tabs.List>
+            <section class="space-y-4">
+                <div class="space-y-1">
+                    <h2 class="text-lg font-medium">
+                        {m.settings_section_automation()}
+                    </h2>
+                    <p class="text-sm text-muted-foreground">
+                        {m.settings_section_automation_hint()}
+                    </p>
+                </div>
 
-                <Tabs.Content value="search" class="space-y-4">
                     <Form.Field {form} name="search.max_pages">
                         <Form.Control>
                             {#snippet children({props})}
@@ -172,9 +152,6 @@ $effect(() => {
                         </Form.Control>
                         <Form.FieldErrors/>
                     </Form.Field>
-                </Tabs.Content>
-
-                <Tabs.Content value="user" class="space-y-4">
                     <Form.Field {form} name="user.auto_submit">
                         <Form.Control>
                             {#snippet children({props})}
@@ -192,9 +169,16 @@ $effect(() => {
                         </Form.Control>
                         <Form.FieldErrors/>
                     </Form.Field>
-                </Tabs.Content>
+                <Separator/>
+                <div class="space-y-1">
+                    <h3 class="text-sm font-medium">
+                        {m.settings_subsection_limits()}
+                    </h3>
+                    <p class="text-sm text-muted-foreground">
+                        {m.settings_limits_description()}
+                    </p>
+                </div>
 
-                <Tabs.Content value="limits" class="space-y-4">
                     <Form.Field {form} name="rate_limits.hourly_limit">
                         <Form.Control>
                             {#snippet children({props})}
@@ -270,12 +254,21 @@ $effect(() => {
                         </Form.Control>
                         <Form.FieldErrors/>
                     </Form.Field>
-                </Tabs.Content>
+            </section>
 
-                <Tabs.Content value="ai" class="space-y-4">
-                    <SettingsAiTab {form}/>
-                </Tabs.Content>
-            </Tabs.Root>
+            <Separator/>
+
+            <section class="space-y-4">
+                <div class="space-y-1">
+                    <h2 class="text-lg font-medium">
+                        {m.settings_section_ai()}
+                    </h2>
+                    <p class="text-sm text-muted-foreground">
+                        {m.settings_section_ai_hint()}
+                    </p>
+                </div>
+                <SettingsAiTab {form}/>
+            </section>
 
             <Button type="submit" disabled={$submitting}>
                 {$submitting ? m.settings_saving() : m.settings_save()}

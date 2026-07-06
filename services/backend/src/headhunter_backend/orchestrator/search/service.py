@@ -43,6 +43,8 @@ class SearchService:
             raise FilterSessionRunningAlreadyError()
 
         self._filter_session = await FilterSession.execute(core=self._core)
+        # Filter tuning is interactive — surface the browser beside the app.
+        await self._core.show_window()
         return self._filter_session.id
 
     async def confirm_filter_session(self, session_id: str) -> str:
@@ -52,12 +54,14 @@ class SearchService:
             return await self._filter_session.confirm()
         finally:
             self._filter_session = None
+            await self._core.hide_window()
 
     async def cancel_filter_session(self, session_id: str) -> None:
         if self._filter_session is None or self._filter_session.id != session_id:
             raise FilterSessionNotFoundError()
         await self._filter_session.cancel()
         self._filter_session = None
+        await self._core.hide_window()
 
     def get_current_filter_session(self) -> str | None:
         if self._filter_session is None:

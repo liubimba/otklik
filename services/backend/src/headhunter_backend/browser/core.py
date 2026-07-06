@@ -12,10 +12,30 @@ from patchright.async_api import (
 
 from headhunter_backend.browser.exceptions import BrowserNetworkError
 from headhunter_backend.browser.page import BrowserPage
+from headhunter_backend.browser.window import (
+    NoopWindowController,
+    WindowController,
+    X11WindowController,
+)
 from headhunter_backend.log import get_logger
 
 MAX_ATTEMPTS = 3
 RETRY_DELAY = 1
+
+# App window title used to locate the desktop app for placing the browser
+# beside it. Must match the Tauri window title in apps/desktop/tauri.conf.json.
+APP_WINDOW_NAME = "Headhunter"
+
+# Launch flags for the headed Chromium: force the X11/XWayland backend so the
+# window is controllable via xdotool, keep the (hidden) window from throttling
+# background work, and start it off-screen so it never flashes before we hide it.
+CHROMIUM_ARGS = [
+    "--ozone-platform=x11",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-renderer-backgrounding",
+    "--disable-background-timer-throttling",
+    "--window-position=-32000,-32000",
+]
 
 
 class BrowserCore:
@@ -24,7 +44,11 @@ class BrowserCore:
     auth-cookie inspection) live in the corresponding sites/<site>/auth_flow.py.
     """
 
-    def __init__(self, profile_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        profile_dir: Path | None = None,
+        window: WindowController | None = None,
+    ) -> None:
         self.logger = get_logger(self.__class__.__name__)
         if profile_dir is None:
             self.logger.info("No profile directory provided, using default")
@@ -33,6 +57,14 @@ class BrowserCore:
         self.headless = False
         self._context: BrowserContext | None = None
         self._playwright: Playwright | None = None
+        # Pick the window controller once, at construction — callers only ever
+        # use show_window()/hide_window() and never branch on platform.
+        if window is not None:
+            self._window = window
+        elif X11WindowController.available():
+            self._window = X11WindowController(self.profile_dir, APP_WINDOW_NAME)
+        else:
+            self._window = NoopWindowController()
 
     async def start(self) -> None:
         self.logger.info(
@@ -45,7 +77,19 @@ class BrowserCore:
             user_data_dir=str(self.profile_dir),
             headless=self.headless,
             no_viewport=True,
+            args=CHROMIUM_ARGS,
         )
+        # The browser is only needed for interactive moments (login, filter
+        # tuning); keep it out of sight the rest of the time.
+        await self._window.hide()
+
+    async def show_window(self) -> None:
+        """Reveal the automation browser beside the app window (login/filter)."""
+        await self._window.show_near_app()
+
+    async def hide_window(self) -> None:
+        """Hide the automation browser once the interactive moment is over."""
+        await self._window.hide()
 
     async def stop(self) -> None:
         self.logger.info("Stopping browser")

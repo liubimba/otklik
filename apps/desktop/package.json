@@ -12,7 +12,7 @@
 		"check:watch": "pnpm paraglide:compile && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:unit": "vitest",
 		"test:unit:run": "vitest run",
-		"tauri": "env -u LD_PRELOAD -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u all_proxy -u ALL_PROXY WEBKIT_DISABLE_DMABUF_RENDERER=1 tauri",
+		"tauri": "env -u LD_PRELOAD -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u all_proxy -u ALL_PROXY WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 tauri",
 		"machine-translate": "inlang machine translate --project project.inlang"
 	},
 	"license": "MIT",

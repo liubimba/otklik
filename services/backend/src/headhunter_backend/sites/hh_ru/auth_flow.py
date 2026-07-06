@@ -36,6 +36,7 @@ class HHRUAuthFlow:
             self._auth_status = AuthStatusAPISchema.authorized()
             return
         page: BrowserPage = await self._browser.new_page(f"{BASE_URL}/login")
+        await self._browser.show_window()
         await page.bring_to_front()
         self._auth_status = AuthStatusAPISchema.authorizing()
         try:
@@ -51,6 +52,7 @@ class HHRUAuthFlow:
             else:
                 self._auth_status = AuthStatusAPISchema.unauthorized()
             await page.close()
+            await self._browser.hide_window()
 
     async def unauthorize(self) -> None:
         await self._browser.clear_cookies()

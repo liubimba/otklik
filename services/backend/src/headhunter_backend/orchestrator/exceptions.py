@@ -30,3 +30,9 @@ class FilterSessionRunningAlreadyError(ServerError):
     status_code = 422
     detail = "Filter session busy right now by another search task"
     code = "filter_session_running"
+
+
+class LetterChatNotAllowedError(ServerError):
+    status_code = 409
+    detail = "Letter cannot be edited via chat in the current state"
+    code = "letter_chat_not_allowed"

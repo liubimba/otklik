@@ -5,6 +5,8 @@ import type {
 	APIResponse,
 	ApplicationDetail,
 	AuthStatus,
+	ChatMessage,
+	ChatStreamEvent,
 	CoverLetter,
 	FilterSessionConfirm,
 	NewFilterSession,
@@ -93,6 +95,48 @@ async function apiNullable204<T>(
 	return JSON.parse(data) as T;
 }
 
+/**
+ * Consume the SSE stream from POST .../application/chat, yielding parsed
+ * events. Reads `response.body` incrementally and splits on the `\n\n` SSE
+ * frame boundary, buffering partial frames across reads.
+ */
+async function* streamChat(
+	vacancyId: number,
+	message: string,
+): AsyncGenerator<ChatStreamEvent> {
+	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/vacancies/${vacancyId}/application/chat`;
+	logger.info(`Opening chat stream to "${url}"`);
+	const res = await fetch(url, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ message }),
+	});
+	if (!res.ok || res.body === null) {
+		throw new APIError(res.status, "Failed to open chat stream");
+	}
+	const reader = res.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = "";
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		buffer += decoder.decode(value, { stream: true });
+		let boundary = buffer.indexOf("\n\n");
+		while (boundary !== -1) {
+			const frame = buffer.slice(0, boundary);
+			buffer = buffer.slice(boundary + 2);
+			const dataLine = frame
+				.split("\n")
+				.find((line) => line.startsWith("data:"));
+			if (dataLine) {
+				const payload = dataLine.slice(5).trim();
+				if (payload) yield JSON.parse(payload) as ChatStreamEvent;
+			}
+			boundary = buffer.indexOf("\n\n");
+		}
+	}
+}
+
 export const API = {
 	auth: {
 		status: () => api<AuthStatus>("auth/status"),
@@ -160,6 +204,12 @@ export const API = {
 			api<ApplicationDetail>(`vacancies/${vacancyId}/application/retry`, {
 				method: "POST",
 			}),
+		chat: {
+			list: (vacancyId: number) =>
+				api<ChatMessage[]>(`vacancies/${vacancyId}/application/chat`),
+			stream: (vacancyId: number, message: string) =>
+				streamChat(vacancyId, message),
+		},
 	},
 	settings: {
 		get: () => api<Settings>("settings"),

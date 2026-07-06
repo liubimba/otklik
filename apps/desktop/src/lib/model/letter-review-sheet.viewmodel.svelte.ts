@@ -1,6 +1,12 @@
-import type { CoverLetter, ProcessingState, Vacancy } from "$lib/api/types";
+import type {
+	ChatMessage,
+	CoverLetter,
+	ProcessingState,
+	Vacancy,
+} from "$lib/api/types";
 import type {
 	createApplicationQuery,
+	createChatMessagesQuery,
 	createCoverLettersHistoryQuery,
 } from "$lib/queries/applications";
 import { vacanciesQueryKey } from "$lib/queries/vacancies";
@@ -11,6 +17,7 @@ type ApplicationQuery = ReturnType<typeof createApplicationQuery>;
 type CoverLettersHistoryQuery = ReturnType<
 	typeof createCoverLettersHistoryQuery
 >;
+type ChatMessagesQuery = ReturnType<typeof createChatMessagesQuery>;
 
 export type Tab = "letter" | "history";
 
@@ -184,11 +191,71 @@ class LetterReviewSheetCoverLetter {
 		this.undoStack = [];
 		this.redoStack = [];
 	}
+
+	/**
+	 * Begin streaming a fresh AI-revised letter into the buffer. The model
+	 * emits the full new letter, so we reset first, then append deltas. These
+	 * bypass the undo stack; once the turn commits, the server bumps the
+	 * version and the buffer-sync effect re-seeds `localText` + clears history.
+	 */
+	streamReset(): void {
+		this.localText = "";
+	}
+
+	streamAppend(delta: string): void {
+		this.localText += delta;
+	}
+}
+
+/**
+ * The letter-editing conversation. Holds the persisted transcript (query) plus
+ * the ephemeral in-flight turn — the optimistic user bubble and the assistant
+ * reply as it streams. The view orchestrates the SSE stream and pushes deltas
+ * here; on completion it appends the finished turn to the query cache.
+ */
+class Chat {
+	input = $state("");
+	isStreaming = $state(false);
+	streamingReply = $state("");
+	pendingUser = $state<string | null>(null);
+
+	readonly messages: ChatMessage[];
+	readonly canChat: boolean;
+
+	constructor(
+		private readonly chatQuery: ChatMessagesQuery,
+		private readonly review: Review,
+	) {
+		this.messages = $derived(this.chatQuery.data ?? []);
+		this.canChat = $derived(
+			(this.review.status === "letter_ready" ||
+				this.review.status === "letter_reviewing") &&
+				!this.isStreaming,
+		);
+	}
+
+	begin(message: string): void {
+		this.pendingUser = message;
+		this.streamingReply = "";
+		this.isStreaming = true;
+		this.input = "";
+	}
+
+	appendReply(delta: string): void {
+		this.streamingReply += delta;
+	}
+
+	reset(): void {
+		this.isStreaming = false;
+		this.pendingUser = null;
+		this.streamingReply = "";
+	}
 }
 
 export class LetterReviewSheetViewModel {
 	readonly review: Review;
 	readonly cover_letter: LetterReviewSheetCoverLetter;
+	readonly chat: Chat;
 	readonly isOpen: boolean;
 
 	tab = $state<Tab>("letter");
@@ -198,9 +265,11 @@ export class LetterReviewSheetViewModel {
 		private readonly store: LetterReviewStore,
 		public readonly applicationStatus: ApplicationQuery,
 		public readonly coverLettersHistory: CoverLettersHistoryQuery,
+		public readonly chatMessages: ChatMessagesQuery,
 	) {
 		this.review = new Review(applicationStatus, queryClient, store);
 		this.cover_letter = new LetterReviewSheetCoverLetter(applicationStatus);
+		this.chat = new Chat(chatMessages, this.review);
 		this.isOpen = $derived(this.store.vacancyId !== null);
 	}
 }
@@ -210,10 +279,12 @@ export const createLetterReviewSheetViewModel = (
 	store: LetterReviewStore,
 	applicationStatus: ApplicationQuery,
 	coverLettersHistory: CoverLettersHistoryQuery,
+	chatMessages: ChatMessagesQuery,
 ) =>
 	new LetterReviewSheetViewModel(
 		queryClient,
 		store,
 		applicationStatus,
 		coverLettersHistory,
+		chatMessages,
 	);

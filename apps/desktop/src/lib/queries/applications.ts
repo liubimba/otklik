@@ -2,6 +2,7 @@ import { API } from "$lib/api/client";
 import type {
 	ApplicationDetail,
 	ApplicationEvent,
+	ChatMessage,
 	CoverLetter,
 	ProcessingState,
 } from "$lib/api/types";
@@ -12,6 +13,9 @@ export const applicationQueryKey = (vacancyId: number) =>
 
 export const coverLettersHistoryQueryKey = (vacancyId: number) =>
 	["cover-letters", vacancyId] as const;
+
+export const chatMessagesQueryKey = (vacancyId: number) =>
+	["chat", vacancyId] as const;
 
 /**
  * Combined application state: status + latest_letter + letters_count in one hit.
@@ -108,6 +112,18 @@ export function createCoverLettersHistoryQuery(
 		return {
 			queryKey: coverLettersHistoryQueryKey(id ?? -1),
 			queryFn: () => API.application.letters(id ?? -1),
+			enabled: id !== null,
+			staleTime: Number.POSITIVE_INFINITY,
+		};
+	});
+}
+
+export function createChatMessagesQuery(getVacancyId: () => number | null) {
+	return createQuery<ChatMessage[]>(() => {
+		const id = getVacancyId();
+		return {
+			queryKey: chatMessagesQueryKey(id ?? -1),
+			queryFn: () => API.application.chat.list(id ?? -1),
 			enabled: id !== null,
 			staleTime: Number.POSITIVE_INFINITY,
 		};

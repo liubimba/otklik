@@ -193,6 +193,24 @@ export type CoverLetter = {
 	created_at: string;
 };
 
+export type ChatMessage = {
+	id: number;
+	role: "user" | "assistant";
+	content: string;
+	produced_version: number | null;
+	created_at: string;
+};
+
+// SSE events streamed from POST .../application/chat. `reply` deltas fill the
+// assistant bubble; `letter` deltas stream the revised letter into the editor;
+// `done` carries the new version (null for a pure answer); `error` is an
+// in-band failure (the HTTP response already committed 200).
+export type ChatStreamEvent =
+	| { type: "reply"; delta: string }
+	| { type: "letter"; delta: string }
+	| { type: "done"; version: number | null }
+	| { type: "error"; detail: string };
+
 export type AICoverLetterResponse = {
 	text: string;
 	model_used: string;

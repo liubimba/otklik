@@ -11,6 +11,7 @@ from headhunter_backend.db.repositories.settings import SettingsRepository
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator.authorization_service import AuthorizationService
 from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
+from headhunter_backend.orchestrator.letter_chat_service import LetterChatService
 from headhunter_backend.orchestrator.listeners.auto_apply import AutoApplyListener
 from headhunter_backend.orchestrator.listeners.auto_submit import AutoSubmitListener
 from headhunter_backend.orchestrator.search import SearchService
@@ -32,6 +33,7 @@ class AppContext:
     search_service: SearchService
     ai_layer: AILayer
     cover_letter_service: CoverLetterService
+    letter_chat_service: LetterChatService
     letter_sending_worker: LetterSendingWorker
     letter_pending_worker: LetterPendingWorker
     auto_submit_listener: AutoSubmitListener
@@ -87,6 +89,10 @@ class BackendBuilder:
             ai_layer=ai_layer,
             state_service=state_service,
         )
+        letter_chat_service = LetterChatService(
+            session_maker=self._session_maker,
+            ai_layer=ai_layer,
+        )
         letter_pending_worker = LetterPendingWorker(
             cover_letter_service=cover_letter_service,
             state_service=state_service,
@@ -116,6 +122,7 @@ class BackendBuilder:
             search_service=search_service,
             ai_layer=ai_layer,
             cover_letter_service=cover_letter_service,
+            letter_chat_service=letter_chat_service,
             letter_sending_worker=letter_sending_worker,
             letter_pending_worker=letter_pending_worker,
             auto_submit_listener=auto_submit_listener,

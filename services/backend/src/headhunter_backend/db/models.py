@@ -147,4 +147,27 @@ class CoverLetterORM(Base):
     )
     version: Mapped[int] = mapped_column(default=1, server_default="1")
     text: Mapped[str]
+    # Provenance of this version: "generated" (full AI regenerate),
+    # "manual" (user-typed save), or "chat" (AI chat-driven revision).
+    source: Mapped[str] = mapped_column(default="generated", server_default="generated")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class ChatMessageORM(Base):
+    """One turn in the letter-editing conversation for an application.
+
+    Append-only. `produced_version` links an assistant turn to the
+    `cover_letters.version` it generated (null for a pure answer).
+    """
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    application_id: Mapped[int] = mapped_column(
+        ForeignKey("applications.id"), index=True
+    )
+    role: Mapped[str]
+    content: Mapped[str]
+    produced_version: Mapped[int | None]
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

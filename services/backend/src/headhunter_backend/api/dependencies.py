@@ -10,6 +10,7 @@ from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.db.session import get_session
 from headhunter_backend.orchestrator.authorization_service import AuthorizationService
 from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
+from headhunter_backend.orchestrator.letter_chat_service import LetterChatService
 from headhunter_backend.orchestrator.search import SearchService
 from headhunter_backend.orchestrator.state_service import StateTransitionService
 from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
@@ -51,6 +52,10 @@ def get_cover_letter_service(request: HTTPConnection) -> CoverLetterService:
     return request.app.state.cover_letter_service  # type: ignore[no-any-return]
 
 
+def get_letter_chat_service(request: HTTPConnection) -> LetterChatService:
+    return request.app.state.letter_chat_service  # type: ignore[no-any-return]
+
+
 def get_authorization_service(request: HTTPConnection) -> AuthorizationService:
     return request.app.state.authorization_service  # type: ignore[no-any-return]
 
@@ -68,6 +73,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]
 AILayerDep = Annotated[AILayer, Depends(get_ai_layer)]
 CoverLetterServiceDep = Annotated[CoverLetterService, Depends(get_cover_letter_service)]
+LetterChatServiceDep = Annotated[LetterChatService, Depends(get_letter_chat_service)]
 AuthorizationServiceDep = Annotated[
     AuthorizationService, Depends(get_authorization_service)
 ]

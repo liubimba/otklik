@@ -79,6 +79,8 @@ function makeVM(
 		appStub as any,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		historyStub as any,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		{ data: [], isPending: false, isError: false } as any,
 	);
 }
 
@@ -90,6 +92,8 @@ describe("LetterReviewSheetViewModel — isOpen", () => {
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			{ data: null, isPending: false, isError: false } as any,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			{ data: [], isPending: false, isError: false } as any,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			{ data: [], isPending: false, isError: false } as any,
 		);

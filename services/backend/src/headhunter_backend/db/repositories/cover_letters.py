@@ -9,14 +9,18 @@ from headhunter_backend.db.models import CoverLetterORM
 class CoverLetterRepository:
     @classmethod
     async def create(
-        cls, session: AsyncSession, application_id: int, text: str
+        cls,
+        session: AsyncSession,
+        application_id: int,
+        text: str,
+        source: str = "generated",
     ) -> CoverLetterORM:
         latest = await cls.get_latest_by_application_id(
             session=session, application_id=application_id
         )
         version = 1 if latest is None else latest.version + 1
         cover_letter = CoverLetterORM(
-            application_id=application_id, text=text, version=version
+            application_id=application_id, text=text, version=version, source=source
         )
         session.add(cover_letter)
         await session.commit()

@@ -1,7 +1,14 @@
 import type { createActions } from "$lib/actions";
-import type { CoverLetter } from "$lib/api/types";
+import { API } from "$lib/api/client";
+import type { ChatMessage, CoverLetter } from "$lib/api/types";
 import { m } from "$lib/paraglide/messages";
+import {
+	applicationQueryKey,
+	chatMessagesQueryKey,
+	coverLettersHistoryQueryKey,
+} from "$lib/queries/applications";
 import type { LetterReviewStore } from "$lib/stores/letter_review.svelte";
+import type { QueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
 import type {
 	LetterReviewSheetViewModel,
@@ -15,6 +22,7 @@ function errMsg(e: unknown): string {
 }
 
 export function createLetterReviewSheetView(
+	queryClient: QueryClient,
 	actions: Actions,
 	store: LetterReviewStore,
 	vm: LetterReviewSheetViewModel,
@@ -124,6 +132,83 @@ export function createLetterReviewSheetView(
 		vm.tab = tab;
 	}
 
+	/**
+	 * Append the finished conversation turn straight into the chat query cache
+	 * so the bubbles never flicker between clearing the optimistic in-flight
+	 * pair and a refetch landing. Temporary client ids are fine for the
+	 * session; the real persisted transcript is loaded on the next sheet open.
+	 */
+	function appendChatTurn(
+		vacancyId: number,
+		userText: string,
+		assistantText: string,
+		producedVersion: number | null,
+	) {
+		const now = new Date().toISOString();
+		const base = Date.now();
+		const turn: ChatMessage[] = [
+			{
+				id: base,
+				role: "user",
+				content: userText,
+				produced_version: null,
+				created_at: now,
+			},
+			{
+				id: base + 1,
+				role: "assistant",
+				content: assistantText,
+				produced_version: producedVersion,
+				created_at: now,
+			},
+		];
+		queryClient.setQueryData<ChatMessage[]>(
+			chatMessagesQueryKey(vacancyId),
+			(old) => [...(old ?? []), ...turn],
+		);
+	}
+
+	async function sendChat() {
+		const id = store.vacancyId;
+		if (id === null) return;
+		const message = vm.chat.input.trim();
+		if (message === "" || vm.chat.isStreaming) return;
+
+		vm.chat.begin(message);
+		let letterStarted = false;
+		try {
+			for await (const event of API.application.chat.stream(id, message)) {
+				if (event.type === "reply") {
+					vm.chat.appendReply(event.delta);
+				} else if (event.type === "letter") {
+					// The model streams the FULL revised letter, so reset the
+					// editor buffer on the first delta, then append.
+					if (!letterStarted) {
+						vm.cover_letter.streamReset();
+						letterStarted = true;
+					}
+					vm.cover_letter.streamAppend(event.delta);
+				} else if (event.type === "done") {
+					appendChatTurn(id, message, vm.chat.streamingReply, event.version);
+					// Pull the canonical letter/version + history; the editor
+					// buffer-sync effect re-seeds from the new latest_letter.
+					queryClient.invalidateQueries({
+						queryKey: applicationQueryKey(id),
+					});
+					queryClient.invalidateQueries({
+						queryKey: coverLettersHistoryQueryKey(id),
+					});
+				} else if (event.type === "error") {
+					toast.error(event.detail);
+				}
+			}
+		} catch (e) {
+			toast.error(`Не удалось выполнить правку: ${errMsg(e)}`);
+		} finally {
+			vm.chat.reset();
+		}
+	}
+
 	return {
 		generate,
 		save,
@@ -137,6 +222,7 @@ export function createLetterReviewSheetView(
 		setTab,
 		undo,
 		redo,
+		sendChat,
 		errMsg,
 	};
 }

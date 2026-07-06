@@ -146,6 +146,18 @@ class SubmitApplicationRequestAPISchema(BaseModel):
     text: Optional[str] = None
 
 
+class ChatMessageAPISchema(BaseModel):
+    id: int
+    role: str
+    content: str
+    produced_version: Optional[int] = None
+    created_at: datetime
+
+
+class LetterChatRequestAPISchema(BaseModel):
+    message: str
+
+
 class RateLimitsAPISchema(BaseModel):
     daily_limit: int = 30
     hourly_limit: int = 5

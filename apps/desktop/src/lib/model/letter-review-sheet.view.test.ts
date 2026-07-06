@@ -40,6 +40,11 @@ function makeActions() {
 	return { letter: { review: mutations } } as any;
 }
 
+function makeQueryClient() {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return { invalidateQueries: vi.fn(), setQueryData: vi.fn() } as any;
+}
+
 interface CoverLetterVM {
 	localText: string;
 	isDirty: boolean;
@@ -88,6 +93,7 @@ describe("view.close — regression: no auto-save", () => {
 		});
 		store.open(1);
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			actions,
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,6 +107,7 @@ describe("view.close — regression: no auto-save", () => {
 
 	it("closes the store synchronously — no pending network call to await", async () => {
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			makeActions(),
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -118,6 +125,7 @@ describe("view.submit — dirty text is forwarded (atomic dirty-submit)", () => 
 		const vm = makeVM({ localText: "final draft", isDirty: true });
 		store.open(9);
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			actions,
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -135,6 +143,7 @@ describe("view.submit — dirty text is forwarded (atomic dirty-submit)", () => 
 		const actions = makeActions();
 		store.open(9);
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			actions,
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,6 +175,7 @@ describe("view.submit — 409 from paused worker is surfaced, not swallowed", ()
 		const vm = makeVM({ localText: "final", isDirty: true });
 		store.open(9);
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			actions,
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,6 +206,7 @@ describe("view.confirmRestore — routes through setText for undo history", () =
 		});
 		store.open(1);
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			makeActions(),
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -211,6 +222,7 @@ describe("view.confirmRestore — routes through setText for undo history", () =
 	it("is a no-op when there is no restore candidate", () => {
 		const vm = makeVM({ restoreCandidate: null });
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			makeActions(),
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,6 +238,7 @@ describe("view.undo / view.redo — delegate to viewmodel", () => {
 	it("undo() calls cover_letter.undo()", () => {
 		const vm = makeVM();
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			makeActions(),
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -238,6 +251,7 @@ describe("view.undo / view.redo — delegate to viewmodel", () => {
 	it("redo() calls cover_letter.redo()", () => {
 		const vm = makeVM();
 		const view = createLetterReviewSheetView(
+			makeQueryClient(),
 			makeActions(),
 			store,
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -13,11 +13,13 @@ import type { Tab } from "$lib/model/letter-review-sheet.viewmodel.svelte";
 import { m } from "$lib/paraglide/messages";
 import {
 	createApplicationQuery,
+	createChatMessagesQuery,
 	createCoverLettersHistoryQuery,
 } from "$lib/queries/applications";
 import { store } from "$lib/stores";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Save from "@lucide/svelte/icons/save";
+import Send from "@lucide/svelte/icons/send";
 import { useQueryClient } from "@tanstack/svelte-query";
 import {
 	SHEET_WIDTH_DEFAULT,
@@ -35,14 +37,23 @@ const applicationStatus = createApplicationQuery(
 const coverLettersHistory = createCoverLettersHistoryQuery(
 	() => store.letter.review.vacancyId,
 );
+const chatMessages = createChatMessagesQuery(
+	() => store.letter.review.vacancyId,
+);
 
 const model = lifecycle.letter.review.viewmodel(
 	queryClient,
 	store.letter.review,
 	applicationStatus,
 	coverLettersHistory,
+	chatMessages,
 );
-const view = lifecycle.letter.review.view(actions, store.letter.review, model);
+const view = lifecycle.letter.review.view(
+	queryClient,
+	actions,
+	store.letter.review,
+	model,
+);
 
 // Sync the editor buffer from the ApplicationDetail.latest_letter that
 // the server returns on GET /vacancies/{id}/application (one hit instead
@@ -59,6 +70,10 @@ $effect(() => {
 		model.tab = "letter";
 		return;
 	}
+	// Don't reseed mid-stream: a chat turn writes the revised letter into the
+	// buffer live, and only invalidates the application query on `done`. The
+	// follow-up refetch then reseeds from the new version (idempotent).
+	if (model.chat.isStreaming) return;
 	if (latest && latest.version !== model.cover_letter.lastSyncedVersion) {
 		model.cover_letter.setText(latest.text, { pushHistory: false });
 		model.cover_letter.clearHistory();
@@ -85,6 +100,16 @@ function handleTextareaKeydown(event: KeyboardEvent) {
 		if (model.cover_letter.canUndo) {
 			event.preventDefault();
 			view.undo();
+		}
+	}
+}
+
+// Enter sends the chat message; Shift+Enter inserts a newline.
+function handleChatKeydown(event: KeyboardEvent) {
+	if (event.key === "Enter" && !event.shiftKey) {
+		event.preventDefault();
+		if (model.chat.canChat && model.chat.input.trim() !== "") {
+			view.sendChat();
 		}
 	}
 }
@@ -139,6 +164,59 @@ function onResizePointerDown(event: PointerEvent) {
 		// (~60 Hz) — a synchronous localStorage.setItem per frame
 		// dropped drag FPS well below the display refresh rate.
 		persistSheetWidth(width);
+	}
+
+	target.addEventListener("pointermove", onMove);
+	target.addEventListener("pointerup", onUp);
+	target.addEventListener("pointercancel", onUp);
+}
+
+// Vertical split between the letter editor and the AI chat panel. The letter
+// gets an explicit height (draggable); the chat fills whatever is left but
+// keeps a min-height, so a tall letter can never squeeze the chat to 0px
+// (reported bug). `letterHeight` is the raw dragged value; `letterPaneHeight`
+// clamps it against the live container height so both panes stay usable.
+const LETTER_MIN_HEIGHT = 120;
+const CHAT_MIN_HEIGHT = 160;
+// Height taken by the status line, toolbar, resize handle and gaps that sit
+// between the two panes — reserved so the clamp leaves room for them.
+const SPLIT_CHROME = 96;
+let letterHeight = $state(260);
+// biome-ignore lint/style/useConst: reassigned by bind:clientHeight below
+let editorAreaHeight = $state(0);
+let isChatResizing = $state(false);
+
+function clampLetterHeight(raw: number): number {
+	const max = Math.max(
+		LETTER_MIN_HEIGHT,
+		editorAreaHeight - CHAT_MIN_HEIGHT - SPLIT_CHROME,
+	);
+	return Math.round(Math.min(max, Math.max(LETTER_MIN_HEIGHT, raw)));
+}
+
+const letterPaneHeight = $derived(clampLetterHeight(letterHeight));
+
+function onChatResizePointerDown(event: PointerEvent) {
+	if (event.button !== 0) return;
+	event.preventDefault();
+	const target = event.currentTarget as HTMLElement;
+	target.setPointerCapture(event.pointerId);
+	const startY = event.clientY;
+	const startHeight = letterPaneHeight;
+	isChatResizing = true;
+
+	function onMove(moveEvent: PointerEvent) {
+		letterHeight = clampLetterHeight(
+			startHeight + (moveEvent.clientY - startY),
+		);
+	}
+
+	function onUp(upEvent: PointerEvent) {
+		target.releasePointerCapture(upEvent.pointerId);
+		target.removeEventListener("pointermove", onMove);
+		target.removeEventListener("pointerup", onUp);
+		target.removeEventListener("pointercancel", onUp);
+		isChatResizing = false;
 	}
 
 	target.addEventListener("pointermove", onMove);
@@ -217,7 +295,7 @@ function onResizePointerDown(event: PointerEvent) {
 
             <Tabs.Content
                 value="letter"
-                class="m-0 min-h-0 flex-1 overflow-y-auto"
+                class="m-0 flex min-h-0 flex-1 flex-col overflow-y-auto"
             >
                 {#if model.review.isLoading}
                     <div class="space-y-3 p-6">
@@ -259,7 +337,10 @@ function onResizePointerDown(event: PointerEvent) {
                         </p>
                     </div>
                 {:else}
-                    <div class="space-y-3 p-6">
+                    <div
+                        class="flex min-h-0 flex-1 flex-col gap-3 p-6"
+                        bind:clientHeight={editorAreaHeight}
+                    >
                         {#if model.review.isSubmitting}
                             <p
                                 class="flex items-center gap-2 text-sm text-muted-foreground"
@@ -294,18 +375,40 @@ function onResizePointerDown(event: PointerEvent) {
                             </div>
                         {/if}
 
-                        <Textarea
-                            value={model.cover_letter.localText}
-                            oninput={(e) =>
-                                model.cover_letter.setText(
-                                    (e.currentTarget as HTMLTextAreaElement).value,
-                                )}
-                            onkeydown={handleTextareaKeydown}
-                            readonly={model.cover_letter.isReadOnly}
-                            rows={14}
-                            placeholder={m.review_textarea_placeholder()}
-                            class={model.cover_letter.isReadOnly ? "opacity-70" : ""}
-                        />
+                        <!--
+                            Letter editor pane. When the chat is present it has
+                            an explicit, drag-resizable height (`letterPaneHeight`)
+                            and does not grow, so the chat below keeps its
+                            min-height. When there's no chat (sent / skipped) it
+                            just fills the area.
+                        -->
+                        <div
+                            class="flex min-h-0 flex-col {model.review
+                                .canRegenerate
+                                ? 'shrink-0'
+                                : 'flex-1'}"
+                            style={model.review.canRegenerate
+                                ? `height: ${letterPaneHeight}px`
+                                : ""}
+                        >
+                            <Textarea
+                                value={model.cover_letter.localText}
+                                oninput={(e) =>
+                                    model.cover_letter.setText(
+                                        (e.currentTarget as HTMLTextAreaElement)
+                                            .value,
+                                    )}
+                                onkeydown={handleTextareaKeydown}
+                                readonly={model.cover_letter.isReadOnly ||
+                                    model.chat.isStreaming}
+                                placeholder={m.review_textarea_placeholder()}
+                                class="h-full min-h-0 resize-none {model
+                                    .cover_letter.isReadOnly ||
+                                model.chat.isStreaming
+                                    ? 'opacity-70'
+                                    : ''}"
+                            />
+                        </div>
 
                         <!--
                             Textarea toolbar: dirty/clean hint on the left,
@@ -352,6 +455,101 @@ function onResizePointerDown(event: PointerEvent) {
                                 {/if}
                             </div>
                         </div>
+
+                        <!--
+                            AI chat panel: talk to the model to refine the
+                            letter. An instruction ("сделай формальнее")
+                            streams the revised letter into the editor above and
+                            lands a new version; a question just gets an answer.
+                            Lives here (letter tab) because it acts on letter
+                            content, like Regenerate / Save.
+                        -->
+                        {#if model.review.canRegenerate}
+                            <!--
+                                Drag handle: resizes the letter/chat vertical
+                                split. cursor-row-resize; the clamp keeps both
+                                panes above their min-heights.
+                            -->
+                            <div
+                                class="group -my-1 flex h-3 shrink-0 cursor-row-resize items-center justify-center"
+                                role="separator"
+                                aria-orientation="horizontal"
+                                aria-label="Изменить высоту чата"
+                                onpointerdown={onChatResizePointerDown}
+                            >
+                                <div
+                                    class="h-1 w-10 rounded-full transition-colors {isChatResizing
+                                        ? 'bg-foreground/40'
+                                        : 'bg-border group-hover:bg-foreground/30'}"
+                                ></div>
+                            </div>
+                            <div
+                                class="flex min-h-[160px] flex-1 flex-col gap-2"
+                            >
+                                <div
+                                    class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"
+                                >
+                                    {#each model.chat.messages as msg (msg.id)}
+                                            <div
+                                                class="flex {msg.role ===
+                                                'user'
+                                                    ? 'justify-end'
+                                                    : 'justify-start'}"
+                                            >
+                                                <div
+                                                    class="max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm {msg.role ===
+                                                    'user'
+                                                        ? 'bg-primary/10'
+                                                        : 'bg-muted'}"
+                                                >
+                                                    {msg.content}
+                                                </div>
+                                            </div>
+                                        {/each}
+                                        {#if model.chat.pendingUser !== null}
+                                            <div class="flex justify-end">
+                                                <div
+                                                    class="max-w-[85%] whitespace-pre-wrap rounded-lg bg-primary/10 px-3 py-2 text-sm"
+                                                >
+                                                    {model.chat.pendingUser}
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-start">
+                                                <div
+                                                    class="max-w-[85%] whitespace-pre-wrap rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground"
+                                                >
+                                                    {model.chat.streamingReply ||
+                                                        "…"}
+                                                </div>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                <div class="flex items-end gap-2">
+                                    <Textarea
+                                        value={model.chat.input}
+                                        oninput={(e) => {
+                                            model.chat.input = (
+                                                e.currentTarget as HTMLTextAreaElement
+                                            ).value;
+                                        }}
+                                        onkeydown={handleChatKeydown}
+                                        disabled={model.chat.isStreaming}
+                                        rows={2}
+                                        placeholder="Попросите AI поправить письмо…"
+                                        class="min-h-0 resize-none"
+                                    />
+                                    <Button
+                                        size="icon"
+                                        onclick={view.sendChat}
+                                        disabled={!model.chat.canChat ||
+                                            model.chat.input.trim() === ""}
+                                        aria-label="Отправить сообщение AI"
+                                    >
+                                        <Send />
+                                    </Button>
+                                </div>
+                            </div>
+                        {/if}
                     </div>
                 {/if}
             </Tabs.Content>

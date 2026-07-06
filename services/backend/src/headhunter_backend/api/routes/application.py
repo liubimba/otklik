@@ -1,23 +1,30 @@
-from typing import Sequence
+import json
+from typing import AsyncIterator, Sequence
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from statemachine.exceptions import TransitionNotAllowed
 
 from headhunter_backend.api.dependencies import (
+    LetterChatServiceDep,
     OrchestratorDep,
     SessionDep,
     StateServiceDep,
 )
 from headhunter_backend.api.schemas import (
     ApplicationDetailAPISchema,
+    ChatMessageAPISchema,
     CoverLetterAPISchema,
     CoverLetterRequestAPISchema,
+    LetterChatRequestAPISchema,
     ProcessingState,
     SubmitApplicationRequestAPISchema,
 )
+from headhunter_backend.core.exceptions import DomainError
 from headhunter_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from headhunter_backend.db.repositories.applications import ApplicationRepository
+from headhunter_backend.db.repositories.chat_messages import ChatMessageRepository
 from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
 from headhunter_backend.log import get_logger
@@ -163,7 +170,10 @@ async def save(
             status_code=409, detail="Application does not exist for this vacancy"
         )
     created = await CoverLetterRepository.create(
-        session=session, application_id=application.id, text=letter.text
+        session=session,
+        application_id=application.id,
+        text=letter.text,
+        source="manual",
     )
     return CoverLetterAPISchema(
         text=created.text, version=created.version, created_at=created.created_at
@@ -205,7 +215,10 @@ async def submit(
         )
     if body.text is not None:
         await CoverLetterRepository.create(
-            session=session, application_id=application.id, text=body.text
+            session=session,
+            application_id=application.id,
+            text=body.text,
+            source="manual",
         )
     try:
         application = await state_service.transition(
@@ -261,3 +274,62 @@ async def retry(
     except TransitionNotAllowed as e:
         raise HTTPException(status_code=409, detail=f"Cannot retry: {e}")
     return await _build_detail(session=session, application=application)
+
+
+@application_router.get("/chat")
+async def chat_history(
+    vacancy_id: int, session: SessionDep
+) -> Sequence[ChatMessageAPISchema]:
+    """The persisted letter-editing conversation for this application."""
+    await _load_or_404(session, vacancy_id)
+    application = await ApplicationRepository.get_by_vacancy_id(
+        session=session, vacancy_id=vacancy_id
+    )
+    if application is None:
+        return []
+    messages = await ChatMessageRepository.list_by_application_id(
+        session=session, application_id=application.id
+    )
+    return [
+        ChatMessageAPISchema(
+            id=m.id,
+            role=m.role,
+            content=m.content,
+            produced_version=m.produced_version,
+            created_at=m.created_at,
+        )
+        for m in messages
+    ]
+
+
+@application_router.post("/chat")
+async def chat(
+    vacancy_id: int,
+    body: LetterChatRequestAPISchema,
+    chat_service: LetterChatServiceDep,
+) -> StreamingResponse:
+    """Stream one letter-editing turn as SSE.
+
+    Emits `reply`/`letter` delta events, then a `done` event carrying the new
+    letter version (or null for a pure answer). Because the response has
+    already committed 200 once streaming starts, domain errors (not editable,
+    AI unhealthy, …) are delivered in-band as an `error` event rather than an
+    HTTP status.
+    """
+
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            async for event in chat_service.stream_turn(vacancy_id, body.message):
+                yield f"data: {json.dumps(event)}\n\n"
+        except DomainError as exc:
+            log.warning("Letter chat rejected", detail=exc.detail)
+            yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
+        except Exception as exc:  # noqa: BLE001 — surface any failure to the UI
+            log.error("Letter chat failed", error=str(exc))
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Chat failed'})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

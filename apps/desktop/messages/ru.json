@@ -26,6 +26,13 @@
 		}
 	],
 	"queue_card_open_external": "Открыть на hh.ru",
+	"card_status_letter_pending": "Генерация письма…",
+	"card_status_letter_ready": "Готов к отклику",
+	"card_status_letter_reviewing": "На проверке",
+	"card_status_letter_sending": "Отправка…",
+	"card_status_letter_sent": "Отправлено",
+	"card_status_error": "Ошибка",
+	"card_status_skipped": "Пропущено",
 	"status_pending": "ожидание",
 	"status_running": "идёт",
 	"status_canceled": "отменён",

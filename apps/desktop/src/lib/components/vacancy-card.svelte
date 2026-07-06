@@ -1,6 +1,8 @@
 <script lang="ts">
-import type { Vacancy } from "$lib/api/types";
+import type { ProcessingState, Vacancy } from "$lib/api/types";
+import { Badge } from "$lib/components/ui/badge";
 import * as m from "$lib/paraglide/messages";
+import { createApplicationQuery } from "$lib/queries/applications";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 
 interface Props {
@@ -9,6 +11,39 @@ interface Props {
 }
 
 const { vacancy, onclick }: Props = $props();
+
+// Per-card application status. Shares the ["application", vacancyId] cache key
+// with the letter-review-sheet and is invalidated by the same WS
+// `application_event`, so the badge stays live without extra wiring.
+const application = createApplicationQuery(() => vacancy.id);
+
+type StatusBadge = {
+	label: string;
+	variant: "default" | "secondary" | "destructive" | "ghost";
+};
+
+const statusBadge = $derived.by((): StatusBadge | null => {
+	const status: ProcessingState | undefined = application.data?.status;
+	switch (status) {
+		case "letter_pending":
+			return { label: m.card_status_letter_pending(), variant: "secondary" };
+		case "letter_ready":
+			return { label: m.card_status_letter_ready(), variant: "default" };
+		case "letter_reviewing":
+			return { label: m.card_status_letter_reviewing(), variant: "secondary" };
+		case "letter_sending":
+			return { label: m.card_status_letter_sending(), variant: "secondary" };
+		case "letter_sent":
+			return { label: m.card_status_letter_sent(), variant: "default" };
+		case "error":
+			return { label: m.card_status_error(), variant: "destructive" };
+		case "skipped":
+			return { label: m.card_status_skipped(), variant: "ghost" };
+		default:
+			// "parsed" or no application yet — a fresh vacancy, no badge.
+			return null;
+	}
+});
 
 function handleClick() {
 	onclick?.(vacancy);
@@ -51,14 +86,26 @@ function handleKeydown(e: KeyboardEvent) {
 			<p class="text-muted-foreground text-sm">{vacancy.work_location}</p>
 		{/if}
 	</div>
-	<a
-		href={vacancy.apply_link}
-		target="_blank"
-		rel="noopener noreferrer"
-		onclick={(e) => e.stopPropagation()}
-		aria-label={m.queue_card_open_external()}
-		class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 -m-1 rounded p-1 focus-visible:outline-none focus-visible:ring-2"
+	<!--
+		Right rail: external-link icon pinned to the top, status badge pinned to
+		the bottom of the card (self-stretch makes the rail as tall as the card,
+		justify-between pushes them apart).
+	-->
+	<div
+		class="flex shrink-0 flex-col items-end justify-between gap-2 self-stretch"
 	>
-		<ExternalLink class="size-4" />
-	</a>
+		<a
+			href={vacancy.apply_link}
+			target="_blank"
+			rel="noopener noreferrer"
+			onclick={(e) => e.stopPropagation()}
+			aria-label={m.queue_card_open_external()}
+			class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 -m-1 rounded p-1 focus-visible:outline-none focus-visible:ring-2"
+		>
+			<ExternalLink class="size-4" />
+		</a>
+		{#if statusBadge}
+			<Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+		{/if}
+	</div>
 </div>

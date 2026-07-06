@@ -2,6 +2,14 @@ import type { Vacancy } from "$lib/api/types";
 import { render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+
+// The card now reads its application status via createApplicationQuery, which
+// needs a QueryClient context. This suite is about rendering vacancy fields,
+// so stub the query — no status → no badge.
+vi.mock("$lib/queries/applications", () => ({
+	createApplicationQuery: () => ({ data: undefined }),
+}));
+
 import VacancyCard from "./vacancy-card.svelte";
 
 function vacancy(overrides: Partial<Vacancy> = {}): Vacancy {

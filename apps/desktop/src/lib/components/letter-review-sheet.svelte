@@ -17,6 +17,7 @@ import {
 	createCoverLettersHistoryQuery,
 } from "$lib/queries/applications";
 import { store } from "$lib/stores";
+import ExternalLink from "@lucide/svelte/icons/external-link";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Save from "@lucide/svelte/icons/save";
 import Send from "@lucide/svelte/icons/send";
@@ -254,10 +255,25 @@ function onChatResizePointerDown(event: PointerEvent) {
             onpointerdown={onResizePointerDown}
         ></div>
         <Sheet.Header class="border-b border-border px-6 py-4">
-            <Sheet.Title class="truncate pr-8 text-base">
-                {model.review.vacancy?.title ??
-                    `#${store.letter.review.vacancyId ?? ""}`}
-            </Sheet.Title>
+            <div class="flex items-center gap-2 pr-8">
+                <Sheet.Title class="min-w-0 flex-1 truncate text-base">
+                    {model.review.vacancy?.title ??
+                        `#${store.letter.review.vacancyId ?? ""}`}
+                </Sheet.Title>
+                {#if model.review.vacancy?.apply_link}
+                    <!-- Open the vacancy on hh.ru in the external browser,
+                         mirroring the queue card's ExternalLink action. -->
+                    <a
+                        href={model.review.vacancy.apply_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={m.queue_card_open_external()}
+                        class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 -m-1 shrink-0 rounded p-1 focus-visible:outline-none focus-visible:ring-2"
+                    >
+                        <ExternalLink class="size-4" />
+                    </a>
+                {/if}
+            </div>
             <Sheet.Description class="truncate text-sm text-muted-foreground">
                 {#if model.review.vacancy}
                     {model.review.vacancy.company_name ?? ""}{#if model.review.vacancy.salary}

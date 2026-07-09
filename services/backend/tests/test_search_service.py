@@ -15,7 +15,8 @@ from headhunter_backend.api.schemas import (
     SearchStatusAPISchema,
     VacancyAPISchema,
 )
-from headhunter_backend.db.models import VacancyORM
+from headhunter_backend.browser.exceptions import BrowserNetworkError
+from headhunter_backend.db.models import SearchHistoryORM, VacancyORM
 from headhunter_backend.core.events import SearchWSEvent, VacancyWSEvent
 
 from tests.conftest import RecordingBroadcaster, wait_until
@@ -49,6 +50,18 @@ class FakeBrowserCore:
         page = FakeBrowserPage(url)
         self.pages.append(page)
         return page
+
+
+class UnreachableBrowserCore:
+    """`new_page` always fails — what BrowserCore raises once Chromium has burned
+    through its retries (e.g. net::ERR_NETWORK_CHANGED on every attempt)."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def new_page(self, url: str) -> FakeBrowserPage:
+        self.calls += 1
+        raise BrowserNetworkError()
 
 
 class FakeParser:
@@ -282,6 +295,132 @@ async def test_get_search_task_unknown_returns_none(
         session_factory,
     )
     assert svc.find_search_task(search_id="does-not-exist") is None
+
+
+async def test_started_search_is_announced_before_any_vacancy_is_parsed(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The История tab refreshes off `search_event`. Publishing the first one
+    only from the parse loop hid brand-new runs until a vacancy showed up."""
+    svc = _make_service(
+        fake_browser_core, SlowParser(), recording_broadcaster, session_factory
+    )
+
+    search_task = await svc.open_search_session(request=_filter())
+
+    def announced() -> bool:
+        return any(isinstance(e, SearchWSEvent) for e in recording_broadcaster.events)
+
+    await wait_until(announced)
+
+    first = next(
+        e for e in recording_broadcaster.events if isinstance(e, SearchWSEvent)
+    )
+    assert first.data.search_id == search_task.id
+    assert first.data.status == SearchStatusAPISchema.RUNNING
+    assert first.data.parsed_vacancies == 0
+
+    await svc.shutdown()
+
+
+async def test_running_search_is_persisted_as_running(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The history row is inserted before the task is spawned, so the task's very
+    first status write always finds it — otherwise the run stays `pending` in the
+    DB until the first vacancy re-triggers the update."""
+    svc = _make_service(
+        fake_browser_core, SlowParser(), recording_broadcaster, session_factory
+    )
+
+    search_task = await svc.open_search_session(request=_filter())
+
+    async def row_is_running() -> bool:
+        async with session_factory() as session:
+            row = await session.get(SearchHistoryORM, search_task.id)
+            return row is not None and row.status == SearchStatusAPISchema.RUNNING
+
+    await wait_until(row_is_running)
+
+    await svc.shutdown()
+
+
+async def test_search_fails_cleanly_when_the_page_cannot_be_opened(
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A dead first navigation must terminate the run as FAILED — not leave the
+    task stranded in PENDING with the exception escaping the asyncio task."""
+    svc = _make_service(
+        UnreachableBrowserCore(),  # type: ignore[arg-type]
+        FakeParser([]),
+        recording_broadcaster,
+        session_factory,
+    )
+
+    search_task = await svc.open_search_session(request=_filter())
+    await search_task.task
+
+    assert search_task.state_machine.current_state_value == SearchStatusAPISchema.FAILED
+    assert not search_task.is_active
+
+    search_events = [
+        e for e in recording_broadcaster.events if isinstance(e, SearchWSEvent)
+    ]
+    assert search_events, "the UI must be told the search died"
+    assert search_events[-1].data.status == SearchStatusAPISchema.FAILED
+
+
+async def test_failed_search_is_persisted_with_its_error(
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The `searches` row is what the История tab renders — a failed run has to
+    land there as failed, finished, and with a reason."""
+    svc = _make_service(
+        UnreachableBrowserCore(),  # type: ignore[arg-type]
+        FakeParser([]),
+        recording_broadcaster,
+        session_factory,
+    )
+
+    search_task = await svc.open_search_session(request=_filter())
+    await search_task.task
+
+    async with session_factory() as session:
+        row = await session.get(SearchHistoryORM, search_task.id)
+
+    assert row is not None
+    assert row.status == SearchStatusAPISchema.FAILED
+    assert row.finished_at is not None
+    assert row.error and "network" in row.error.lower()
+
+
+async def test_failed_search_does_not_block_the_next_one(
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The bug behind «Запустить заново»: after one failed navigation the stale
+    session stayed active forever, so every later start raised 409."""
+    svc = _make_service(
+        UnreachableBrowserCore(),  # type: ignore[arg-type]
+        FakeParser([]),
+        recording_broadcaster,
+        session_factory,
+    )
+
+    first = await svc.open_search_session(request=_filter())
+    await first.task
+
+    assert svc.get_current_search_task() is None
+
+    second = await svc.open_search_session(request=_filter())
+    await second.task
+    assert second.id != first.id
 
 
 async def test_shutdown_cancels_running_tasks(

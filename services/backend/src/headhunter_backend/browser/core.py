@@ -114,18 +114,18 @@ class BrowserCore:
             except Exception as e:
                 if page is not None:
                     await page.close()
-                if isinstance(e, Error):
-                    self.logger.error(
-                        "Failed to open page", url=url, attempt=attempt, error=str(e)
-                    )
-                else:
+                # Only Playwright's own Error is transient (ERR_NETWORK_CHANGED,
+                # ERR_CONNECTION_RESET, …). Anything else is a real bug — let it
+                # surface instead of burning retries on it.
+                if not isinstance(e, Error):
                     raise
-                if attempt < MAX_ATTEMPTS - 1:
-                    self.logger.info(
-                        "Sleep before next retry", url=url, delay=RETRY_DELAY
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
+                self.logger.error(
+                    "Failed to open page", url=url, attempt=attempt, error=str(e)
+                )
+                if attempt == MAX_ATTEMPTS - 1:
                     raise BrowserNetworkError() from e
+                self.logger.info("Sleep before next retry", url=url, delay=RETRY_DELAY)
+                await asyncio.sleep(RETRY_DELAY)
         raise RuntimeError("Unreachable")
 
     async def cookies(self, base_url: str) -> list[Cookie]:

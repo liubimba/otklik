@@ -15,6 +15,7 @@ from headhunter_backend.api.schemas import SearchStatusAPISchema
 from headhunter_backend.browser.core import BrowserCore
 from headhunter_backend.browser.page import BrowserPage
 from headhunter_backend.core.events import SearchData, SearchWSEvent, VacancyWSEvent
+from headhunter_backend.core.exceptions import DomainError
 from headhunter_backend.core.site import SiteParser
 from headhunter_backend.db.converters import vacancy_to_schema
 from headhunter_backend.db.models import VacancyORM
@@ -103,10 +104,9 @@ class SearchSession:
         if self._search_task is not None:
             raise SearchAlreadyRunningError()
 
-        asyncio_task: asyncio.Task[None] = asyncio.create_task(self._run(url=url))
-        search_task = SearchSessionTask(id=self._id, task=asyncio_task)
-        self._search_task = search_task
-
+        # Insert before spawning the task: _run()'s first act is to write RUNNING
+        # onto this row, and SearchHistoryRepository.update() silently no-ops on a
+        # missing row. Racing the INSERT left the run stuck at `pending` in the DB.
         async with self._session_maker() as session:
             self._log.info("Inserting search history into database")
             await SearchHistoryRepository.create(
@@ -115,8 +115,12 @@ class SearchSession:
                 url=url,
                 max_pages=self._max_pages,
                 max_vacancies=self._max_vacancies,
-                search_status=search_task.state_machine.current_state_value,
+                search_status=SearchStatusAPISchema.PENDING,
             )
+
+        asyncio_task: asyncio.Task[None] = asyncio.create_task(self._run(url=url))
+        search_task = SearchSessionTask(id=self._id, task=asyncio_task)
+        self._search_task = search_task
 
         return search_task
 
@@ -180,20 +184,32 @@ class SearchSession:
             max_pages=self._max_pages,
             max_vacancies=self._max_vacancies,
         )
-        search_page: BrowserPage = await self._core.new_page(url=url)
+        # RUNNING before the first navigation: opening the page can already fail,
+        # and `failed`/`canceled` are only reachable from RUNNING. Leaving the
+        # transition until after new_page() stranded a dead search in PENDING —
+        # forever `is_active`, so every later start hit SearchAlreadyRunningError.
         task.state_machine.send(SearchStateEvent.RUN.value)
+        search_page: BrowserPage | None = None
+        error: str | None = None
 
         try:
             await self._update_search_history(task)
+            # Announce the run immediately. Clients (the История tab) refresh off
+            # search_event; without this they only learn a run exists once the
+            # parse loop emits its first vacancy.
+            await self._publish_search_event(task)
+            search_page = await self._core.new_page(url=url)
             await self._search_loop(task, search_page)
         except asyncio.CancelledError as exc:
             self._log.info("Search cancelled", search_id=self._id, reason=str(exc))
             task.state_machine.send(SearchStateEvent.CANCELED.value)
-        except Exception:
+        except Exception as exc:
             self._log.exception("Error during search", search_id=self._id)
+            error = self._describe(exc)
             task.state_machine.send(SearchStateEvent.FAILED.value)
         finally:
-            await search_page.close()
+            if search_page is not None:
+                await search_page.close()
 
         if task.is_active:
             task.state_machine.send(SearchStateEvent.FINISHED.value)
@@ -204,8 +220,16 @@ class SearchSession:
             parsed_pages=task.parsed_pages,
             parsed_count=task.parsed_count,
         )
-        await self._update_search_history(task)
+        await self._update_search_history(task, error=error)
         await self._publish_search_event(task)
+
+    @staticmethod
+    def _describe(exc: Exception) -> str:
+        """A message fit for the История tab: domain errors carry a human-readable
+        `detail`, everything else falls back to its own text."""
+        if isinstance(exc, DomainError):
+            return exc.detail
+        return str(exc) or exc.__class__.__name__
 
     async def _search_loop(
         self, task: SearchSessionTask, search_page: BrowserPage
@@ -285,7 +309,9 @@ class SearchSession:
             )
         )
 
-    async def _update_search_history(self, task: SearchSessionTask) -> None:
+    async def _update_search_history(
+        self, task: SearchSessionTask, error: str | None = None
+    ) -> None:
         async with self._session_maker() as session:
             if task.state_machine.current_state_value == SearchStatusAPISchema.RUNNING:
                 await SearchHistoryRepository.update(
@@ -301,4 +327,5 @@ class SearchSession:
                     search_id=task.id,
                     status=task.state_machine.current_state_value,
                     finished_at=datetime.now(),
+                    error=error,
                 )

@@ -19,7 +19,7 @@ from headhunter_backend.api.routes import (
 from headhunter_backend.api.schemas import SearchStatusAPISchema
 from headhunter_backend.core.builder import BackendBuilder
 from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
-from headhunter_backend.db.session import apply_sqlite_pragmas, engine, session_maker
+from headhunter_backend.db.session import session_maker
 from headhunter_backend.log import configure_logging, get_logger
 
 logger = get_logger(__name__)
@@ -49,7 +49,6 @@ async def lifespan(app: FastAPI) -> Any:
                 )
     logger.info("Recovery complete")
 
-    apply_sqlite_pragmas(target_engine=engine)
     await ctx.browser.start()
 
     tasks = [asyncio.create_task(r.run()) for r in ctx.runnables()]

@@ -71,6 +71,19 @@ function respondWithSequence(...responses: Response[]): void {
 	}
 }
 
+/**
+ * Split a recorded request URL into its path and parsed query string.
+ *
+ * Not `new URL(...)`: the client interpolates VITE_BACKEND_IP/PORT, which come
+ * from a gitignored .env. Without it the host reads `undefined:undefined`, and
+ * a non-numeric port makes the URL parser throw — green locally, red on CI.
+ * The host is irrelevant to these assertions anyway.
+ */
+function splitUrl(url: string): [string, URLSearchParams] {
+	const [path, query = ""] = url.split("?");
+	return [path, new URLSearchParams(query)];
+}
+
 function bodyOf(call: RecordedCall): unknown {
 	const raw = call.init?.body;
 	if (raw == null) return undefined;
@@ -283,29 +296,29 @@ describe("Vacancies + settings + filter endpoints", () => {
 		respondWith(jsonResponse({ items: [], total: 0 }));
 		await API.vacancies.listAll({ statuses: ["none", "error"], limit: 10 });
 
-		const url = new URL(calls[0].url);
-		expect(url.pathname).toMatch(/\/vacancies\/all$/);
-		expect(url.searchParams.getAll("status")).toEqual(["none", "error"]);
-		expect(url.searchParams.get("limit")).toBe("10");
+		const [path, query] = splitUrl(calls[0].url);
+		expect(path).toMatch(/\/vacancies\/all$/);
+		expect(query.getAll("status")).toEqual(["none", "error"]);
+		expect(query.get("limit")).toBe("10");
 	});
 
 	it("listAll omits undefined params entirely", async () => {
 		respondWith(jsonResponse({ items: [], total: 0 }));
 		await API.vacancies.listAll({ statuses: undefined, limit: 25 });
 
-		const url = new URL(calls[0].url);
-		expect(url.searchParams.has("status")).toBe(false);
-		expect(url.searchParams.has("offset")).toBe(false);
-		expect(url.searchParams.has("q")).toBe(false);
-		expect(url.searchParams.get("limit")).toBe("25");
+		const [, query] = splitUrl(calls[0].url);
+		expect(query.has("status")).toBe(false);
+		expect(query.has("offset")).toBe(false);
+		expect(query.has("q")).toBe(false);
+		expect(query.get("limit")).toBe("25");
 	});
 
 	it("listAll sends the search text as `q`, encoded", async () => {
 		respondWith(jsonResponse({ items: [], total: 0 }));
 		await API.vacancies.listAll({ search: "python разработчик" });
 
-		const url = new URL(calls[0].url);
-		expect(url.searchParams.get("q")).toBe("python разработчик");
+		const [, query] = splitUrl(calls[0].url);
+		expect(query.get("q")).toBe("python разработчик");
 	});
 
 	it("GET /settings and PUT /settings — body forwarded verbatim", async () => {

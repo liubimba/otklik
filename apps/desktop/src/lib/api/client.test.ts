@@ -120,6 +120,14 @@ describe("API URL construction", () => {
 		expect(calls[2].init?.method).toBe("DELETE");
 	});
 
+	it("search history list hits GET /search/history", async () => {
+		respondWith(jsonResponse([]));
+		await API.search.history.list();
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/search\/history$/);
+		expect(calls[0].init?.method ?? "GET").toBe("GET");
+	});
+
 	it("application endpoints route through /vacancies/{id}/application/*", async () => {
 		respondWithSequence(
 			jsonResponse({}), // get
@@ -254,6 +262,50 @@ describe("Vacancies + settings + filter endpoints", () => {
 		expect(calls[0].url).toMatch(/\/api\/v1\/vacancies\/$/);
 		expect(calls[0].init?.method ?? "GET").toBe("GET");
 		expect(calls[1].url).toMatch(/\/api\/v1\/vacancies\/7$/);
+	});
+
+	it("listAll with no options hits /vacancies/all with no query string", async () => {
+		respondWith(jsonResponse({ items: [], total: 0 }));
+		await API.vacancies.listAll();
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/vacancies\/all$/);
+		expect(calls[0].init?.method ?? "GET").toBe("GET");
+	});
+
+	it("listAll serialises limit and offset", async () => {
+		respondWith(jsonResponse({ items: [], total: 0 }));
+		await API.vacancies.listAll({ limit: 50, offset: 100 });
+
+		expect(calls[0].url).toMatch(/\/vacancies\/all\?limit=50&offset=100$/);
+	});
+
+	it("listAll repeats the status key once per filter", async () => {
+		respondWith(jsonResponse({ items: [], total: 0 }));
+		await API.vacancies.listAll({ statuses: ["none", "error"], limit: 10 });
+
+		const url = new URL(calls[0].url);
+		expect(url.pathname).toMatch(/\/vacancies\/all$/);
+		expect(url.searchParams.getAll("status")).toEqual(["none", "error"]);
+		expect(url.searchParams.get("limit")).toBe("10");
+	});
+
+	it("listAll omits undefined params entirely", async () => {
+		respondWith(jsonResponse({ items: [], total: 0 }));
+		await API.vacancies.listAll({ statuses: undefined, limit: 25 });
+
+		const url = new URL(calls[0].url);
+		expect(url.searchParams.has("status")).toBe(false);
+		expect(url.searchParams.has("offset")).toBe(false);
+		expect(url.searchParams.has("q")).toBe(false);
+		expect(url.searchParams.get("limit")).toBe("25");
+	});
+
+	it("listAll sends the search text as `q`, encoded", async () => {
+		respondWith(jsonResponse({ items: [], total: 0 }));
+		await API.vacancies.listAll({ search: "python разработчик" });
+
+		const url = new URL(calls[0].url);
+		expect(url.searchParams.get("q")).toBe("python разработчик");
 	});
 
 	it("GET /settings and PUT /settings — body forwarded verbatim", async () => {

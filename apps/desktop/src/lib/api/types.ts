@@ -52,11 +52,51 @@ export type Vacancy = {
 	work_experience: string | null;
 };
 
+// Chip values accepted by GET /vacancies/all?status=. "none" is not a
+// ProcessingState — it selects the vacancies that draw no badge: those with no
+// application row at all, plus those still in `parsed`.
+export type VacancyStatusFilter =
+	| "none"
+	| "letter_pending"
+	| "letter_ready"
+	| "letter_reviewing"
+	| "letter_sending"
+	| "letter_sent"
+	| "error"
+	| "skipped";
+
+// A vacancy from the archive listing, with its application status joined in.
+// `status: null` means no application row exists yet.
+export type VacancyWithStatus = Vacancy & {
+	status: ProcessingState | null;
+};
+
+export type VacancyListPage = {
+	items: VacancyWithStatus[];
+	total: number;
+};
+
 export type SearchData = {
 	search_id: string;
 	parsed_vacancies: number;
 	parsed_pages: number;
 	status: SearchStatus;
+};
+
+// A persisted past search run (backend `SearchHistoryAPISchema`). Carries the
+// confirmed filter `url` plus the limits, which is everything needed to
+// re-launch the run via POST /search/parse/start.
+export type SearchHistory = {
+	id: string;
+	url: string;
+	max_vacancies: number;
+	max_pages: number;
+	status: SearchStatus;
+	parsed_vacancies: number | null;
+	parsed_pages: number | null;
+	started_at: string | null;
+	finished_at: string | null;
+	error: string | null;
 };
 
 export type ApplicationData = {

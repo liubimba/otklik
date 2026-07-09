@@ -1,7 +1,16 @@
+from datetime import datetime, timedelta
+
+import pytest
 from fastapi.testclient import TestClient
 from pydantic import HttpUrl
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from headhunter_backend.api.schemas import VacanciesStartSearchRequestAPISchema
+from headhunter_backend.api.schemas import (
+    SearchHistoryAPISchema,
+    SearchStatusAPISchema,
+    VacanciesStartSearchRequestAPISchema,
+)
+from headhunter_backend.db.models import SearchHistoryORM
 from tests.conftest import FakeSearchService
 
 
@@ -42,3 +51,60 @@ def test_delete_parse_existing_id_cancels_and_returns_ok(
     response = client.delete(f"/api/v1/search/parse/{search_id}")
     assert response.status_code in (200, 204)
     assert search_id not in fake_search_service._queue
+
+
+def test_get_history_empty_returns_empty_list(client: TestClient) -> None:
+    response = client.get("/api/v1/search/history")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.fixture
+async def seeded_history(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Two finished runs with explicit, distinct started_at so the
+    newest-first ordering is deterministic."""
+    base = datetime(2026, 1, 1, 12, 0, 0)
+    async with session_factory() as session:
+        session.add(
+            SearchHistoryORM(
+                id="older",
+                url="https://hh.ru/search/vacancy?text=older",
+                max_vacancies=10,
+                max_pages=2,
+                status=SearchStatusAPISchema.FINISHED,
+                parsed_vacancies=7,
+                parsed_pages=2,
+                started_at=base,
+            )
+        )
+        session.add(
+            SearchHistoryORM(
+                id="newer",
+                url="https://hh.ru/search/vacancy?text=newer",
+                max_vacancies=20,
+                max_pages=3,
+                status=SearchStatusAPISchema.FAILED,
+                parsed_vacancies=3,
+                parsed_pages=1,
+                started_at=base + timedelta(hours=1),
+                error="boom",
+            )
+        )
+        await session.commit()
+
+
+def test_get_history_returns_rows_newest_first(
+    client: TestClient,
+    seeded_history: None,
+) -> None:
+    response = client.get("/api/v1/search/history")
+    assert response.status_code == 200
+    payload = response.json()
+    assert [row["id"] for row in payload] == ["newer", "older"]
+    # Every row conforms to the response contract.
+    for item in payload:
+        SearchHistoryAPISchema.model_validate(item)
+    assert payload[0]["error"] == "boom"
+    assert payload[0]["status"] == "failed"

@@ -7,15 +7,29 @@ import ExternalLink from "@lucide/svelte/icons/external-link";
 
 interface Props {
 	vacancy: Vacancy;
+	/**
+	 * Status already known to the caller (the archive page gets it inline with
+	 * the list). Passing it — including as `null`, meaning "no application yet" —
+	 * suppresses this card's own fetch. Omit it to let the card resolve its own.
+	 */
+	status?: ProcessingState | null;
 	onclick?: (vacancy: Vacancy) => void;
 }
 
-const { vacancy, onclick }: Props = $props();
+const { vacancy, status: statusProp, onclick }: Props = $props();
 
-// Per-card application status. Shares the ["application", vacancyId] cache key
-// with the letter-review-sheet and is invalidated by the same WS
-// `application_event`, so the badge stays live without extra wiring.
-const application = createApplicationQuery(() => vacancy.id);
+// Per-card application status, used only when the caller didn't supply one.
+// Shares the ["application", vacancyId] cache key with the letter-review-sheet
+// and is invalidated by the same WS `application_event`, so the badge stays
+// live without extra wiring. A query cannot be created conditionally, so it is
+// disabled instead: createApplicationQuery turns itself off on a null id.
+const application = createApplicationQuery(() =>
+	statusProp !== undefined ? null : vacancy.id,
+);
+
+const effectiveStatus = $derived(
+	statusProp !== undefined ? statusProp : application.data?.status,
+);
 
 type StatusBadge = {
 	label: string;
@@ -23,8 +37,7 @@ type StatusBadge = {
 };
 
 const statusBadge = $derived.by((): StatusBadge | null => {
-	const status: ProcessingState | undefined = application.data?.status;
-	switch (status) {
+	switch (effectiveStatus) {
 		case "letter_pending":
 			return { label: m.card_status_letter_pending(), variant: "secondary" };
 		case "letter_ready":
@@ -40,7 +53,7 @@ const statusBadge = $derived.by((): StatusBadge | null => {
 		case "skipped":
 			return { label: m.card_status_skipped(), variant: "ghost" };
 		default:
-			// "parsed" or no application yet — a fresh vacancy, no badge.
+			// "parsed", null, or not loaded yet — a fresh vacancy, no badge.
 			return null;
 	}
 });

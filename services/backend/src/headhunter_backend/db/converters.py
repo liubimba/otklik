@@ -5,10 +5,12 @@ from headhunter_backend.db.models import (
     ApplicationORM,
     CoverLetterORM,
 )
+from headhunter_backend.core.state import ProcessingState
 from headhunter_backend.api.schemas import (
     EmploymentType,
     WorkFormat,
     VacancyAPISchema,
+    VacancyWithStatusAPISchema,
     SearchHistoryAPISchema,
     LLMSettingsAPISchema,
     SearchSettingsAPISchema,
@@ -91,6 +93,13 @@ def vacancy_to_schema(row: VacancyORM) -> VacancyAPISchema:
         work_formats=[WorkFormat(v) for v in row.work_formats],
         employment_types=[EmploymentType(v) for v in row.employment_types],
     )
+
+
+def vacancy_with_status_to_schema(
+    row: VacancyORM, status: ProcessingState | None
+) -> VacancyWithStatusAPISchema:
+    base = vacancy_to_schema(row=row)
+    return VacancyWithStatusAPISchema(**base.model_dump(), status=status)
 
 
 def search_history_to_schema(orm: SearchHistoryORM) -> SearchHistoryAPISchema:

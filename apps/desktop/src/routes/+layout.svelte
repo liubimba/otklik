@@ -6,6 +6,8 @@ import ProfileButton from "$lib/components/ProfileButton.svelte";
 import Separator from "$lib/components/ui/separator/separator.svelte";
 import { Toaster } from "$lib/components/ui/sonner";
 import * as m from "$lib/paraglide/messages";
+import Briefcase from "@lucide/svelte/icons/briefcase";
+import History from "@lucide/svelte/icons/history";
 import Inbox from "@lucide/svelte/icons/inbox";
 import Settings from "@lucide/svelte/icons/settings";
 import {
@@ -48,6 +50,16 @@ const items = [
 		icon: Inbox,
 	},
 	{
+		title: m.nav_vacancies,
+		href: "/vacancies",
+		icon: Briefcase,
+	},
+	{
+		title: m.nav_history,
+		href: "/history",
+		icon: History,
+	},
+	{
 		title: m.nav_settings,
 		href: "/settings",
 		icon: Settings,
@@ -66,15 +78,20 @@ onMount(() => {
 			switch (event.type) {
 				case "vacancy_new":
 					query.vacancies.apply(queryClient, event);
+					query.all_vacancies.invalidate(queryClient);
 					break;
 				case "search_event":
 					query.search.vacancies.apply(queryClient, event);
+					query.search.history.apply(queryClient, event);
 					break;
 				case "auth_changed":
 					query.auth.apply(queryClient, event);
 					break;
 				case "application_event":
 					query.application.apply(queryClient, event);
+					// The archive page renders status inline from the list payload,
+					// so only a list refetch can move its badges.
+					query.all_vacancies.invalidate(queryClient);
 			}
 		});
 	});

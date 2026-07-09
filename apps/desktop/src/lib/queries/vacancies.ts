@@ -1,9 +1,17 @@
 import { API } from "$lib/api/client";
 import { TERMINAL_SEARCH_STATUSES } from "$lib/api/types";
 import type { SearchEvent, Vacancy, VacancyEvent } from "$lib/api/types";
-import { type QueryClient, createQuery } from "@tanstack/svelte-query";
+import {
+	type QueryClient,
+	createQuery,
+	useQueryClient,
+} from "@tanstack/svelte-query";
 
 export const vacanciesQueryKey = ["vacancies"] as const;
+
+export function vacancyQueryKey(vacancyId: number) {
+	return ["vacancy", vacancyId] as const;
+}
 
 export function createVacanciesQuery() {
 	return createQuery<Vacancy[]>(() => ({
@@ -11,6 +19,30 @@ export function createVacanciesQuery() {
 		queryFn: () => API.vacancies.list(),
 		staleTime: 30_000,
 	}));
+}
+
+/**
+ * A single vacancy, for consumers that cannot assume it sits in the queue's
+ * ["vacancies"] list — the letter-review sheet opened from the archive page.
+ * Seeded from that list when it is there, so the queue path stays offline.
+ */
+export function createVacancyQuery(getVacancyId: () => number | null) {
+	const queryClient = useQueryClient();
+	return createQuery<Vacancy | null>(() => {
+		const vacancyId = getVacancyId();
+		return {
+			queryKey: vacancyQueryKey(vacancyId ?? -1),
+			queryFn: () => API.vacancies.get(vacancyId ?? -1),
+			enabled: vacancyId !== null,
+			staleTime: Number.POSITIVE_INFINITY,
+			initialData: () =>
+				vacancyId === null
+					? undefined
+					: queryClient
+							.getQueryData<Vacancy[]>(vacanciesQueryKey)
+							?.find((vacancy) => vacancy.id === vacancyId),
+		};
+	});
 }
 
 export function applyVacancyEvent(

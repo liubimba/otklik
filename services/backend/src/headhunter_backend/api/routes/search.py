@@ -1,12 +1,15 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
-from headhunter_backend.api.dependencies import SearchServiceDep
+from headhunter_backend.api.dependencies import SearchServiceDep, SessionDep
 from headhunter_backend.api.schemas import (
     ConfirmSearchAPISchema,
+    SearchHistoryAPISchema,
     SearchSessionAPISchema,
     VacanciesSearchAPISchema,
     VacanciesStartSearchRequestAPISchema,
 )
+from headhunter_backend.db.converters import search_history_to_schema
+from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
 from headhunter_backend.orchestrator.search import SearchSessionTask
 
 search_router = APIRouter(prefix="/search", tags=["search"])
@@ -80,6 +83,12 @@ async def cancel_parse(search_id: str, search_service: SearchServiceDep) -> None
     if search_task is None:
         raise HTTPException(status_code=404, detail="search not found")
     await search_service.cancel_search_session(search_id=search_id)
+
+
+@search_router.get("/history", summary="List past search runs (newest first)")
+async def list_search_history(session: SessionDep) -> list[SearchHistoryAPISchema]:
+    rows = await SearchHistoryRepository.list_all(session=session)
+    return [search_history_to_schema(orm=row) for row in rows]
 
 
 search_router.include_router(filter_router)

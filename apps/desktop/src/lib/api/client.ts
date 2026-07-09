@@ -13,8 +13,11 @@ import type {
 	OrchestratorStatus,
 	RateLimitsBudget,
 	SearchData,
+	SearchHistory,
 	Settings,
 	Vacancy,
+	VacancyListPage,
+	VacancyStatusFilter,
 } from "./types";
 
 const BASE_IP = import.meta.env.VITE_BACKEND_IP;
@@ -27,6 +30,28 @@ function formatErrorDetail(detail: APIRequestError["detail"]): string {
 		return detail.map((d) => `${d.loc.join(".")}: ${d.msg}`).join("; ");
 	}
 	return "unknown error";
+}
+
+type QueryParams = Record<
+	string,
+	string | number | readonly string[] | undefined
+>;
+
+// Serialise query params onto a path. Arrays become repeated keys
+// (`?status=a&status=b`), which is what FastAPI's `list[...] = Query()` reads.
+// Returns "" for an empty result so callers can append it unconditionally.
+function qs(params: QueryParams): string {
+	const search = new URLSearchParams();
+	for (const [key, value] of Object.entries(params)) {
+		if (value === undefined) continue;
+		if (Array.isArray(value)) {
+			for (const item of value) search.append(key, item);
+		} else {
+			search.append(key, String(value));
+		}
+	}
+	const encoded = search.toString();
+	return encoded ? `?${encoded}` : "";
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -172,10 +197,28 @@ export const API = {
 			cancel: (searchId: string) =>
 				api<APIResponse>(`search/parse/${searchId}`, { method: "DELETE" }),
 		},
+		history: {
+			list: () => api<SearchHistory[]>("search/history"),
+		},
 	},
 	vacancies: {
 		list: () => api<Vacancy[]>("vacancies/"),
 		get: (vacancyId: number) => api<Vacancy>(`vacancies/${vacancyId}`),
+		// The whole archive, application status joined in, newest first.
+		listAll: (opts?: {
+			statuses?: readonly VacancyStatusFilter[];
+			search?: string;
+			limit?: number;
+			offset?: number;
+		}) =>
+			api<VacancyListPage>(
+				`vacancies/all${qs({
+					status: opts?.statuses,
+					q: opts?.search,
+					limit: opts?.limit,
+					offset: opts?.offset,
+				})}`,
+			),
 	},
 	application: {
 		get: (vacancyId: number) =>

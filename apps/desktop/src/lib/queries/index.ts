@@ -1,4 +1,9 @@
 import {
+	allVacanciesQueryKey,
+	createAllVacanciesQuery,
+	invalidateAllVacancies,
+} from "$lib/queries/all_vacancies";
+import {
 	applicationQueryKey,
 	applyApplicationEvent,
 	coverLettersHistoryQueryKey,
@@ -14,6 +19,11 @@ import {
 	applyCurrentSearchEvent,
 	createCurrentSearchQuery,
 } from "$lib/queries/search";
+import {
+	applySearchHistoryEvent,
+	createSearchHistoryQuery,
+	searchHistoryQueryKey,
+} from "$lib/queries/search_history";
 import { createSettingsQuery, settingsQueryKey } from "$lib/queries/settings";
 import {
 	applyVacancyEvent,
@@ -27,11 +37,21 @@ export const query = {
 			create: createCurrentSearchQuery,
 			apply: applyCurrentSearchEvent,
 		},
+		history: {
+			key: searchHistoryQueryKey,
+			create: createSearchHistoryQuery,
+			apply: applySearchHistoryEvent,
+		},
 	},
 	vacancies: {
 		key: vacanciesQueryKey,
 		create: createVacanciesQuery,
 		apply: applyVacancyEvent,
+	},
+	all_vacancies: {
+		key: allVacanciesQueryKey,
+		create: createAllVacanciesQuery,
+		invalidate: invalidateAllVacancies,
 	},
 	settings: {
 		key: settingsQueryKey,

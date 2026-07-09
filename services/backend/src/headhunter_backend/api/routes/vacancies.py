@@ -1,10 +1,18 @@
-from typing import Sequence
+from typing import Annotated, Sequence
 
 from fastapi import APIRouter, HTTPException, Query, status
 
 from headhunter_backend.api.dependencies import SessionDep
-from headhunter_backend.api.schemas import VacancyAPISchema
-from headhunter_backend.db.converters import vacancy_to_schema
+from headhunter_backend.api.schemas import (
+    VacancyAPISchema,
+    VacancyListPageAPISchema,
+    VacancyStatusFilterAPISchema,
+)
+from headhunter_backend.core.state import ProcessingState
+from headhunter_backend.db.converters import (
+    vacancy_to_schema,
+    vacancy_with_status_to_schema,
+)
 from headhunter_backend.db.models import VacancyORM
 from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
 from headhunter_backend.db.repositories.vacancies import VacancyRepository
@@ -38,6 +46,57 @@ async def find_all(
     else:
         rows = await VacancyRepository.list_all(session=session, search_id=search_id)
     return [vacancy_to_schema(row=row) for row in rows]
+
+
+# Must be declared before GET /{vacancy_id}: Starlette matches routes in
+# declaration order, so "/all" would otherwise be captured by the int-typed
+# {vacancy_id} path param and rejected with a 422 rather than falling through.
+@vacancies_router.get(
+    "/all",
+    status_code=status.HTTP_200_OK,
+    summary="List every vacancy with its application status (paginated)",
+)
+async def list_all_with_status(
+    session: SessionDep,
+    status_filter: Annotated[
+        list[VacancyStatusFilterAPISchema] | None,
+        Query(
+            alias="status",
+            description='Repeatable. "none" matches vacancies with no application yet.',
+        ),
+    ] = None,
+    q: str | None = Query(
+        default=None,
+        max_length=200,
+        description="Free-text search. Every word must appear in the title, "
+        "company name or description.",
+    ),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> VacancyListPageAPISchema:
+    chips = status_filter or []
+    include_unapplied = VacancyStatusFilterAPISchema.NONE in chips
+    statuses = [
+        ProcessingState(chip.value)
+        for chip in chips
+        if chip is not VacancyStatusFilterAPISchema.NONE
+    ]
+
+    rows, total = await VacancyRepository.list_with_status(
+        session=session,
+        statuses=statuses,
+        include_unapplied=include_unapplied,
+        search=q,
+        limit=limit,
+        offset=offset,
+    )
+    return VacancyListPageAPISchema(
+        items=[
+            vacancy_with_status_to_schema(row=row, status=row_status)
+            for row, row_status in rows
+        ],
+        total=total,
+    )
 
 
 @vacancies_router.get(

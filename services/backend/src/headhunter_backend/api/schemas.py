@@ -63,6 +63,33 @@ class VacancyAPISchema(BaseModel):
     work_experience: Optional[str] = None
 
 
+class VacancyStatusFilterAPISchema(str, Enum):
+    """Chip values for the «Все вакансии» filter. Mirrors the badges the card can
+    draw, plus NONE for the two states that draw nothing: a vacancy with no
+    `applications` row at all, and one still in `parsed`."""
+
+    NONE = "none"
+    LETTER_PENDING = "letter_pending"
+    LETTER_READY = "letter_ready"
+    LETTER_REVIEWING = "letter_reviewing"
+    LETTER_SENDING = "letter_sending"
+    LETTER_SENT = "letter_sent"
+    ERROR = "error"
+    SKIPPED = "skipped"
+
+
+class VacancyWithStatusAPISchema(VacancyAPISchema):
+    # None = no `applications` row yet. Deliberately not collapsed into
+    # ProcessingState.PARSED — that is a real state (application created, letter
+    # not started), and the wire should not lie about which of the two it is.
+    status: Optional[ProcessingState] = None
+
+
+class VacancyListPageAPISchema(BaseModel):
+    items: list[VacancyWithStatusAPISchema]
+    total: int
+
+
 class SearchHistoryAPISchema(BaseModel):
     id: str
     url: str

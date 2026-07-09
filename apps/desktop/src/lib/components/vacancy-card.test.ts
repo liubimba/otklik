@@ -1,13 +1,22 @@
 import type { Vacancy } from "$lib/api/types";
 import { render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The card now reads its application status via createApplicationQuery, which
-// needs a QueryClient context. This suite is about rendering vacancy fields,
-// so stub the query — no status → no badge.
+// The card reads its application status via createApplicationQuery, which needs
+// a QueryClient context. Stub it — the query never resolves, so any badge that
+// renders must have come from the `status` prop. `lastVacancyIdGetter` captures
+// the getter so tests can assert the query is disabled (null id) when the prop
+// supplies the status.
+const stub = vi.hoisted(() => ({
+	lastVacancyIdGetter: null as (() => number | null) | null,
+}));
+
 vi.mock("$lib/queries/applications", () => ({
-	createApplicationQuery: () => ({ data: undefined }),
+	createApplicationQuery: (getVacancyId: () => number | null) => {
+		stub.lastVacancyIdGetter = getVacancyId;
+		return { data: undefined };
+	},
 }));
 
 import VacancyCard from "./vacancy-card.svelte";
@@ -128,5 +137,40 @@ describe("<VacancyCard>", () => {
 
 	it("renders without an onclick handler (no throw)", () => {
 		expect(() => render(VacancyCard, { vacancy: vacancy() })).not.toThrow();
+	});
+});
+
+describe("<VacancyCard> — status prop", () => {
+	beforeEach(() => {
+		stub.lastVacancyIdGetter = null;
+	});
+
+	it("renders the badge from the prop without fetching", () => {
+		render(VacancyCard, { vacancy: vacancy(), status: "letter_sent" });
+
+		expect(screen.getByText("Отправлено")).toBeInTheDocument();
+		// A null id is how createApplicationQuery disables itself.
+		expect(stub.lastVacancyIdGetter?.()).toBeNull();
+	});
+
+	it("renders no badge for an explicit null status, still without fetching", () => {
+		render(VacancyCard, { vacancy: vacancy(), status: null });
+
+		expect(screen.queryByText("Отправлено")).not.toBeInTheDocument();
+		expect(stub.lastVacancyIdGetter?.()).toBeNull();
+	});
+
+	it("renders no badge for `parsed` — a fresh vacancy looks unapplied", () => {
+		render(VacancyCard, { vacancy: vacancy(), status: "parsed" });
+
+		for (const label of ["Готов к отклику", "Отправлено", "Ошибка"]) {
+			expect(screen.queryByText(label)).not.toBeInTheDocument();
+		}
+	});
+
+	it("falls back to its own query when the prop is omitted", () => {
+		render(VacancyCard, { vacancy: vacancy({ id: 42 }) });
+
+		expect(stub.lastVacancyIdGetter?.()).toBe(42);
 	});
 });

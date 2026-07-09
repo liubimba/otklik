@@ -36,7 +36,9 @@ class SearchHistoryRepository:
 
     @classmethod
     async def list_all(cls, session: AsyncSession) -> Sequence[SearchHistoryORM]:
-        result = await session.execute(select(SearchHistoryORM))
+        result = await session.execute(
+            select(SearchHistoryORM).order_by(SearchHistoryORM.started_at.desc())
+        )
         return result.scalars().all()
 
     @classmethod

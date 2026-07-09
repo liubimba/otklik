@@ -16,6 +16,7 @@ import {
 	createChatMessagesQuery,
 	createCoverLettersHistoryQuery,
 } from "$lib/queries/applications";
+import { createVacancyQuery } from "$lib/queries/vacancies";
 import { store } from "$lib/stores";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
@@ -41,6 +42,9 @@ const coverLettersHistory = createCoverLettersHistoryQuery(
 const chatMessages = createChatMessagesQuery(
 	() => store.letter.review.vacancyId,
 );
+// The sheet also opens from /vacancies, whose list lives under a different
+// cache key, so the vacancy itself has to be resolvable on its own.
+const vacancyQuery = createVacancyQuery(() => store.letter.review.vacancyId);
 
 const model = lifecycle.letter.review.viewmodel(
 	queryClient,
@@ -48,6 +52,7 @@ const model = lifecycle.letter.review.viewmodel(
 	applicationStatus,
 	coverLettersHistory,
 	chatMessages,
+	vacancyQuery,
 );
 const view = lifecycle.letter.review.view(
 	queryClient,

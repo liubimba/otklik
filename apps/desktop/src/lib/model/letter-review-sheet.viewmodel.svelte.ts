@@ -9,11 +9,13 @@ import type {
 	createChatMessagesQuery,
 	createCoverLettersHistoryQuery,
 } from "$lib/queries/applications";
+import type { createVacancyQuery } from "$lib/queries/vacancies";
 import { vacanciesQueryKey } from "$lib/queries/vacancies";
 import type { LetterReviewStore } from "$lib/stores/letter_review.svelte";
 import type { QueryClient } from "@tanstack/svelte-query";
 
 type ApplicationQuery = ReturnType<typeof createApplicationQuery>;
+type VacancyQuery = ReturnType<typeof createVacancyQuery>;
 type CoverLettersHistoryQuery = ReturnType<
 	typeof createCoverLettersHistoryQuery
 >;
@@ -52,6 +54,7 @@ class Review {
 		private readonly applicationStatus: ApplicationQuery,
 		private readonly queryClient: QueryClient,
 		private readonly store: LetterReviewStore,
+		private readonly vacancyQuery?: VacancyQuery,
 	) {
 		this.status = $derived(
 			(this.applicationStatus.data?.status ?? "parsed") as ProcessingState,
@@ -85,6 +88,13 @@ class Review {
 		this.vacancy = $derived.by((): Vacancy | null => {
 			const id = this.store.vacancyId;
 			if (id === null) return null;
+			// The sheet is opened from the queue (where the vacancy sits in the
+			// ["vacancies"] cache) and from the archive page (where it does not).
+			// The dedicated query covers both — it seeds itself from that same
+			// cache — but keep the direct lookup as a fallback for callers that
+			// construct the viewmodel without one.
+			const fetched = this.vacancyQuery?.data;
+			if (fetched) return fetched;
 			const cached =
 				this.queryClient.getQueryData<Vacancy[]>(vacanciesQueryKey);
 			return cached?.find((v) => v.id === id) ?? null;
@@ -266,8 +276,14 @@ export class LetterReviewSheetViewModel {
 		public readonly applicationStatus: ApplicationQuery,
 		public readonly coverLettersHistory: CoverLettersHistoryQuery,
 		public readonly chatMessages: ChatMessagesQuery,
+		public readonly vacancyQuery?: VacancyQuery,
 	) {
-		this.review = new Review(applicationStatus, queryClient, store);
+		this.review = new Review(
+			applicationStatus,
+			queryClient,
+			store,
+			vacancyQuery,
+		);
 		this.cover_letter = new LetterReviewSheetCoverLetter(applicationStatus);
 		this.chat = new Chat(chatMessages, this.review);
 		this.isOpen = $derived(this.store.vacancyId !== null);
@@ -280,6 +296,7 @@ export const createLetterReviewSheetViewModel = (
 	applicationStatus: ApplicationQuery,
 	coverLettersHistory: CoverLettersHistoryQuery,
 	chatMessages: ChatMessagesQuery,
+	vacancyQuery?: VacancyQuery,
 ) =>
 	new LetterReviewSheetViewModel(
 		queryClient,
@@ -287,4 +304,5 @@ export const createLetterReviewSheetViewModel = (
 		applicationStatus,
 		coverLettersHistory,
 		chatMessages,
+		vacancyQuery,
 	);

@@ -16,7 +16,8 @@ const dark = $derived(mode.current === "dark");
 	prefers-reduced-motion. Everything else gets the static `bg-dotted` grid from
 	the layout, which this section covers with its own opaque background.
 -->
-<main
+<!-- Not a <main>: Sidebar.Inset already renders one (see description/vault/UI.md). -->
+<section
         class="bg-background relative flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center gap-6 overflow-hidden p-6 text-center"
 >
     <DottedBackground {dark}/>
@@ -38,4 +39,4 @@ const dark = $derived(mode.current === "dark");
             <Button href="/settings" variant="outline">{m.home_open_settings()}</Button>
         </div>
     </div>
-</main>
+</section>

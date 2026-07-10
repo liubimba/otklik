@@ -8,6 +8,7 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "$lib/components/ui/dropdown-menu";
+import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 // noinspection ES6UnusedImports
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
@@ -23,7 +24,10 @@ const actions = createActions(queryClient);
 </script>
 
 <DropdownMenu>
-    <DropdownMenuTrigger class="flex items-center gap-2">
+    <DropdownMenuTrigger
+            class="flex items-center gap-2"
+            aria-label={m.profile_trigger_label()}
+    >
         {#if authQuery.data?.status === "authorized"}
             <UserCheck size={20}/>
         {:else if authQuery.data?.status === "authorizing"}
@@ -34,20 +38,22 @@ const actions = createActions(queryClient);
     </DropdownMenuTrigger>
     <DropdownMenuContent>
         <DropdownMenuGroup>
-            <DropdownMenuLabel>hh.ru</DropdownMenuLabel>
+            <DropdownMenuLabel>{m.profile_menu_label()}</DropdownMenuLabel>
             {#if authQuery.data?.status === "unauthorized" || !authQuery.data}
-                <DropdownMenuItem onSelect={() => actions.auth.authenticate.mutateAsync()}
-                >Sign in hh.ru
-                </DropdownMenuItem
-                >
+                <DropdownMenuItem onSelect={() => actions.auth.authenticate.mutateAsync()}>
+                    {m.profile_sign_in()}
+                </DropdownMenuItem>
             {:else if authQuery.data?.status === "authorizing"}
-                <DropdownMenuItem disabled>Authorizing...</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => actions.auth.cancel.mutateAsync()}>Cancel</DropdownMenuItem>
+                <DropdownMenuItem disabled>{m.profile_authorizing()}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => actions.auth.cancel.mutateAsync()}>
+                    {m.profile_cancel()}
+                </DropdownMenuItem>
             {:else if authQuery.data?.status === "authorized"}
-                <DropdownMenuItem onSelect={() => actions.auth.unauthorize.mutateAsync()}>Sign out hh.ru
+                <DropdownMenuItem onSelect={() => actions.auth.unauthorize.mutateAsync()}>
+                    {m.profile_sign_out()}
                 </DropdownMenuItem>
             {:else}
-                <DropdownMenuItem disabled>Unknown status</DropdownMenuItem>
+                <DropdownMenuItem disabled>{m.profile_unknown_status()}</DropdownMenuItem>
             {/if}
         </DropdownMenuGroup>
     </DropdownMenuContent>

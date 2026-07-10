@@ -1,5 +1,6 @@
 <script lang="ts">
 import { createActions } from "$lib/actions";
+import LiveStatus from "$lib/components/live-status.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Badge } from "$lib/components/ui/badge";
 import { Button } from "$lib/components/ui/button";
@@ -60,6 +61,18 @@ const view = lifecycle.letter.review.view(
 	store.letter.review,
 	model,
 );
+
+// The sheet reports progress only through a pulsing dot, a badge and a
+// streaming chat bubble — all silent to a screen reader. Collapse the current
+// phase into one sentence for the polite live region.
+const liveStatus = $derived.by(() => {
+	if (model.review.isGenerating) return m.review_generating_title();
+	if (model.review.isSubmitting) return m.review_sending_status();
+	if (model.chat.isStreaming) return m.review_chat_streaming();
+	if (model.review.status === "letter_sent") return m.review_sent_status();
+	if (model.review.status === "skipped") return m.review_skipped_status();
+	return "";
+});
 
 // Sync the editor buffer from the ApplicationDetail.latest_letter that
 // the server returns on GET /vacancies/{id}/application (one hit instead
@@ -256,9 +269,10 @@ function onChatResizePointerDown(event: PointerEvent) {
                 : ''}"
             role="separator"
             aria-orientation="vertical"
-            aria-label="Изменить ширину"
+            aria-label={m.review_resize_width()}
             onpointerdown={onResizePointerDown}
         ></div>
+        <LiveStatus text={liveStatus} />
         <Sheet.Header class="border-b border-border px-6 py-4">
             <div class="flex items-center gap-2 pr-8">
                 <Sheet.Title class="min-w-0 flex-1 truncate text-base">
@@ -495,7 +509,7 @@ function onChatResizePointerDown(event: PointerEvent) {
                                 class="group -my-1 flex h-3 shrink-0 cursor-row-resize items-center justify-center"
                                 role="separator"
                                 aria-orientation="horizontal"
-                                aria-label="Изменить высоту чата"
+                                aria-label={m.review_resize_chat()}
                                 onpointerdown={onChatResizePointerDown}
                             >
                                 <div
@@ -556,7 +570,7 @@ function onChatResizePointerDown(event: PointerEvent) {
                                         onkeydown={handleChatKeydown}
                                         disabled={model.chat.isStreaming}
                                         rows={2}
-                                        placeholder="Попросите AI поправить письмо…"
+                                        placeholder={m.review_chat_placeholder()}
                                         class="min-h-0 resize-none"
                                     />
                                     <Button
@@ -564,7 +578,7 @@ function onChatResizePointerDown(event: PointerEvent) {
                                         onclick={view.sendChat}
                                         disabled={!model.chat.canChat ||
                                             model.chat.input.trim() === ""}
-                                        aria-label="Отправить сообщение AI"
+                                        aria-label={m.review_chat_send()}
                                     >
                                         <Send />
                                     </Button>

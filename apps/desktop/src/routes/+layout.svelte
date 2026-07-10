@@ -147,7 +147,7 @@ onMount(() => {
 
         <Sidebar.Inset>
             <header
-                    class="sticky top-0 flex h-14 items-center gap-2 border-b px-4 bg-background z-10"
+                    class="sticky top-0 flex h-14 items-center gap-2 border-b px-4 bg-background z-20"
             >
                 <Sidebar.Trigger/>
                 <Separator orientation="vertical" class="h-4"/>

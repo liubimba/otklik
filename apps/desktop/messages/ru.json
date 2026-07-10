@@ -1,6 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"error": "Ошибка",
+	"action_retry": "Повторить",
 	"nav_app_title": "Headhunter AI",
 	"nav_queue": "Очередь вакансий",
 	"nav_vacancies": "Все вакансии",

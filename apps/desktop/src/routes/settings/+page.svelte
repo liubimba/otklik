@@ -1,5 +1,6 @@
 <script lang="ts">
 import { API } from "$lib/api/client";
+import ErrorState from "$lib/components/error-state.svelte";
 import SettingsAiTab from "$lib/components/settings-ai-tab.svelte";
 import { Button } from "$lib/components/ui/button";
 // noinspection ES6UnusedImports
@@ -97,16 +98,12 @@ $effect(() => {
             <Skeleton class="h-9 w-32 rounded-md"/>
         </div>
     {:else if settings.isError}
-        <div class="space-y-3">
-            <p class="text-destructive">
-                {m.settings_error_load({
+        <ErrorState
+                message={m.settings_error_load({
                     error: settings.error?.message ?? "unknown",
                 })}
-            </p>
-            <Button variant="outline" onclick={() => settings.refetch()}>
-                {m.settings_error_retry()}
-            </Button>
-        </div>
+                onRetry={() => settings.refetch()}
+        />
     {:else}
         <form method="POST" use:enhance class="space-y-6">
             <section class="space-y-4">

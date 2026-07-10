@@ -2,6 +2,9 @@
 import { goto } from "$app/navigation";
 import { createActions } from "$lib/actions";
 import type { SearchHistory, SearchStatus } from "$lib/api/types";
+import EmptyState from "$lib/components/empty-state.svelte";
+import ErrorState from "$lib/components/error-state.svelte";
+import ListSkeleton from "$lib/components/list-skeleton.svelte";
 // noinspection ES6UnusedImports
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Badge } from "$lib/components/ui/badge";
@@ -9,6 +12,7 @@ import { Button } from "$lib/components/ui/button";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import ExternalLink from "@lucide/svelte/icons/external-link";
+import HistoryIcon from "@lucide/svelte/icons/history";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import { useQueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
@@ -137,18 +141,19 @@ async function confirmReplace() {
 </AlertDialog.Root>
 
 <div class="container mx-auto max-w-2xl p-6 space-y-6">
-    <h1 class="text-2xl font-bold">{m.history_title()}</h1>
+    <h1 class="text-2xl font-semibold">{m.history_title()}</h1>
 
     {#if historyQuery.isPending}
-        <p>{m.history_loading()}</p>
+        <ListSkeleton/>
     {:else if historyQuery.isError}
-        <p class="text-destructive">
-            {m.history_error_load({
-                error: historyQuery.error?.message ?? "unknown error",
-            })}
-        </p>
+        <ErrorState
+                message={m.history_error_load({
+                    error: historyQuery.error?.message ?? "unknown error",
+                })}
+                onRetry={() => historyQuery.refetch()}
+        />
     {:else if historyQuery.data.length === 0}
-        <p class="text-muted-foreground">{m.history_empty()}</p>
+        <EmptyState icon={HistoryIcon} title={m.history_empty()}/>
     {:else}
         <ul class="space-y-3">
             {#each historyQuery.data as run (run.id)}

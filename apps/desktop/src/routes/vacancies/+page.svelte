@@ -1,12 +1,17 @@
 <script lang="ts">
 import type { VacancyStatusFilter } from "$lib/api/types";
+import EmptyState from "$lib/components/empty-state.svelte";
+import ErrorState from "$lib/components/error-state.svelte";
+import ListSkeleton from "$lib/components/list-skeleton.svelte";
 import { Button } from "$lib/components/ui/button";
 import { Input } from "$lib/components/ui/input";
 import VacancyCard from "$lib/components/vacancy-card.svelte";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import { store } from "$lib/stores";
+import Briefcase from "@lucide/svelte/icons/briefcase";
 import Search from "@lucide/svelte/icons/search";
+import SearchX from "@lucide/svelte/icons/search-x";
 import X from "@lucide/svelte/icons/x";
 
 const PAGE_SIZE = 50;
@@ -76,11 +81,17 @@ function clearSearch() {
 	search = "";
 	limit = PAGE_SIZE;
 }
+
+// Both narrowings at once — what the "ничего не найдено" empty state offers.
+function clearAll() {
+	activeFilters = [];
+	clearSearch();
+}
 </script>
 
 <div class="container mx-auto max-w-2xl p-6 space-y-6">
     <div class="flex items-baseline justify-between gap-4">
-        <h1 class="text-2xl font-bold">{m.vacancies_title()}</h1>
+        <h1 class="text-2xl font-semibold">{m.vacancies_title()}</h1>
         {#if vacanciesQuery.data}
             <span class="text-muted-foreground text-sm">
                 {m.vacancies_total({ total })}
@@ -132,17 +143,24 @@ function clearSearch() {
     </div>
 
     {#if vacanciesQuery.isPending}
-        <p>{m.vacancies_loading()}</p>
+        <ListSkeleton/>
     {:else if vacanciesQuery.isError}
-        <p class="text-destructive">
-            {m.vacancies_error_load({
-                error: vacanciesQuery.error?.message ?? "unknown error",
-            })}
-        </p>
+        <ErrorState
+                message={m.vacancies_error_load({
+                    error: vacanciesQuery.error?.message ?? "unknown error",
+                })}
+                onRetry={() => vacanciesQuery.refetch()}
+        />
     {:else if items.length === 0}
-        <p class="text-muted-foreground">
-            {isFiltered ? m.vacancies_empty_filtered() : m.vacancies_empty()}
-        </p>
+        {#if isFiltered}
+            <EmptyState icon={SearchX} title={m.vacancies_empty_filtered()}>
+                <Button variant="outline" size="sm" onclick={clearAll}>
+                    {m.vacancies_filter_all()}
+                </Button>
+            </EmptyState>
+        {:else}
+            <EmptyState icon={Briefcase} title={m.vacancies_empty()}/>
+        {/if}
     {:else}
         <ul class="space-y-3">
             {#each items as vacancy (vacancy.id)}

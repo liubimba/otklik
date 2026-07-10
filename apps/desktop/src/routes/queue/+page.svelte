@@ -1,5 +1,9 @@
 <script lang="ts">
 import { createActions } from "$lib/actions";
+import EmptyState from "$lib/components/empty-state.svelte";
+import ErrorState from "$lib/components/error-state.svelte";
+import ListSkeleton from "$lib/components/list-skeleton.svelte";
+import LiveStatus from "$lib/components/live-status.svelte";
 // noinspection ES6UnusedImports
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Button } from "$lib/components/ui/button";
@@ -8,6 +12,7 @@ import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import { store } from "$lib/stores";
 import { letterReview } from "$lib/stores/letter_review.svelte";
+import Inbox from "@lucide/svelte/icons/inbox";
 import { useQueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
 import { createSearchPageView } from "./search.view.svelte";
@@ -22,6 +27,28 @@ const searchQuery = query.search.vacancies.create();
 
 const model = createSearchPageViewModel(searchQuery);
 const view = createSearchPageView(searchQuery, actions, model);
+
+// Everything a sighted user reads off the picker panel and the header counters,
+// collapsed into one sentence for the screen reader. Announced via <LiveStatus>.
+const liveStatus = $derived.by(() => {
+	const picker = store.search.filter.state;
+	switch (picker.status) {
+		case "opening_session":
+			return m.picker_opening();
+		case "confirming":
+			return m.picker_confirming();
+		case "starting_search":
+			return m.picker_starting();
+		case "canceling":
+			return m.picker_canceling();
+		case "error":
+			return m.picker_error_prefix({ message: picker.message ?? "" });
+	}
+	if (!searchQuery.data) return "";
+	return `${m.queue_header_status({ status: model.search.vacancies.status })} · ${m.queue_count(
+		{ count: searchQuery.data.parsed_vacancies ?? 0 },
+	)}`;
+});
 
 $effect(() => {
 	if (actions.search.filter.cancel.isError) {
@@ -56,9 +83,9 @@ $effect(() => {
     </AlertDialog.Content>
 </AlertDialog.Root>
 
-<div class="container mx-auto p-6 space-y-6 relative">
+<div class="container mx-auto max-w-2xl p-6 space-y-6 relative">
     <header class="flex items-center justify-between sticky top-0">
-        <h1 class="text-2xl font-bold">{m.queue_title()}</h1>
+        <h1 class="text-2xl font-semibold">{m.queue_title()}</h1>
         {#if searchQuery.data}
             <span
             >{m.queue_header_pages({
@@ -151,23 +178,32 @@ $effect(() => {
         </section>
     {/if}
 
+    <LiveStatus text={liveStatus}/>
+
     {#if vacanciesQuery.isPending}
-        <p>{m.queue_loading()}</p>
+        <ListSkeleton/>
     {:else if vacanciesQuery.isError}
-        <p class="text-red-600">
-            {m.queue_error_load({
-                error: vacanciesQuery.error?.message ?? "unknown error",
-            })}
-        </p>
+        <ErrorState
+                message={m.queue_error_load({
+                    error: vacanciesQuery.error?.message ?? "unknown error",
+                })}
+                onRetry={() => vacanciesQuery.refetch()}
+        />
     {:else if vacanciesQuery.data.length === 0 && !model.search.vacancies.inFlight}
-        <p class="text-gray-500">{m.queue_empty()}</p>
+        <EmptyState icon={Inbox} title={m.queue_empty()}>
+            <Button onclick={view.search.filter.start} disabled={!model.search.filter.inactive}>
+                {m.queue_button_new_search()}
+            </Button>
+        </EmptyState>
     {:else}
-        <ul class="space-y-3">
+        <ul class="space-y-3" aria-busy={model.search.vacancies.inFlight}>
             {#if model.search.vacancies.inFlight}
-                <li class="border rounded p-4 space-y-2">
-                    <div class="h-6 w-3/4 bg-muted animate-pulse rounded"></div>
-                    <div class="h-4 w-1/3 bg-muted animate-pulse rounded"></div>
-                    <div class="h-4 w-1/4 bg-muted animate-pulse rounded"></div>
+                <li class="bg-card flex items-start gap-4 rounded-lg border p-4">
+                    <div class="min-w-0 flex-1 space-y-2">
+                        <div class="h-5 w-3/4 bg-muted animate-pulse rounded"></div>
+                        <div class="h-4 w-1/3 bg-muted animate-pulse rounded"></div>
+                        <div class="h-4 w-1/4 bg-muted animate-pulse rounded"></div>
+                    </div>
                 </li>
             {/if}
             {#each vacanciesQuery.data as vacancy (vacancy.id)}

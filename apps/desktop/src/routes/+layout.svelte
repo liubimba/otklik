@@ -3,18 +3,23 @@ import { page } from "$app/state";
 import { EventsWebSocket } from "$lib/api/events";
 import type { ServerEvent } from "$lib/api/types";
 import ProfileButton from "$lib/components/ProfileButton.svelte";
+import AppMark from "$lib/components/app-mark.svelte";
+import { Button } from "$lib/components/ui/button";
 import Separator from "$lib/components/ui/separator/separator.svelte";
 import { Toaster } from "$lib/components/ui/sonner";
 import * as m from "$lib/paraglide/messages";
 import Briefcase from "@lucide/svelte/icons/briefcase";
 import History from "@lucide/svelte/icons/history";
 import Inbox from "@lucide/svelte/icons/inbox";
+import Moon from "@lucide/svelte/icons/moon";
 import Settings from "@lucide/svelte/icons/settings";
+import Sun from "@lucide/svelte/icons/sun";
 import {
 	QueryClient,
 	QueryClientProvider,
 	notifyManager,
 } from "@tanstack/svelte-query";
+import { ModeWatcher, mode, toggleMode } from "mode-watcher";
 import { onMount } from "svelte";
 import type { LayoutProps } from "./$types";
 import "../app.css";
@@ -102,6 +107,12 @@ onMount(() => {
 });
 </script>
 
+<!--
+    `.dark` and its full token block existed since day one, but nothing ever
+    mounted ModeWatcher or offered a control — dark mode was unreachable.
+-->
+<ModeWatcher/>
+
 <QueryClientProvider client={queryClient}>
     <Toaster richColors/>
     <LetterReviewSheet/>
@@ -109,8 +120,15 @@ onMount(() => {
     <Sidebar.Provider>
         <Sidebar.Root variant="inset">
             <Sidebar.Header>
-                <div class="px-2 py-1.5 text-sm font-semibold">
-                    {m.nav_app_title()}
+                <div class="flex items-center gap-2 px-2 py-1.5">
+                    <span
+                            class="bg-primary text-primary-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
+                    >
+                        <AppMark class="size-4"/>
+                    </span>
+                    <span class="font-mono text-sm font-semibold">
+                        {m.nav_app_title()}
+                    </span>
                 </div>
             </Sidebar.Header>
 
@@ -137,8 +155,22 @@ onMount(() => {
             </Sidebar.Content>
 
             <Sidebar.Footer>
-                <div class="flex items-center px-2 py-1.5">
+                <div class="flex items-center justify-between px-2 py-1.5">
                     <ProfileButton/>
+                    <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onclick={toggleMode}
+                            aria-label={mode.current === "dark"
+                                ? m.theme_switch_to_light()
+                                : m.theme_switch_to_dark()}
+                    >
+                        {#if mode.current === "dark"}
+                            <Sun/>
+                        {:else}
+                            <Moon/>
+                        {/if}
+                    </Button>
                 </div>
             </Sidebar.Footer>
 
@@ -152,7 +184,12 @@ onMount(() => {
                 <Sidebar.Trigger/>
                 <Separator orientation="vertical" class="h-4"/>
             </header>
-            <div class="flex-1">
+            <!--
+                The static dot grid, not the animated canvas: this backs every
+                scrolling list, and a per-frame canvas repaint under them is a
+                real cost in WebKitGTK. The canvas is reserved for `/`.
+            -->
+            <div class="bg-dotted flex-1">
                 {@render children()}
             </div>
         </Sidebar.Inset>

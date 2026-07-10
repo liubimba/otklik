@@ -33,7 +33,7 @@ const effectiveStatus = $derived(
 
 type StatusBadge = {
 	label: string;
-	variant: "default" | "secondary" | "destructive" | "ghost";
+	variant: "default" | "success" | "secondary" | "destructive" | "ghost";
 };
 
 const statusBadge = $derived.by((): StatusBadge | null => {
@@ -47,7 +47,9 @@ const statusBadge = $derived.by((): StatusBadge | null => {
 		case "letter_sending":
 			return { label: m.card_status_letter_sending(), variant: "secondary" };
 		case "letter_sent":
-			return { label: m.card_status_letter_sent(), variant: "default" };
+			// Terminal success. `default` here was solid red — the same paint the
+			// error badge wears.
+			return { label: m.card_status_letter_sent(), variant: "success" };
 		case "error":
 			return { label: m.card_status_error(), variant: "destructive" };
 		case "skipped":
@@ -83,7 +85,7 @@ function handleKeydown(e: KeyboardEvent) {
 	tabindex="0"
 	onclick={handleClick}
 	onkeydown={handleKeydown}
-	class="bg-card text-card-foreground hover:bg-muted/40 focus-visible:ring-ring/40 flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 [contain:layout_paint]"
+	class="bg-surface-2 text-card-foreground shadow-e1 hover:shadow-e2 hover:bg-muted/40 focus-visible:ring-ring/40 flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-[background-color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 [contain:layout_paint]"
 >
 	<div class="min-w-0 flex-1 space-y-1">
 		<h3 class="truncate text-base font-medium">{vacancy.title}</h3>
@@ -93,7 +95,7 @@ function handleKeydown(e: KeyboardEvent) {
 			</p>
 		{/if}
 		{#if vacancy.salary}
-			<p class="text-sm">{vacancy.salary}</p>
+			<p class="font-mono text-sm">{vacancy.salary}</p>
 		{/if}
 		{#if vacancy.work_location}
 			<p class="text-muted-foreground text-sm">{vacancy.work_location}</p>

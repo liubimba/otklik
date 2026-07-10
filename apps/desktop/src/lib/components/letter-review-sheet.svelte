@@ -386,7 +386,7 @@ function onChatResizePointerDown(event: PointerEvent) {
                                 {m.review_sending_status()}
                             </p>
                         {:else if model.review.status === "letter_sent"}
-                            <Badge variant="default">
+                            <Badge variant="success">
                                 {m.review_sent_status()}
                             </Badge>
                         {:else if model.review.status === "skipped"}

@@ -87,17 +87,17 @@ $effect(() => {
     <header class="flex items-center justify-between sticky top-0">
         <h1 class="text-2xl font-semibold">{m.queue_title()}</h1>
         {#if searchQuery.data}
-            <span
+            <span class="text-muted-foreground font-mono text-xs"
             >{m.queue_header_pages({
                 n: searchQuery.data.parsed_pages ?? 0,
             })}</span
             >
-            <span
+            <span class="text-muted-foreground font-mono text-xs"
             >{m.queue_count({
                 count: searchQuery.data.parsed_vacancies ?? 0,
             })}</span
             >
-            <span
+            <span class="text-muted-foreground font-mono text-xs"
             >{m.queue_header_status({
                 status: model.search.vacancies.status
             })}</span

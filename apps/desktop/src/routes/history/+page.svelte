@@ -32,7 +32,7 @@ let replacing = $state(false);
 
 const busy = $derived(relaunchingId !== null || replacing);
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "ghost";
+type BadgeVariant = "success" | "secondary" | "destructive" | "ghost";
 
 function statusLabel(status: SearchStatus): string {
 	switch (status) {
@@ -56,7 +56,9 @@ function statusLabel(status: SearchStatus): string {
 function statusVariant(status: SearchStatus): BadgeVariant {
 	switch (status) {
 		case "exited":
-			return "default";
+			// Was "default" — i.e. bg-primary, solid red. A search that finished
+			// cleanly looked exactly like one that blew up.
+			return "success";
 		case "failed":
 			return "destructive";
 		case "canceled":
@@ -158,7 +160,7 @@ async function confirmReplace() {
         <ul class="space-y-3">
             {#each historyQuery.data as run (run.id)}
                 <li
-                        class="bg-card text-card-foreground flex items-start gap-4 rounded-lg border p-4"
+                        class="bg-surface-2 text-card-foreground shadow-e1 flex items-start gap-4 rounded-lg border p-4"
                 >
                     <div class="min-w-0 flex-1 space-y-1">
                         <div class="flex items-center gap-2">
@@ -176,13 +178,13 @@ async function confirmReplace() {
                                 <ExternalLink class="size-3.5 shrink-0"/>
                             </a>
                         </div>
-                        <p class="text-sm">
+                        <p class="font-mono text-sm">
                             {m.history_parsed({
                                 vacancies: run.parsed_vacancies ?? 0,
                                 pages: run.parsed_pages ?? 0,
                             })}
                         </p>
-                        <p class="text-muted-foreground text-xs">
+                        <p class="text-muted-foreground font-mono text-xs">
                             {m.history_started({ date: formatDate(run.started_at) })}
                             {#if run.finished_at}
                                 · {m.history_finished({ date: formatDate(run.finished_at) })}

@@ -8,6 +8,8 @@
 		"opener:default",
 		"log:default",
 		"os:default",
+		"updater:default",
+		"process:allow-restart",
 		"core:window:allow-close",
 		"core:window:allow-minimize",
 		"core:window:allow-toggle-maximize",

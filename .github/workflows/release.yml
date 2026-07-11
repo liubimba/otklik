@@ -1,0 +1,71 @@
+name: Release
+
+# Cut a release by bumping the version (tauri.conf.json + package.json +
+# Cargo.toml) and pushing a matching tag:  git tag v0.1.1 && git push --tags
+# tauri-action builds, signs (ed25519), and publishes the bundles plus the
+# updater manifest (latest.json) to a GitHub Release. The running app checks
+# https://github.com/pauldekarin/headhunter_ai/releases/latest/download/latest.json
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PNPM_VERSION: "9.15.4"
+
+jobs:
+  release:
+    name: release (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install Linux Tauri deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            file
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build, sign and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "Headhunter ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true

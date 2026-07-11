@@ -1,6 +1,6 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
-	"productName": "desktop",
+	"productName": "Headhunter",
 	"version": "0.1.0",
 	"identifier": "ai.headhunter.app",
 	"build": {
@@ -26,8 +26,20 @@
 			"csp": null
 		}
 	},
+	"plugins": {
+		"updater": {
+			"endpoints": [
+				"https://github.com/pauldekarin/headhunter_ai/releases/latest/download/latest.json"
+			],
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCREQ1QjQ0MEJFQTg4MTcKUldRWGlPb0xSRnZkYXpSSWZqaWdUM1RzWnpvMUdlcDVhUlZVaUswYnJGMnJwMC9Nb2d1SU90bzkK",
+			"windows": {
+				"installMode": "passive"
+			}
+		}
+	},
 	"bundle": {
 		"active": true,
+		"createUpdaterArtifacts": true,
 		"targets": "all",
 		"icon": [
 			"icons/32x32.png",

@@ -73,3 +73,9 @@ description/.obsidian/
 
 
 scratch_*
+
+# Tauri updater signing keys — the private key must never be committed; put its
+# contents in the TAURI_SIGNING_PRIVATE_KEY GitHub secret instead. The public key
+# lives (committed) inside tauri.conf.json's plugins.updater.pubkey.
+apps/desktop/src-tauri/updater.key
+apps/desktop/src-tauri/updater.key.pub

@@ -1,10 +1,15 @@
 <script lang="ts">
 import AppMark from "$lib/components/app-mark.svelte";
 import { Badge } from "$lib/components/ui/badge";
+import { Button } from "$lib/components/ui/button";
 import * as m from "$lib/paraglide/messages";
+import { updater } from "$lib/stores/updater.svelte";
+import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { getVersion } from "@tauri-apps/api/app";
 import { onMount } from "svelte";
+import { toast } from "svelte-sonner";
 
 // The running app's version comes from tauri.conf.json via getVersion(). It's
 // only resolvable inside the Tauri runtime, so it's read once on mount and left
@@ -25,6 +30,16 @@ const steps = [
 	m.about_usage_step_4(),
 	m.about_usage_step_5(),
 ];
+
+async function checkUpdates() {
+	const found = await updater.check();
+	if (found) return; // the update dialog shows itself
+	if (updater.error) {
+		toast.error(m.update_check_failed({ error: updater.error }));
+	} else {
+		toast.success(m.update_up_to_date());
+	}
+}
 </script>
 
 <div class="container mx-auto max-w-2xl space-y-6 p-6">
@@ -80,5 +95,32 @@ const steps = [
 			{m.onboarding_own_risk_intro()}
 			<strong>{m.onboarding_own_risk_strong()}</strong>{m.onboarding_own_risk_rest()}
 		</p>
+	</section>
+
+	<section class="bg-surface-2 space-y-3 rounded-lg border p-5 shadow-e1">
+		<div class="space-y-1">
+			<h2 class="text-lg font-medium">{m.about_updates_title()}</h2>
+			<p class="text-muted-foreground text-sm">{m.about_updates_hint()}</p>
+		</div>
+		<div class="flex items-center gap-3">
+			<Button
+				variant="outline"
+				onclick={checkUpdates}
+				disabled={updater.checking}
+			>
+				{#if updater.checking}
+					<LoaderCircle class="animate-spin" />
+					{m.about_checking()}
+				{:else}
+					<RefreshCw />
+					{m.about_check_updates()}
+				{/if}
+			</Button>
+			{#if version}
+				<span class="text-muted-foreground font-mono text-xs"
+					>{m.about_version_label()} {version}</span
+				>
+			{/if}
+		</div>
 	</section>
 </div>

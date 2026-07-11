@@ -29,7 +29,9 @@ import "../app.css";
 import LetterReviewSheet from "$lib/components/letter-review-sheet.svelte";
 // noinspection ES6UnusedImports
 import * as Sidebar from "$lib/components/ui/sidebar";
+import UpdateDialog from "$lib/components/update-dialog.svelte";
 import { query } from "$lib/queries";
+import { updater } from "$lib/stores/updater.svelte";
 
 const { children }: LayoutProps = $props();
 
@@ -84,6 +86,10 @@ const items = [
 ];
 
 onMount(() => {
+	// Silent update check on launch. It never throws (no feed yet, offline, …);
+	// if an update is found, <UpdateDialog/> pops up on its own via the store.
+	void updater.check();
+
 	const listener = new EventsWebSocket((event: ServerEvent) => {
 		// A single WS event can trigger multiple cache mutations
 		// (setQueryData + invalidateQueries). Without batching,
@@ -128,6 +134,7 @@ onMount(() => {
 <QueryClientProvider client={queryClient}>
     <Toaster richColors/>
     <LetterReviewSheet/>
+    <UpdateDialog/>
     <WindowResizeHandles/>
 
     <!--

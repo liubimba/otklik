@@ -142,7 +142,8 @@ onMount(() => {
             <Sidebar.Root variant="inset" class="top-9 h-[calc(100svh-2.25rem)]">
                 <Sidebar.Content>
                 <Sidebar.Group>
-                    <Sidebar.Menu>
+                    <Sidebar.GroupLabel>{m.nav_section_label()}</Sidebar.GroupLabel>
+                    <Sidebar.Menu class="gap-1">
                         {#each items as item (item.href)}
                             <Sidebar.MenuItem>
                                 <Sidebar.MenuButton
@@ -162,7 +163,7 @@ onMount(() => {
                 </Sidebar.Group>
             </Sidebar.Content>
 
-            <Sidebar.Footer>
+            <Sidebar.Footer class="border-t">
                 <div class="flex items-center justify-between px-2 py-1.5">
                     <ProfileButton/>
                     <Button

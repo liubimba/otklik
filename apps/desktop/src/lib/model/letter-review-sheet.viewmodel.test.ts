@@ -106,6 +106,48 @@ describe("LetterReviewSheetViewModel — isOpen", () => {
 	});
 });
 
+describe("Chat — canChat gating", () => {
+	// Regression: ERROR was made actionable on 2026-07-01 (canSubmit /
+	// canRegenerate / isEditable all allow it), but canChat kept gating chat
+	// out of the error state, so the "send to AI" button stayed disabled after
+	// a failed letter — the user could edit and re-submit but not ask the AI.
+	it("allows chatting in the error state", () => {
+		const vm = makeVM({
+			data: detail({ status: "error" }),
+			isPending: false,
+			isError: false,
+		});
+		expect(vm.chat.canChat).toBe(true);
+	});
+
+	it("allows chatting while the letter is up for review", () => {
+		for (const status of ["letter_ready", "letter_reviewing"] as const) {
+			const vm = makeVM({
+				data: detail({ status }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.chat.canChat).toBe(true);
+		}
+	});
+
+	it("blocks chatting in in-flight and terminal states", () => {
+		for (const status of [
+			"letter_pending",
+			"letter_sending",
+			"letter_sent",
+			"skipped",
+		] as const) {
+			const vm = makeVM({
+				data: detail({ status }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.chat.canChat).toBe(false);
+		}
+	});
+});
+
 describe("Review — derived state from ApplicationQuery", () => {
 	it("status defaults to 'parsed' when no application yet", () => {
 		const vm = makeVM({ data: null, isPending: false, isError: false });

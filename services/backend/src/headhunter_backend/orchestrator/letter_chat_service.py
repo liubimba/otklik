@@ -17,11 +17,17 @@ from headhunter_backend.exceptions import ApplicationNotFoundError, VacancyNotFo
 from headhunter_backend.log import get_logger
 from headhunter_backend.orchestrator.exceptions import LetterChatNotAllowedError
 
-# Chat is a content operation on an existing letter, available only while the
-# letter is up for review. Not allowed mid-regenerate (LETTER_PENDING), while
-# sending, or once terminal.
+# Chat is a content operation on an existing letter, available while the letter
+# is up for review (LETTER_READY / LETTER_REVIEWING) and in ERROR — a failed
+# letter is still fixable by asking the AI, matching the actionable-error set the
+# UI uses for submit/regenerate/save (canChat in the viewmodel must stay in sync).
+# Not allowed mid-regenerate (LETTER_PENDING), while sending, or once terminal.
 CHAT_EDITABLE_STATES = frozenset(
-    {ProcessingState.LETTER_READY, ProcessingState.LETTER_REVIEWING}
+    {
+        ProcessingState.LETTER_READY,
+        ProcessingState.LETTER_REVIEWING,
+        ProcessingState.ERROR,
+    }
 )
 
 

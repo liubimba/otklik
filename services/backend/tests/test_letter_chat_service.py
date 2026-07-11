@@ -71,6 +71,28 @@ async def _seed_letter_ready(
         )
 
 
+async def _seed_error(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        session.add(
+            VacancyORM(
+                id=1,
+                title="Менеджер",
+                apply_link="https://hh.ru/vacancy/1",
+                description="Описание вакансии",
+                work_formats=[],
+                employment_types=[],
+            )
+        )
+        await session.commit()
+        session.add(ApplicationORM(id=1, vacancy_id=1, status=ProcessingState.ERROR))
+        await session.commit()
+        await CoverLetterRepository.create(
+            session=session, application_id=1, text="Старое письмо", source="generated"
+        )
+
+
 async def _run(
     session_factory: async_sessionmaker[AsyncSession],
     chunks: list[str],
@@ -122,6 +144,34 @@ async def test_revision_is_applied_not_leaked_into_reply(
         assistant = [m for m in messages if m.role == "assistant"][-1]
         assert assistant.produced_version == 2
         assert REVISED_LETTER not in assistant.content
+
+
+async def test_chat_allowed_in_error_state(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    # Regression: ERROR was made actionable (submit/regenerate/save) but chat
+    # stayed blocked — CHAT_EDITABLE_STATES excluded ERROR, so stream_turn
+    # raised LetterChatNotAllowedError. A user with a failed letter must be
+    # able to ask the AI to fix it.
+    await _seed_error(session_factory)
+
+    payload = (
+        '{"reply": "Поправил письмо после ошибки.", ' f'"letter": "{REVISED_LETTER}"}}'
+    )
+    chunks = [payload[i : i + 7] for i in range(0, len(payload), 7)]
+
+    # Must not raise LetterChatNotAllowedError while iterating.
+    events = await _run(session_factory, chunks)
+
+    done = next(e for e in events if e["type"] == "done")
+    assert done["version"] is not None, "chat in ERROR must produce a revision"
+    async with session_factory() as session:
+        latest = await CoverLetterRepository.get_latest_by_application_id(
+            session=session, application_id=1
+        )
+        assert latest is not None
+        assert latest.version == 2
+        assert latest.source == "chat"
 
 
 async def test_echoed_unchanged_letter_does_not_create_a_version(

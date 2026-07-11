@@ -237,9 +237,15 @@ class Chat {
 		private readonly review: Review,
 	) {
 		this.messages = $derived(this.chatQuery.data ?? []);
+		// ERROR is chat-editable alongside letter_ready / letter_reviewing —
+		// the same actionable-error set as canSubmit / canRegenerate / isEditable
+		// (added 2026-07-01). Chatting in ERROR lets the user ask the AI to fix a
+		// failed letter instead of only re-submitting or regenerating it. Mirrors
+		// CHAT_EDITABLE_STATES on the backend, which must stay in sync.
 		this.canChat = $derived(
 			(this.review.status === "letter_ready" ||
-				this.review.status === "letter_reviewing") &&
+				this.review.status === "letter_reviewing" ||
+				this.review.status === "error") &&
 				!this.isStreaming,
 		);
 	}

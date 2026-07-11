@@ -3,6 +3,7 @@ import { page } from "$app/state";
 import { EventsWebSocket } from "$lib/api/events";
 import type { ServerEvent } from "$lib/api/types";
 import ProfileButton from "$lib/components/ProfileButton.svelte";
+import DottedBackground from "$lib/components/dotted-background.svelte";
 import { Button } from "$lib/components/ui/button";
 import Separator from "$lib/components/ui/separator/separator.svelte";
 import { Toaster } from "$lib/components/ui/sonner";
@@ -30,6 +31,10 @@ import * as Sidebar from "$lib/components/ui/sidebar";
 import { query } from "$lib/queries";
 
 const { children }: LayoutProps = $props();
+
+// The dotted canvas reads `--border` off the document, so it must be told when
+// the theme flips. `dark` is a change signal, not a colour.
+const dark = $derived(mode.current === "dark");
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -188,12 +193,17 @@ onMount(() => {
                 <Separator orientation="vertical" class="h-4"/>
             </header>
             <!--
-                The static dot grid, not the animated canvas: this backs every
-                scrolling list, and a per-frame canvas repaint under them is a
-                real cost in WebKitGTK. The canvas is reserved for `/`.
+                Animated dotted canvas, app-wide. It is pinned to the content
+                viewport (it does NOT scroll — the list scrolls above it) and
+                scoped to this region so it never repaints under the sidebar or
+                titlebar. The canvas only redraws on mouse movement, so scrolling
+                a long list costs nothing; it self-gates on prefers-reduced-motion.
             -->
-            <div class="bg-dotted min-h-0 flex-1 overflow-y-auto">
-                {@render children()}
+            <div class="relative min-h-0 flex-1">
+                <DottedBackground {dark}/>
+                <div class="absolute inset-0 overflow-y-auto">
+                    {@render children()}
+                </div>
             </div>
         </Sidebar.Inset>
     </Sidebar.Provider>

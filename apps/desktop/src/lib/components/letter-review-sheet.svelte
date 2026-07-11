@@ -20,9 +20,11 @@ import {
 import { createVacancyQuery } from "$lib/queries/vacancies";
 import { store } from "$lib/stores";
 import ExternalLink from "@lucide/svelte/icons/external-link";
+import MessageSquare from "@lucide/svelte/icons/message-square";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Save from "@lucide/svelte/icons/save";
 import Send from "@lucide/svelte/icons/send";
+import Sparkles from "@lucide/svelte/icons/sparkles";
 import { useQueryClient } from "@tanstack/svelte-query";
 import {
 	SHEET_WIDTH_DEFAULT,
@@ -131,6 +133,23 @@ function handleChatKeydown(event: KeyboardEvent) {
 			view.sendChat();
 		}
 	}
+}
+
+// Prefill prompts shown in the empty chat state. Clicking one drops its text
+// into the input (and focuses it) so the panel reads as an interactive chat
+// rather than a dead area; the user still reviews and sends it.
+const chatSuggestions = [
+	m.review_chat_suggestion_shorter(),
+	m.review_chat_suggestion_formal(),
+	m.review_chat_suggestion_experience(),
+];
+// bind:ref writes this, so Svelte wants $state; biome's useConst would then
+// rewrite it to const, which bind:ref forbids — hence the ignore.
+// biome-ignore lint/style/useConst: bind:ref reassigns this; const breaks the binding
+let chatInputEl = $state<HTMLTextAreaElement | null>(null);
+function applyChatSuggestion(text: string) {
+	model.chat.input = text;
+	chatInputEl?.focus();
 }
 
 // Drag-to-resize state. Width is loaded from localStorage on mount
@@ -521,9 +540,55 @@ function onChatResizePointerDown(event: PointerEvent) {
                             <div
                                 class="flex min-h-[160px] flex-1 flex-col gap-2"
                             >
+                                <!-- Always-on label so the region reads as a chat. -->
+                                <div
+                                    class="text-muted-foreground flex items-center gap-1.5"
+                                >
+                                    <MessageSquare class="size-3.5" />
+                                    <span class="text-xs font-medium"
+                                        >{m.review_chat_title()}</span
+                                    >
+                                </div>
                                 <div
                                     class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"
                                 >
+                                    {#if model.chat.messages.length === 0 && model.chat.pendingUser === null}
+                                        <!--
+                                            Empty chat: make it obvious you can ask
+                                            the AI to revise the letter. Chips prefill
+                                            the input rather than auto-send.
+                                        -->
+                                        <div
+                                            class="flex h-full flex-col items-center justify-center gap-2 px-4 text-center"
+                                        >
+                                            <Sparkles
+                                                class="text-muted-foreground size-6 opacity-70"
+                                            />
+                                            <p class="text-sm font-medium">
+                                                {m.review_chat_empty_title()}
+                                            </p>
+                                            <p class="text-muted-foreground text-xs">
+                                                {m.review_chat_empty_hint()}
+                                            </p>
+                                            <div
+                                                class="flex flex-wrap justify-center gap-1.5 pt-1"
+                                            >
+                                                {#each chatSuggestions as suggestion (suggestion)}
+                                                    <Button
+                                                        variant="outline"
+                                                        size="xs"
+                                                        disabled={!model.chat.canChat}
+                                                        onclick={() =>
+                                                            applyChatSuggestion(
+                                                                suggestion,
+                                                            )}
+                                                    >
+                                                        {suggestion}
+                                                    </Button>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    {/if}
                                     {#each model.chat.messages as msg (msg.id)}
                                             <div
                                                 class="flex {msg.role ===
@@ -561,6 +626,7 @@ function onChatResizePointerDown(event: PointerEvent) {
                                     </div>
                                 <div class="flex items-end gap-2">
                                     <Textarea
+                                        bind:ref={chatInputEl}
                                         value={model.chat.input}
                                         oninput={(e) => {
                                             model.chat.input = (

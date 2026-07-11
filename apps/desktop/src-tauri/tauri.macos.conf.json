@@ -1,0 +1,19 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"app": {
+		"windows": [
+			{
+				"label": "main",
+				"title": "Headhunter",
+				"width": 800,
+				"height": 600,
+				"minWidth": 720,
+				"minHeight": 560,
+				"devtools": true,
+				"decorations": true,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true
+			}
+		]
+	}
+}

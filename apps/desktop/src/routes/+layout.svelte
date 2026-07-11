@@ -3,10 +3,11 @@ import { page } from "$app/state";
 import { EventsWebSocket } from "$lib/api/events";
 import type { ServerEvent } from "$lib/api/types";
 import ProfileButton from "$lib/components/ProfileButton.svelte";
-import AppMark from "$lib/components/app-mark.svelte";
 import { Button } from "$lib/components/ui/button";
 import Separator from "$lib/components/ui/separator/separator.svelte";
 import { Toaster } from "$lib/components/ui/sonner";
+import WindowResizeHandles from "$lib/components/window-resize-handles.svelte";
+import WindowTitlebar from "$lib/components/window-titlebar.svelte";
 import * as m from "$lib/paraglide/messages";
 import Briefcase from "@lucide/svelte/icons/briefcase";
 import History from "@lucide/svelte/icons/history";
@@ -116,23 +117,25 @@ onMount(() => {
 <QueryClientProvider client={queryClient}>
     <Toaster richColors/>
     <LetterReviewSheet/>
+    <WindowResizeHandles/>
 
-    <Sidebar.Provider>
-        <Sidebar.Root variant="inset">
-            <Sidebar.Header>
-                <div class="flex items-center gap-2 px-2 py-1.5">
-                    <span
-                            class="bg-primary text-primary-foreground flex size-6 shrink-0 items-center justify-center rounded-md"
-                    >
-                        <AppMark class="size-4"/>
-                    </span>
-                    <span class="font-mono text-sm font-semibold">
-                        {m.nav_app_title()}
-                    </span>
-                </div>
-            </Sidebar.Header>
+    <!--
+        Desktop shell: pinned to the viewport, no document scroll. The titlebar is
+        full-window chrome above the sidebar+content row; that row fills the rest
+        and scrolls internally (see the content wrapper below).
+    -->
+    <div class="flex h-svh flex-col overflow-hidden">
+        <WindowTitlebar/>
 
-            <Sidebar.Content>
+        <Sidebar.Provider class="min-h-0 flex-1">
+            <!--
+                The inset sidebar is `fixed inset-y-0`, anchored to the viewport,
+                so it has to be told to start below the h-9 (2.25rem) titlebar
+                instead of at the very top edge. The brand now lives in the
+                titlebar, so Sidebar.Header is gone.
+            -->
+            <Sidebar.Root variant="inset" class="top-9 h-[calc(100svh-2.25rem)]">
+                <Sidebar.Content>
                 <Sidebar.Group>
                     <Sidebar.Menu>
                         {#each items as item (item.href)}
@@ -189,9 +192,10 @@ onMount(() => {
                 scrolling list, and a per-frame canvas repaint under them is a
                 real cost in WebKitGTK. The canvas is reserved for `/`.
             -->
-            <div class="bg-dotted flex-1">
+            <div class="bg-dotted min-h-0 flex-1 overflow-y-auto">
                 {@render children()}
             </div>
         </Sidebar.Inset>
     </Sidebar.Provider>
+    </div>
 </QueryClientProvider>

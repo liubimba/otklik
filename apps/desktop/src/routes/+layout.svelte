@@ -13,6 +13,7 @@ import * as m from "$lib/paraglide/messages";
 import Briefcase from "@lucide/svelte/icons/briefcase";
 import History from "@lucide/svelte/icons/history";
 import Inbox from "@lucide/svelte/icons/inbox";
+import Info from "@lucide/svelte/icons/info";
 import Moon from "@lucide/svelte/icons/moon";
 import Settings from "@lucide/svelte/icons/settings";
 import Sun from "@lucide/svelte/icons/sun";
@@ -74,6 +75,11 @@ const items = [
 		title: m.nav_settings,
 		href: "/settings",
 		icon: Settings,
+	},
+	{
+		title: m.nav_about,
+		href: "/about",
+		icon: Info,
 	},
 ];
 

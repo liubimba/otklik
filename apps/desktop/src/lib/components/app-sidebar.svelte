@@ -57,26 +57,28 @@ const onSignOut = () => actions.auth.unauthorize.mutateAsync();
 const onCancelAuth = () => actions.auth.cancel.mutateAsync();
 
 const items: NavItem[] = $derived([
+	// Both rows carry the same badge — the number of applications waiting on the
+	// user (letter_ready / letter_reviewing / error), counted GLOBALLY across the
+	// database by GET /applications/summary.
+	//
+	// Caveat worth knowing: «Очередь» only ever lists the LATEST search
+	// (GET /vacancies/ defaults to search_id="latest"). Start a new search and
+	// the previous one's unfinished letters drop off the Queue's list while still
+	// being counted here — the number stays true, but the Queue may not show every
+	// item behind it. «Все вакансии» always does. Scoping the Queue's badge to the
+	// current search would need a search_id filter on the summary endpoint.
 	{
 		href: "/queue",
 		label: m.nav_queue(),
 		icon: Inbox,
 		group: "work",
+		counted: true,
 	},
 	{
 		href: "/vacancies",
 		label: m.nav_vacancies(),
 		icon: Briefcase,
 		group: "work",
-		// The badge counts `needs_attention` GLOBALLY across the DB, but
-		// «Очередь» only ever lists the latest search (GET /vacancies/
-		// defaults to search_id="latest"). Start a new search and the old
-		// search's leftover letter_ready applications vanish from the
-		// Queue's list while the badge kept pointing at them — a true count
-		// on the wrong screen. «Все вакансии» is where they're actually
-		// visible, so the badge belongs here even though it looks like it
-		// "should" sit on the Queue at first glance. Don't move it back
-		// without also scoping the count to the current search.
 		counted: true,
 	},
 	{ href: "/history", label: m.nav_history(), icon: History, group: "work" },

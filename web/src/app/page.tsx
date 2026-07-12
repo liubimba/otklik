@@ -17,7 +17,7 @@ export default function Home() {
 		<>
 			<main className="flex-1">
 				<header className="mx-auto flex max-w-container items-center justify-between px-4 pt-4">
-					<span className="font-heading text-lg font-semibold tracking-tight">
+					<span className="font-heading text-lg font-extrabold tracking-tight">
 						Otklik
 					</span>
 					<ThemeToggle />

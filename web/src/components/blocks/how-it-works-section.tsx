@@ -27,7 +27,7 @@ function AutoApply({
 			<ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
 				{autoApply.pipeline.map((step, index) => (
 					<li key={step} className="flex items-center gap-2">
-						<Badge variant="outline" className="py-1 font-normal">
+						<Badge variant="outline" className="label-mono py-1.5">
 							{step}
 						</Badge>
 						{index < autoApply.pipeline.length - 1 && (
@@ -42,7 +42,7 @@ function AutoApply({
 
 			<Alert className="px-4 py-3">
 				<TriangleAlertIcon />
-				<AlertTitle className="font-heading text-base font-semibold">
+				<AlertTitle className="font-heading text-base font-extrabold">
 					{autoApply.note.title}
 				</AlertTitle>
 				<AlertDescription className="text-base text-pretty">
@@ -71,7 +71,7 @@ function StepSection({ step, index }: { step: Step; index: number }) {
 					<SectionHeader
 						id={`step-${number}`}
 						align="start"
-						eyebrow={`Шаг ${number}`}
+						eyebrow={`Шаг ${String(number).padStart(2, "0")}`}
 						title={step.title}
 						description={step.body}
 					/>

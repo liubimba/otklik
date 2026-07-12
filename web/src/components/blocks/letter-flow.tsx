@@ -44,7 +44,7 @@ function PaneTitle({
 	accent?: boolean;
 }) {
 	return (
-		<h3 className="mb-3 flex items-center gap-2 font-heading text-sm text-muted-foreground">
+		<h3 className="label-mono mb-3 flex items-center gap-2 text-muted-foreground">
 			<Icon
 				className={cn(
 					"size-4",
@@ -120,7 +120,7 @@ export function LetterFlow() {
 						<span className="size-2.5 rounded-full bg-muted-foreground/30" />
 						<span className="size-2.5 rounded-full bg-muted-foreground/30" />
 						<span className="size-2.5 rounded-full bg-muted-foreground/30" />
-						<span className="mx-auto rounded-md bg-muted px-3 py-0.5 text-xs text-muted-foreground">
+						<span className="label-mono mx-auto rounded-md bg-muted px-3 py-0.5 normal-case tracking-normal text-muted-foreground">
 							Otklik — Backend-разработчик, Ozon
 						</span>
 					</div>

@@ -26,7 +26,7 @@ export function RisksSection() {
 					className="border-destructive/30 bg-destructive/5 px-5 py-4"
 				>
 					<TriangleAlertIcon />
-					<AlertTitle className="font-heading text-lg font-semibold">
+					<AlertTitle className="font-heading text-lg font-extrabold">
 						{risks.warning.title}
 					</AlertTitle>
 					<AlertDescription className="text-base text-pretty">

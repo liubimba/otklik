@@ -64,7 +64,7 @@ export function PrivacySection() {
 			<Reveal delay="delay-300" className="mt-8">
 				<Alert className="px-4 py-3">
 					<InfoIcon />
-					<AlertTitle className="font-heading text-base font-semibold">
+					<AlertTitle className="font-heading text-base font-extrabold">
 						{privacy.caveat.title}
 					</AlertTitle>
 					<AlertDescription className="text-base text-pretty">

@@ -16,7 +16,9 @@ export function SiteFooter() {
 
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div className="flex flex-col gap-1">
-						<span className="font-heading text-base font-semibold">Otklik</span>
+						<span className="font-heading text-base font-extrabold">
+							Otklik
+						</span>
 						<p className="text-base text-muted-foreground">{footer.tagline}</p>
 					</div>
 

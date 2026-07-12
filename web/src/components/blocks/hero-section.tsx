@@ -42,7 +42,7 @@ export function HeroSection({
 	return (
 		<section
 			className={cn(
-				"bg-background text-foreground",
+				"relative bg-background text-foreground texture-grid texture-noise",
 				"px-4 py-12 sm:py-24 md:py-32",
 				"fade-bottom overflow-hidden pb-0",
 			)}

@@ -10,8 +10,8 @@ const NAV = [
 
 export function SiteFooter() {
 	return (
-		<footer className="bg-background px-4 pb-12">
-			<div className="mx-auto flex max-w-container flex-col gap-6">
+		<footer className="relative overflow-hidden bg-background px-4 pb-12 texture-grid texture-noise">
+			<div className="relative z-10 mx-auto flex max-w-container flex-col gap-6">
 				<Separator />
 
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

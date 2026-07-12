@@ -50,7 +50,10 @@ export function HeroSection({
 			<div className="mx-auto flex max-w-container flex-col gap-12 pt-16 sm:gap-24">
 				<div className="flex flex-col items-center gap-6 text-center sm:gap-12">
 					{badge && (
-						<Badge variant="outline" className="animate-appear gap-2 py-1">
+						<Badge
+							variant="outline"
+							className="animate-enter-up opacity-0 gap-2 py-1"
+						>
 							<span className="text-muted-foreground">{badge.text}</span>
 							<a
 								href={badge.action.href}
@@ -62,15 +65,15 @@ export function HeroSection({
 						</Badge>
 					)}
 
-					<h1 className="relative z-10 inline-block animate-appear bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text font-heading text-balance text-transparent drop-shadow-2xl">
+					<h1 className="relative z-10 inline-block animate-enter-clip opacity-0 delay-100 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text font-heading text-balance text-transparent drop-shadow-2xl">
 						{title}
 					</h1>
 
-					<p className="relative z-10 max-w-[550px] animate-appear text-base font-medium text-pretty text-muted-foreground opacity-0 delay-100 sm:text-xl">
+					<p className="relative z-10 max-w-[550px] animate-enter-up text-base font-medium text-pretty text-muted-foreground opacity-0 delay-300 sm:text-xl">
 						{description}
 					</p>
 
-					<div className="relative z-10 flex animate-appear flex-wrap justify-center gap-4 opacity-0 delay-300">
+					<div className="relative z-10 flex animate-enter-up flex-wrap justify-center gap-4 opacity-0 delay-400">
 						{actions.map((action) => (
 							<Button
 								key={action.href}
@@ -93,7 +96,7 @@ export function HeroSection({
 							dark={image.dark}
 							alt={image.alt}
 							priority
-							className="animate-appear opacity-0 delay-700"
+							className="animate-appear-zoom opacity-0 delay-600"
 						/>
 						<Glow
 							variant="top"

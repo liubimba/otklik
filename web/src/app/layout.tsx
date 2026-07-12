@@ -44,7 +44,9 @@ export default function RootLayout({
             Без JS страница осталась бы пустой — возвращаем видимость. */}
 				<noscript>
 					<style>
-						{"[data-reveal],[data-typed] span{opacity:1 !important}"}
+						{
+							"[data-reveal],[data-typed] span,.animate-enter-up,.animate-enter-clip{opacity:1 !important}"
+						}
 					</style>
 				</noscript>
 			</head>

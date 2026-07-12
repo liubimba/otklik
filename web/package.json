@@ -6,7 +6,9 @@
 		"dev": "next dev",
 		"build": "next build",
 		"start": "next start",
-		"lint": "eslint"
+		"lint": "eslint",
+		"check:contrast": "node scripts/check-contrast.mjs",
+		"check:fonts": "node scripts/check-fonts.mjs"
 	},
 	"dependencies": {
 		"class-variance-authority": "^0.7.1",

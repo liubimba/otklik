@@ -115,7 +115,7 @@ export function LetterFlow() {
 					{/* Титул-бар окна */}
 					<div
 						aria-hidden
-						className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-4 py-3"
+						className="flex items-center gap-2 border-b border-border bg-muted/40 px-4 py-3"
 					>
 						<span className="size-2.5 rounded-full bg-muted-foreground/30" />
 						<span className="size-2.5 rounded-full bg-muted-foreground/30" />
@@ -126,7 +126,7 @@ export function LetterFlow() {
 					</div>
 
 					{/* Источники: резюме и вакансия — рядом */}
-					<div className="grid divide-y divide-border/60 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+					<div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
 						{letterFlow.sources.map((source) => {
 							const Icon = sectionIcons[source.icon];
 
@@ -154,7 +154,7 @@ export function LetterFlow() {
 					</div>
 
 					{/* Письмо */}
-					<section className="border-t border-border/60 p-5">
+					<section className="border-t border-border p-5">
 						<PaneTitle icon={FileTextIcon} accent>
 							{letterFlow.letter.title}
 						</PaneTitle>
@@ -208,7 +208,7 @@ export function LetterFlow() {
 					</section>
 
 					{/* Чат с AI */}
-					<section className="border-t border-border/60 p-5">
+					<section className="border-t border-border p-5">
 						<PaneTitle icon={SparklesIcon} accent>
 							{letterFlow.chat.title}
 						</PaneTitle>

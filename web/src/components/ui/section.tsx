@@ -1,6 +1,5 @@
 import type * as React from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,7 +19,8 @@ function Section({
 			aria-labelledby={`${id}-title`}
 			className={cn(
 				"relative scroll-mt-24 overflow-hidden px-4 py-16 sm:py-24 md:py-32",
-				variant === "muted" ? "bg-muted/30" : "bg-background",
+				"bg-noise",
+				variant === "muted" ? "surface-recessed" : "bg-background bg-grid",
 				className,
 			)}
 			{...props}
@@ -57,11 +57,7 @@ function SectionHeader({
 				className,
 			)}
 		>
-			{eyebrow && (
-				<Badge variant="outline" className="py-1">
-					<span className="text-muted-foreground">{eyebrow}</span>
-				</Badge>
-			)}
+			{eyebrow && <span className="label-mono text-brand">{eyebrow}</span>}
 			<h2 id={`${id}-title`} className="font-heading text-balance">
 				{title}
 			</h2>

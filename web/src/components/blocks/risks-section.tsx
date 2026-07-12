@@ -19,11 +19,14 @@ export function RisksSection() {
 				description={risks.description}
 			/>
 
-			{/* destructive-токены, а не brand: brand тоже красный, они бы слиплись. */}
+			{/* destructive-токены, а не brand: brand тоже красный, они бы слиплись.
+			    Самый тяжёлый красный элемент страницы: сплошная заливка + жирная
+			    левая линейка вместо 5%-подложки — предупреждение о бане обязано
+			    перебивать эйрбоу, иконки карточек и кнопки-brand. */}
 			<Reveal delay="delay-100" className="mt-12">
 				<Alert
 					variant="destructive"
-					className="border-destructive/30 bg-destructive/5 px-5 py-4"
+					className="border-destructive/60 border-l-4 border-l-destructive bg-destructive/10 px-5 py-4"
 				>
 					<TriangleAlertIcon />
 					<AlertTitle className="font-heading text-lg font-extrabold">

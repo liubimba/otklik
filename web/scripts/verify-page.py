@@ -107,7 +107,7 @@ async def main() -> None:
 
             stuck = await page.evaluate(
                 "[...document.querySelectorAll("
-                "'[data-reveal], [data-typed] span, .animate-enter-up, .animate-enter-clip')]"
+                "'[data-reveal], [data-typed] span, .animate-enter-up, .animate-enter-clip, .animate-appear-zoom')]"
                 ".filter(e => parseFloat(getComputedStyle(e).opacity) < 0.99).length"
             )
             if stuck:

@@ -26,6 +26,11 @@ import {
 } from "$lib/queries/search_history";
 import { createSettingsQuery, settingsQueryKey } from "$lib/queries/settings";
 import {
+	createSummaryQuery,
+	invalidateSummary,
+	summaryQueryKey,
+} from "$lib/queries/summary";
+import {
 	applyVacancyEvent,
 	createVacanciesQuery,
 	vacanciesQueryKey,
@@ -66,6 +71,11 @@ export const query = {
 		key: applicationQueryKey,
 		create: createApplicationQuery,
 		apply: applyApplicationEvent,
+	},
+	summary: {
+		key: summaryQueryKey,
+		create: createSummaryQuery,
+		invalidate: invalidateSummary,
 	},
 	cover_letter: {
 		history: {

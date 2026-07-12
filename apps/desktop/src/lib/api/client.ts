@@ -4,6 +4,7 @@ import type {
 	APIRequestError,
 	APIResponse,
 	ApplicationDetail,
+	ApplicationsSummary,
 	AuthStatus,
 	ChatMessage,
 	ChatStreamEvent,
@@ -169,6 +170,9 @@ export const API = {
 		signInCancel: () =>
 			api<AuthStatus>("auth/sign-in/cancel", { method: "POST" }),
 		signOut: () => api<AuthStatus>("auth/sign-out", { method: "POST" }),
+	},
+	applications: {
+		summary: () => api<ApplicationsSummary>("applications/summary"),
 	},
 	search: {
 		filter: {

@@ -102,6 +102,7 @@ onMount(() => {
 				case "vacancy_new":
 					query.vacancies.apply(queryClient, event);
 					query.all_vacancies.invalidate(queryClient);
+					query.summary.invalidate(queryClient);
 					break;
 				case "search_event":
 					query.search.vacancies.apply(queryClient, event);
@@ -115,6 +116,7 @@ onMount(() => {
 					// The archive page renders status inline from the list payload,
 					// so only a list refetch can move its badges.
 					query.all_vacancies.invalidate(queryClient);
+					query.summary.invalidate(queryClient);
 			}
 		});
 	});

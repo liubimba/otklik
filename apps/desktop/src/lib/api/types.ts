@@ -251,6 +251,10 @@ export type ChatStreamEvent =
 	| { type: "done"; version: number | null }
 	| { type: "error"; detail: string };
 
+export type ApplicationsSummary = {
+	needs_attention: number;
+};
+
 export type AICoverLetterResponse = {
 	text: string;
 	model_used: string;

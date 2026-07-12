@@ -187,6 +187,21 @@ describe("API URL construction", () => {
 		expect(calls[3].url).toMatch(/\/api\/v1\/system\/orchestrator\/resume$/);
 		expect(calls[3].init?.method).toBe("POST");
 	});
+
+	// The sidebar counter is driven entirely by this path. A typo here would not
+	// throw — it would 404 quietly and the badge would simply never appear.
+	// Note the collection is /applications (global summary), NOT the per-vacancy
+	// /vacancies/{id}/application route.
+	it("applications summary hits GET /api/v1/applications/summary", async () => {
+		respondWith(jsonResponse({ needs_attention: 3 }));
+
+		await expect(API.applications.summary()).resolves.toEqual({
+			needs_attention: 3,
+		});
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/applications\/summary$/);
+		expect(calls[0].init?.method ?? "GET").toBe("GET");
+	});
 });
 
 describe("API.application.submit — dirty-submit body semantics", () => {

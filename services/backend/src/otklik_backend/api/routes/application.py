@@ -14,6 +14,7 @@ from otklik_backend.api.dependencies import (
 )
 from otklik_backend.api.schemas import (
     ApplicationDetailAPISchema,
+    ApplicationsSummaryAPISchema,
     ChatMessageAPISchema,
     CoverLetterAPISchema,
     CoverLetterRequestAPISchema,
@@ -34,6 +35,19 @@ application_router = APIRouter(
     prefix="/vacancies/{vacancy_id}/application", tags=["application"]
 )
 log = get_logger(__name__)
+
+# Сводка глобальная, а не по одной вакансии, поэтому у неё свой префикс —
+# `application_router` живёт под /vacancies/{vacancy_id}/application.
+applications_router = APIRouter(prefix="/applications", tags=["applications"])
+
+
+@applications_router.get("/summary")
+async def summary(session: SessionDep) -> ApplicationsSummaryAPISchema:
+    return ApplicationsSummaryAPISchema(
+        needs_attention=await ApplicationRepository.count_needs_attention(
+            session=session
+        )
+    )
 
 
 async def _load_or_404(session: AsyncSession, vacancy_id: int) -> VacancyORM:

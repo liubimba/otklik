@@ -75,6 +75,7 @@ async def lifespan(app: FastAPI) -> Any:
 router = APIRouter(prefix="/api/v1")
 router.include_router(vacancies.vacancies_router)
 router.include_router(application.application_router)
+router.include_router(application.applications_router)
 router.include_router(auth.auth_router)
 router.include_router(search.search_router)
 router.include_router(settings.settings_router)

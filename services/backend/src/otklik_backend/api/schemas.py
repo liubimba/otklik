@@ -173,6 +173,12 @@ class SubmitApplicationRequestAPISchema(BaseModel):
     text: Optional[str] = None
 
 
+class ApplicationsSummaryAPISchema(BaseModel):
+    """Сводка по заявкам для сайдбара. Одно число вместо списка."""
+
+    needs_attention: int
+
+
 class ChatMessageAPISchema(BaseModel):
     id: int
     role: str

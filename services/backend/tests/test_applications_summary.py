@@ -1,3 +1,4 @@
+from fastapi import Response
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from otklik_backend.api.schemas import ProcessingState, VacancyAPISchema
@@ -90,3 +91,31 @@ async def test_terminal_states_are_not_counted(
     async with session_factory() as session:
         applications = await ApplicationRepository.list_all(session=session)
         assert applications[0].status is ProcessingState.SKIPPED
+
+
+async def test_summary_endpoint_returns_zero_on_empty_db(client) -> None:
+    response: Response = client.get("/api/v1/applications/summary")
+
+    assert response.status_code == 200
+    assert response.json() == {"needs_attention": 0}
+
+
+async def test_summary_endpoint_counts_applications_awaiting_the_user(
+    client,
+    session_factory: async_sessionmaker[AsyncSession],
+    vacancy_model: VacancyAPISchema,
+) -> None:
+    # `client` already inserts a vacancy from the unmodified `vacancy_model`
+    # fixture (see conftest.py) — reusing it here would collide on the unique
+    # `apply_link`, so this seeds a second vacancy with a distinct link.
+    await _seed(
+        session_factory,
+        vacancy_model.model_copy(update={"apply_link": "https://hh.ru/vacancy/999"}),
+        ApplicationEvent.ENQUEUE_FOR_LETTER,
+        ApplicationEvent.LETTER_GENERATED,
+    )
+
+    response: Response = client.get("/api/v1/applications/summary")
+
+    assert response.status_code == 200
+    assert response.json() == {"needs_attention": 1}

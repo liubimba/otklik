@@ -23,7 +23,7 @@ type NavItem = {
 	label: string;
 	icon: typeof IconType;
 	group: NavGroup;
-	/** Счётчик показывается только у «Очереди». */
+	/** Счётчик показывается только у «Все вакансии». */
 	counted?: boolean;
 };
 
@@ -62,13 +62,22 @@ const items: NavItem[] = $derived([
 		label: m.nav_queue(),
 		icon: Inbox,
 		group: "work",
-		counted: true,
 	},
 	{
 		href: "/vacancies",
 		label: m.nav_vacancies(),
 		icon: Briefcase,
 		group: "work",
+		// The badge counts `needs_attention` GLOBALLY across the DB, but
+		// «Очередь» only ever lists the latest search (GET /vacancies/
+		// defaults to search_id="latest"). Start a new search and the old
+		// search's leftover letter_ready applications vanish from the
+		// Queue's list while the badge kept pointing at them — a true count
+		// on the wrong screen. «Все вакансии» is where they're actually
+		// visible, so the badge belongs here even though it looks like it
+		// "should" sit on the Queue at first glance. Don't move it back
+		// without also scoping the count to the current search.
+		counted: true,
 	},
 	{ href: "/history", label: m.nav_history(), icon: History, group: "work" },
 	{

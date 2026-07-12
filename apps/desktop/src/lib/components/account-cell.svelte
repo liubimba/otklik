@@ -66,7 +66,7 @@ function activate() {
 					его ради одного индикатора нельзя.
 				-->
 				<span
-					class="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-card {status ===
+					class="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar {status ===
 					'authorized'
 						? 'bg-foreground'
 						: 'bg-muted-foreground/40'}"

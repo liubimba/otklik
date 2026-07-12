@@ -62,7 +62,7 @@ const d = $derived.by(() => {
 	class="pointer-events-none absolute inset-0 size-full overflow-visible"
 	viewBox="0 0 {width} {height}"
 	preserveAspectRatio="none"
-	style="filter: drop-shadow(0 8px 18px rgb(0 0 0 / 0.13)) drop-shadow(0 2px 5px rgb(0 0 0 / 0.08));"
+	style="filter: drop-shadow(0 8px 18px var(--elevation-2-shadow-2)) drop-shadow(0 2px 5px var(--elevation-2-shadow-1));"
 	aria-hidden="true"
 >
 	<!--

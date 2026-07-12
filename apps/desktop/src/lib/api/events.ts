@@ -27,7 +27,11 @@ export class EventsWebSocket {
 		private readonly onError?: (event: Event) => void,
 		private readonly onClose?: () => void,
 		options: ReconnectOptions = {},
+		private readonly onOpen?: () => void,
 	) {
+		// onOpen intentionally trails `options` (which carries a default) — every
+		// existing call site passes it positionally, so re-ordering would force a
+		// churn edit at each one for no behavioural gain.
 		this.url = `ws://${BASE_IP}:${BASE_PORT}/ws/events`;
 		this.options = {
 			initialDelay: options.initialDelay ?? 1_000,
@@ -59,6 +63,11 @@ export class EventsWebSocket {
 		this.ws.onopen = () => {
 			this.logger.info("WebSocket connection established for server events");
 			this.resetBackoff();
+			// Every (re)connect is a real "may have missed events" signal — the
+			// server has no replay buffer, so anything published while we were
+			// down (or during the pre-boot connect race) is simply gone. Give
+			// the caller a chance to resync state that only WS events refresh.
+			this.onOpen?.();
 		};
 		this.ws.onclose = (event) => {
 			this.logger.info(

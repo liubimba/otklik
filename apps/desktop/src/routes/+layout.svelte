@@ -49,36 +49,52 @@ onMount(() => {
 	// if an update is found, <UpdateDialog/> pops up on its own via the store.
 	void updater.check();
 
-	const listener = new EventsWebSocket((event: ServerEvent) => {
-		// A single WS event can trigger multiple cache mutations
-		// (setQueryData + invalidateQueries). Without batching,
-		// subscribers re-render once per mutation. `notifyManager.batch`
-		// collapses them into one notification per event, keeping the
-		// vacancy list / letter sheet from thrashing during an
-		// auto-submit storm.
-		notifyManager.batch(() => {
-			switch (event.type) {
-				case "vacancy_new":
-					query.vacancies.apply(queryClient, event);
-					query.all_vacancies.invalidate(queryClient);
-					query.summary.invalidate(queryClient);
-					break;
-				case "search_event":
-					query.search.vacancies.apply(queryClient, event);
-					query.search.history.apply(queryClient, event);
-					break;
-				case "auth_changed":
-					query.auth.apply(queryClient, event);
-					break;
-				case "application_event":
-					query.application.apply(queryClient, event);
-					// The archive page renders status inline from the list payload,
-					// so only a list refetch can move its badges.
-					query.all_vacancies.invalidate(queryClient);
-					query.summary.invalidate(queryClient);
-			}
-		});
-	});
+	const listener = new EventsWebSocket(
+		(event: ServerEvent) => {
+			// A single WS event can trigger multiple cache mutations
+			// (setQueryData + invalidateQueries). Without batching,
+			// subscribers re-render once per mutation. `notifyManager.batch`
+			// collapses them into one notification per event, keeping the
+			// vacancy list / letter sheet from thrashing during an
+			// auto-submit storm.
+			notifyManager.batch(() => {
+				switch (event.type) {
+					case "vacancy_new":
+						query.vacancies.apply(queryClient, event);
+						query.all_vacancies.invalidate(queryClient);
+						// PARSED never counts toward the "needs attention" summary,
+						// and the transition that later does is its own
+						// application_event, which already invalidates below. Firing
+						// here too would mean one wasted GET per parsed vacancy.
+						break;
+					case "search_event":
+						query.search.vacancies.apply(queryClient, event);
+						query.search.history.apply(queryClient, event);
+						break;
+					case "auth_changed":
+						query.auth.apply(queryClient, event);
+						break;
+					case "application_event":
+						query.application.apply(queryClient, event);
+						// The archive page renders status inline from the list payload,
+						// so only a list refetch can move its badges.
+						query.all_vacancies.invalidate(queryClient);
+						query.summary.invalidate(queryClient);
+				}
+			});
+		},
+		undefined,
+		undefined,
+		undefined,
+		() => {
+			// The socket (re)connecting is the one moment we know we may have
+			// missed events: the backend publishes fire-and-forget, so anything
+			// that happened while we were down — or before the backend was even
+			// ready to accept the very first connection — is gone for good
+			// unless we resync here.
+			query.summary.invalidate(queryClient);
+		},
+	);
 	listener.connect();
 	return () => {
 		listener.close();

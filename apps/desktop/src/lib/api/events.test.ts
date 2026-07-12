@@ -234,6 +234,44 @@ describe("EventsWebSocket — reconnect backoff", () => {
 	});
 });
 
+describe("EventsWebSocket — open hook", () => {
+	it("calls onOpen on the first successful connect", () => {
+		const onOpen = vi.fn();
+		const ws = new EventsWebSocket(
+			() => {},
+			undefined,
+			undefined,
+			undefined,
+			onOpen,
+		);
+		ws.connect();
+		expect(onOpen).not.toHaveBeenCalled();
+		FakeWebSocket.last().fireOpen();
+		expect(onOpen).toHaveBeenCalledTimes(1);
+	});
+
+	it("calls onOpen again on every reconnect, not just the first connect", () => {
+		const onOpen = vi.fn();
+		const ws = new EventsWebSocket(
+			() => {},
+			undefined,
+			undefined,
+			{ initialDelay: 100 },
+			onOpen,
+		);
+		ws.connect();
+		FakeWebSocket.last().fireOpen();
+		expect(onOpen).toHaveBeenCalledTimes(1);
+
+		// Socket drops and reconnects — this is the "may have missed events"
+		// case the hook exists for (WS gap / boot race in the bug report).
+		FakeWebSocket.last().fireClose(1006, false);
+		vi.advanceTimersByTime(100);
+		FakeWebSocket.last().fireOpen();
+		expect(onOpen).toHaveBeenCalledTimes(2);
+	});
+});
+
 describe("EventsWebSocket — error hook", () => {
 	it("propagates onerror to the caller-supplied handler", () => {
 		const onError = vi.fn();

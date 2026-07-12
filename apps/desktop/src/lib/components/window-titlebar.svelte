@@ -40,9 +40,10 @@ const controlClass =
 </script>
 
 <!--
-	Full-window chrome, sibling above Sidebar.Provider. The bar itself is the
-	drag region; the brand and the buttons sit on top of it and keep their own
-	clicks. Double-click on the empty middle toggles maximise (native gesture).
+	Full-window chrome: in +layout.svelte this sits above the sidebar+content
+	flex row, spanning the whole window. The bar itself is the drag region;
+	the brand and the buttons sit on top of it and keep their own clicks.
+	Double-click on the empty middle toggles maximise (native gesture).
 -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div

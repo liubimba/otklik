@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from otklik_backend.api.schemas import ProcessingState
@@ -12,6 +12,21 @@ from otklik_backend.orchestrator.state_machine import (
 )
 
 logger = get_logger(__name__)
+
+# Состояния, в которых мяч на стороне пользователя: письмо готово и ждёт
+# решения, письмо открыто на ревью, или обработка упала. LETTER_PENDING и
+# LETTER_SENDING сюда не входят — там работает система, а не человек.
+#
+# Совпадает значениями с CHAT_EDITABLE_STATES (orchestrator/letter_chat_service.py),
+# но это разные вопросы: там — «письмо можно править через AI-чат», здесь — «нужно
+# решение пользователя». Совпадение случайное и временное: captcha-пауза (задача 2.5)
+# требует действий пользователя, но чата в ней нет. Списки намеренно не объединены —
+# менять их следует независимо.
+NEEDS_ATTENTION_STATES: tuple[ProcessingState, ...] = (
+    ProcessingState.LETTER_READY,
+    ProcessingState.LETTER_REVIEWING,
+    ProcessingState.ERROR,
+)
 
 
 class ApplicationRepository:
@@ -96,3 +111,12 @@ class ApplicationRepository:
             select(ApplicationORM).where(ApplicationORM.status == status)
         )
         return result.scalars().all()
+
+    @classmethod
+    async def count_needs_attention(cls, session: AsyncSession) -> int:
+        result = await session.execute(
+            select(func.count())
+            .select_from(ApplicationORM)
+            .where(ApplicationORM.status.in_(NEEDS_ATTENTION_STATES))
+        )
+        return int(result.scalar_one())

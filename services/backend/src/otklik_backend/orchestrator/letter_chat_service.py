@@ -22,6 +22,12 @@ from otklik_backend.orchestrator.exceptions import LetterChatNotAllowedError
 # letter is still fixable by asking the AI, matching the actionable-error set the
 # UI uses for submit/regenerate/save (canChat in the viewmodel must stay in sync).
 # Not allowed mid-regenerate (LETTER_PENDING), while sending, or once terminal.
+#
+# Value-identical to NEEDS_ATTENTION_STATES (db/repositories/applications.py) today,
+# but the two answer different questions — "can the AI edit this letter?" versus
+# "does the user owe a decision?" — and will diverge at the captcha pause (task 2.5),
+# which needs the user but offers no chat. Deliberately NOT merged; change each on
+# its own merits.
 CHAT_EDITABLE_STATES = frozenset(
     {
         ProcessingState.LETTER_READY,

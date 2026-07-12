@@ -134,6 +134,10 @@ jobs:
       - name: cargo test
         working-directory: apps/desktop/src-tauri
         run: cargo test --all-features
+      # --no-bundle: compile the app and frontend, but skip bundling. Bundling
+      # would emit updater artifacts (bundle.createUpdaterArtifacts), which must
+      # be signed — and the signing key belongs to release.yml, not to every CI
+      # run. CI only needs to prove the thing builds.
       - name: tauri build
         working-directory: apps/desktop
-        run: pnpm exec tauri build
+        run: pnpm exec tauri build --no-bundle

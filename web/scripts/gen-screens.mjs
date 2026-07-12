@@ -1,7 +1,11 @@
 // Генератор SVG-заглушек «Как это работает» под текущую палитру.
 // Геометрия (viewBox 1248×765, шапка 44px, сайдбар 232px, панели/ряды) —
 // перенесена из прежних вручную нарисованных SVG без изменений.
-// Меняются только цвета: они выведены из токенов Задачи 3 (globals.css).
+// Меняются только цвета: палитра подобрана вручную в тон токенов Задачи 3
+// (globals.css) — это стилизованный мокап интерфейса, НЕ попиксельная
+// oklch()→sRGB конверсия. Где хекс действительно совпадает с конверсией
+// токена — отмечено «=»; где это осознанно другое значение (мокапу нужен
+// свой контраст читаемости, а не точное совпадение) — отмечено «≈»/пояснением.
 //
 // Запуск: npm run gen:screens
 
@@ -16,33 +20,36 @@ const SCREENS_DIR = join(PUBLIC_DIR, "screens");
 const W = 1248;
 const H = 765;
 
-// sRGB-эквиваленты токенов Task 3 (см. src/app/globals.css).
+// Цвета мокапа — стилизация под палитру Task 3 (см. src/app/globals.css),
+// НЕ точные sRGB-конверсии соответствующих oklch().
 const DARK = {
-	bg: "#1c1e24", // --background  oklch(0.15 0.012 255)
+	bg: "#1c1e24", // светлее реального --background (oklch(0.15 0.012 255) ≈ #080b10) — тёмный мокап должен читаться, а не тонуть в черноте
 	bar: "#23262d",
-	panel: "#23262d", // --card        oklch(0.19 0.012 255)
+	panel: "#23262d", // светлее реального --card (oklch(0.19 0.012 255) ≈ #101419), тот же резон
 	sunken: "#1c1e24",
-	line: "#5b606b", // --muted-foreground
-	lineSoft: "#2b2f37", // --muted
+	line: "#5b606b", // темнее реального --muted-foreground — нужен приглушённый, не читаемый текст на мокапе
+	lineSoft: "#2b2f37", // светлее реального --muted, тот же резон
 	dot: "#3a3e47",
-	brand: "#e2483a", // --brand (dark) oklch(0.62 0.2 28)
+	brand: "#e2483a", // ≈ --brand (dark) oklch(0.62 0.2 28)
 	brandSoft: "#4a2320",
 	ok: "#1d4a33", // «Отправлено» — единственный зелёный на странице
+	onOk: "#4ade80", // галочка на зелёной плашке: не brand (красный на зелёном читается как «ошибка»)
 	onBrand: "#fdece9",
 	stroke: "none",
 };
 
 const LIGHT = {
-	bg: "#fafbfc", // --background oklch(0.985 0.003 255)
+	bg: "#fafbfc", // = --background (oklch(0.985 0.003 255) ≈ #f9fafc)
 	bar: "#f1f3f5",
-	panel: "#ffffff", // --card
+	panel: "#ffffff", // = --card (oklch(1 0 0))
 	sunken: "#ffffff",
 	line: "#c9ccd3",
-	lineSoft: "#f1f3f5", // --muted
+	lineSoft: "#f1f3f5", // ≈ --muted
 	dot: "#c9ccd3",
-	brand: "#c0361f", // --brand (light) = красный приложения
+	brand: "#c0361f", // красный приложения, светлее --brand для контраста на белом мокапе
 	brandSoft: "#fbe4e0",
 	ok: "#dcf5e6",
+	onOk: "#166534", // галочка на зелёной плашке: не brand (красный на зелёном читается как «ошибка»)
 	onBrand: "#ffffff",
 	stroke: "#e3e6ea",
 };
@@ -242,7 +249,7 @@ function sentRow(T, y) {
 		rect(288, y + 24, 280, 14, T.dot, { rx: 7 }),
 		rect(288, y + 54, 180, 10, T.dot, { rx: 5 }),
 		rect(1060, y + 34, 124, 24, T.ok, { rx: 12 }),
-		`  <path d="M1078 ${y + 46} l6 6 l12 -12" stroke="${T.brand}" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+		`  <path d="M1078 ${y + 46} l6 6 l12 -12" stroke="${T.onOk}" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
 	].join("\n");
 }
 

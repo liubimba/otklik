@@ -1,17 +1,25 @@
 import type { Metadata } from "next";
-import { Inter, Manrope } from "next/font/google";
+import { Geologica, Golos_Text, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
 
-const inter = Inter({
-	variable: "--font-body",
-	subsets: ["latin", "cyrillic"],
-});
-
-const manrope = Manrope({
+const display = Geologica({
 	variable: "--font-display",
 	subsets: ["latin", "cyrillic"],
+	weight: ["400", "800"],
+});
+
+const body = Golos_Text({
+	variable: "--font-body",
+	subsets: ["latin", "cyrillic"],
+	weight: ["400", "500"],
+});
+
+const mono = JetBrains_Mono({
+	variable: "--font-mono",
+	subsets: ["latin", "cyrillic"],
+	weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -29,7 +37,7 @@ export default function RootLayout({
 		<html
 			lang="ru"
 			suppressHydrationWarning
-			className={`${inter.variable} ${manrope.variable} h-full antialiased`}
+			className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
 		>
 			<head>
 				{/* Reveal-обёртки стартуют прозрачными и проявляются скриптом.

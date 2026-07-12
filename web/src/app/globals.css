@@ -10,7 +10,7 @@
 	--color-brand: var(--brand);
 	--color-brand-foreground: var(--brand-foreground);
 	--font-sans: var(--font-body);
-	--font-mono: var(--font-geist-mono);
+	--font-mono: var(--font-mono);
 	--font-heading: var(--font-display);
 	--container-container: 80rem;
 	--animate-appear: appear 0.5s ease-out forwards;
@@ -161,6 +161,40 @@
 	}
 	html {
 		@apply font-sans;
+	}
+
+	/* Скачки размера ~3×, а не 1.5×; трекинг заголовков плотный. */
+	h1 {
+		font-size: clamp(2.75rem, 7vw, 5.5rem);
+		line-height: 1.02;
+		letter-spacing: -0.03em;
+		font-weight: 800;
+	}
+	h2 {
+		font-size: clamp(2rem, 4vw, 3rem);
+		line-height: 1.08;
+		letter-spacing: -0.025em;
+		font-weight: 800;
+	}
+	h3 {
+		letter-spacing: -0.015em;
+		font-weight: 800;
+	}
+	body {
+		font-size: 1.0625rem;
+		line-height: 1.6;
+	}
+}
+
+@layer components {
+	/* Служебный слой: эйрбоу, чипы, цифры, пути, статусы.
+     Моно НЕ используется для читаемого текста — аудитория шире, чем разработчики. */
+	.label-mono {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		font-weight: 500;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
 	}
 }
 

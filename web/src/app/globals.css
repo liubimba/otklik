@@ -12,6 +12,8 @@
 	--font-sans: var(--font-body);
 	--font-mono: var(--font-mono);
 	--font-heading: var(--font-display);
+	--text-base: 1.0625rem;
+	--text-base--line-height: 1.6;
 	--container-container: 80rem;
 	--animate-appear: appear 0.5s ease-out forwards;
 	--animate-appear-zoom: appear-zoom 0.5s ease-out forwards;
@@ -205,10 +207,6 @@
 	h3 {
 		letter-spacing: -0.015em;
 		font-weight: 800;
-	}
-	body {
-		font-size: 1.0625rem;
-		line-height: 1.6;
 	}
 }
 

@@ -19,13 +19,17 @@ function Section({
 			aria-labelledby={`${id}-title`}
 			className={cn(
 				"relative scroll-mt-24 overflow-hidden px-4 py-16 sm:py-24 md:py-32",
-				"bg-noise",
-				variant === "muted" ? "surface-recessed" : "bg-background bg-grid",
+				"texture-noise",
+				variant === "muted"
+					? "surface-recessed texture-hatch"
+					: "bg-background texture-grid",
 				className,
 			)}
 			{...props}
 		>
-			<div className="mx-auto flex max-w-container flex-col">{children}</div>
+			<div className="relative z-10 mx-auto flex max-w-container flex-col">
+				{children}
+			</div>
 		</section>
 	);
 }

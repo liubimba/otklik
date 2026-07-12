@@ -225,8 +225,11 @@
 }
 
 @layer utilities {
-	/* Чертёжная сетка — фактура, а не заливка. */
-	.bg-grid {
+	/* Чертёжная сетка — фактура, а не заливка.
+	   Имя намеренно без префикса bg- (tailwind-merge иначе сливает её
+	   с bg-background/bg-hatch/bg-noise как «один и тот же» background-* конфликт-класс —
+	   see web/src/lib/utils.ts:cn, twMerge groups по префиксу). */
+	.texture-grid {
 		background-image: repeating-linear-gradient(
 				to right,
 				color-mix(in oklab, var(--foreground) 4%, transparent) 0 1px,
@@ -246,8 +249,18 @@
 			color-mix(in oklab, var(--foreground) 8%, transparent);
 	}
 
+	/* Утопленная поверхность несёт СВОЮ фактуру: чередование секций должно читаться
+	   сменой материала, а не сменой заливки. Диагональ против ортогональной сетки. */
+	.texture-hatch {
+		background-image: repeating-linear-gradient(
+			135deg,
+			color-mix(in oklab, var(--foreground) 3%, transparent) 0 1px,
+			transparent 1px 10px
+		);
+	}
+
 	/* Шум убирает «пластиковую» гладкость. Инлайн-SVG: внешние запросы CSP не пустит. */
-	.bg-noise::before {
+	.texture-noise::before {
 		content: "";
 		position: absolute;
 		inset: 0;

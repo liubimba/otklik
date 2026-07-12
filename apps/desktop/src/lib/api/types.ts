@@ -255,6 +255,13 @@ export type ApplicationsSummary = {
 	needs_attention: number;
 };
 
+/**
+ * Same vocabulary as the vacancies list: "all" is the whole database (what «Все
+ * вакансии» shows), "latest" is the current search (what «Очередь вакансий»
+ * shows — and only that).
+ */
+export type SummaryScope = "all" | "latest";
+
 export type AICoverLetterResponse = {
 	text: string;
 	model_used: string;

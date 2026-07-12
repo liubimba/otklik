@@ -1,7 +1,7 @@
 import json
 from typing import AsyncIterator, Sequence
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from statemachine.exceptions import TransitionNotAllowed
@@ -27,6 +27,7 @@ from otklik_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.db.repositories.chat_messages import ChatMessageRepository
 from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
+from otklik_backend.db.repositories.search_history import SearchHistoryRepository
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.state_machine import ApplicationEvent
@@ -42,10 +43,31 @@ applications_router = APIRouter(prefix="/applications", tags=["applications"])
 
 
 @applications_router.get("/summary")
-async def summary(session: SessionDep) -> ApplicationsSummaryAPISchema:
+async def summary(
+    session: SessionDep,
+    search_id: str = Query(
+        default="all",
+        description='Scope: "all" (whole database), "latest" (current/most recent '
+        "search), or a search UUID. Mirrors GET /vacancies/.",
+    ),
+) -> ApplicationsSummaryAPISchema:
+    # Same vocabulary as GET /vacancies/ on purpose: the badge on «Очередь
+    # вакансий» must count exactly what that screen lists, and that screen
+    # defaults to the latest search.
+    if search_id == "all":
+        scope: str | None = None
+    elif search_id == "latest":
+        latest = await SearchHistoryRepository.get_latest_id(session=session)
+        if latest is None:
+            # Nothing has ever been searched — nothing to act on.
+            return ApplicationsSummaryAPISchema(needs_attention=0)
+        scope = latest
+    else:
+        scope = search_id
+
     return ApplicationsSummaryAPISchema(
         needs_attention=await ApplicationRepository.count_needs_attention(
-            session=session
+            session=session, search_id=scope
         )
     )
 

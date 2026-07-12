@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from otklik_backend.api.schemas import ProcessingState
-from otklik_backend.db.models import ApplicationORM
+from otklik_backend.db.models import ApplicationORM, search_vacancies_table
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.state_machine import (
     ApplicationEvent,
@@ -113,10 +113,27 @@ class ApplicationRepository:
         return result.scalars().all()
 
     @classmethod
-    async def count_needs_attention(cls, session: AsyncSession) -> int:
-        result = await session.execute(
+    async def count_needs_attention(
+        cls, session: AsyncSession, search_id: str | None = None
+    ) -> int:
+        """Applications waiting on the user.
+
+        `search_id` scopes the count to a single search. «Очередь вакансий» only
+        ever lists the latest search, so a global number on that row would point
+        at work the screen does not show.
+        """
+        stmt = (
             select(func.count())
             .select_from(ApplicationORM)
             .where(ApplicationORM.status.in_(NEEDS_ATTENTION_STATES))
         )
+        if search_id is not None:
+            stmt = stmt.where(
+                ApplicationORM.vacancy_id.in_(
+                    select(search_vacancies_table.c.vacancy_id).where(
+                        search_vacancies_table.c.search_id == search_id
+                    )
+                )
+            )
+        result = await session.execute(stmt)
         return int(result.scalar_one())

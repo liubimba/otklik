@@ -16,6 +16,7 @@ import type {
 	SearchData,
 	SearchHistory,
 	Settings,
+	SummaryScope,
 	Vacancy,
 	VacancyListPage,
 	VacancyStatusFilter,
@@ -172,7 +173,8 @@ export const API = {
 		signOut: () => api<AuthStatus>("auth/sign-out", { method: "POST" }),
 	},
 	applications: {
-		summary: () => api<ApplicationsSummary>("applications/summary"),
+		summary: (scope: SummaryScope = "all") =>
+			api<ApplicationsSummary>(`applications/summary?search_id=${scope}`),
 	},
 	search: {
 		filter: {

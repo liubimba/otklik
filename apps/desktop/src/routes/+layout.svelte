@@ -44,6 +44,10 @@ const queryClient = new QueryClient({
 	},
 });
 
+// Какой поиск сейчас «последний». Нужен, чтобы отличить старт нового поиска от
+// тиков прогресса текущего — см. ветку search_event ниже.
+let lastSearchId: string | null = null;
+
 onMount(() => {
 	// Silent update check on launch. It never throws (no feed yet, offline, …);
 	// if an update is found, <UpdateDialog/> pops up on its own via the store.
@@ -70,6 +74,16 @@ onMount(() => {
 					case "search_event":
 						query.search.vacancies.apply(queryClient, event);
 						query.search.history.apply(queryClient, event);
+						// «Очередь вакансий» и её счётчик смотрят на ПОСЛЕДНИЙ поиск.
+						// Стартовал новый — область счёта сменилась, хотя ни одна
+						// заявка не двигалась. Сбрасываем сводку только на смене
+						// идентификатора: search_event летит и на каждый тик
+						// прогресса парсинга, и дёргать COUNT на каждый было бы
+						// расточительно.
+						if (event.data.search_id !== lastSearchId) {
+							lastSearchId = event.data.search_id;
+							query.summary.invalidate(queryClient);
+						}
 						break;
 					case "auth_changed":
 						query.auth.apply(queryClient, event);

@@ -1,6 +1,7 @@
 <script lang="ts">
 import { page } from "$app/state";
 import { createActions } from "$lib/actions";
+import type { SummaryScope } from "$lib/api/types";
 import AccountCell from "$lib/components/account-cell.svelte";
 import SidebarNavRow from "$lib/components/sidebar-nav-row.svelte";
 import SidebarNotch from "$lib/components/sidebar-notch.svelte";
@@ -23,23 +24,32 @@ type NavItem = {
 	label: string;
 	icon: typeof IconType;
 	group: NavGroup;
-	/** Счётчик показывается только у «Все вакансии». */
-	counted?: boolean;
+	/** Какую сводку показывать в счётчике. Без неё плашки нет. */
+	scope?: SummaryScope;
 };
 
 const queryClient = useQueryClient();
 const actions = createActions(queryClient);
 
-const summaryQuery = query.summary.create();
+// Два разных числа, а не одно. «Все вакансии» показывают всю базу — там счётчик
+// глобальный. «Очередь вакансий» показывает ТОЛЬКО текущий поиск, поэтому её
+// счётчик обязан считать в его границах: иначе после нового поиска плашка звала
+// бы к письмам, которых на этом экране уже нет.
+const summaryAll = query.summary.create("all");
+const summaryLatest = query.summary.create("latest");
 const authQuery = query.auth.create();
 
 const activePath = $derived(page.url.pathname);
 
 // `undefined` (запрос ещё грузится) должно стать `null`, а не 0 — иначе
 // счётчик на миг мигнёт нулём до прихода реальных данных.
-const needsAttention = $derived(
-	summaryQuery.data === undefined ? null : summaryQuery.data.needs_attention,
-);
+const needsAttention: Record<SummaryScope, number | null> = $derived({
+	all: summaryAll.data === undefined ? null : summaryAll.data.needs_attention,
+	latest:
+		summaryLatest.data === undefined
+			? null
+			: summaryLatest.data.needs_attention,
+});
 
 // Нет данных — ячейка ещё не знает статус. `unknown` от бэкенда трактуется
 // как «не подключён»: ровно так же его читает `lib/stores/auth.svelte.ts`.
@@ -57,29 +67,20 @@ const onSignOut = () => actions.auth.unauthorize.mutateAsync();
 const onCancelAuth = () => actions.auth.cancel.mutateAsync();
 
 const items: NavItem[] = $derived([
-	// Both rows carry the same badge — the number of applications waiting on the
-	// user (letter_ready / letter_reviewing / error), counted GLOBALLY across the
-	// database by GET /applications/summary.
-	//
-	// Caveat worth knowing: «Очередь» only ever lists the LATEST search
-	// (GET /vacancies/ defaults to search_id="latest"). Start a new search and
-	// the previous one's unfinished letters drop off the Queue's list while still
-	// being counted here — the number stays true, but the Queue may not show every
-	// item behind it. «Все вакансии» always does. Scoping the Queue's badge to the
-	// current search would need a search_id filter on the summary endpoint.
+	// Каждая строка считает ровно то, что показывает её экран.
 	{
 		href: "/queue",
 		label: m.nav_queue(),
 		icon: Inbox,
 		group: "work",
-		counted: true,
+		scope: "latest",
 	},
 	{
 		href: "/vacancies",
 		label: m.nav_vacancies(),
 		icon: Briefcase,
 		group: "work",
-		counted: true,
+		scope: "all",
 	},
 	{ href: "/history", label: m.nav_history(), icon: History, group: "work" },
 	{
@@ -165,7 +166,7 @@ $effect(() => {
 							label={item.label}
 							icon={item.icon}
 							active={activePath === item.href}
-							count={item.counted ? needsAttention : null}
+							count={item.scope ? needsAttention[item.scope] : null}
 						/>
 					{/each}
 				</div>

@@ -193,14 +193,27 @@ describe("API URL construction", () => {
 	// Note the collection is /applications (global summary), NOT the per-vacancy
 	// /vacancies/{id}/application route.
 	it("applications summary hits GET /api/v1/applications/summary", async () => {
-		respondWith(jsonResponse({ needs_attention: 3 }));
+		respondWithSequence(
+			jsonResponse({ needs_attention: 3 }),
+			jsonResponse({ needs_attention: 1 }),
+		);
 
 		await expect(API.applications.summary()).resolves.toEqual({
 			needs_attention: 3,
 		});
+		await API.applications.summary("latest");
 
-		expect(calls[0].url).toMatch(/\/api\/v1\/applications\/summary$/);
+		// Default scope is the whole database — what «Все вакансии» lists.
+		expect(calls[0].url).toMatch(
+			/\/api\/v1\/applications\/summary\?search_id=all$/,
+		);
 		expect(calls[0].init?.method ?? "GET").toBe("GET");
+		// «Очередь вакансий» only lists the latest search, so its badge must ask
+		// for that scope — a global count there would point at rows the screen
+		// does not show.
+		expect(calls[1].url).toMatch(
+			/\/api\/v1\/applications\/summary\?search_id=latest$/,
+		);
 	});
 });
 

@@ -62,10 +62,7 @@ function SectionHeader({
 					<span className="text-muted-foreground">{eyebrow}</span>
 				</Badge>
 			)}
-			<h2
-				id={`${id}-title`}
-				className="font-heading text-3xl leading-tight font-semibold text-balance sm:text-4xl md:text-5xl"
-			>
+			<h2 id={`${id}-title`} className="font-heading text-balance">
 				{title}
 			</h2>
 			{description && (

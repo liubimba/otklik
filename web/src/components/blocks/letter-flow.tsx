@@ -44,7 +44,7 @@ function PaneTitle({
 	accent?: boolean;
 }) {
 	return (
-		<h3 className="mb-3 flex items-center gap-2 font-heading text-sm font-semibold text-muted-foreground">
+		<h3 className="mb-3 flex items-center gap-2 font-heading text-sm text-muted-foreground">
 			<Icon
 				className={cn(
 					"size-4",

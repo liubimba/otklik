@@ -62,7 +62,7 @@ export function HeroSection({
 						</Badge>
 					)}
 
-					<h1 className="relative z-10 inline-block animate-appear bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text font-heading text-4xl leading-tight font-semibold text-balance text-transparent drop-shadow-2xl sm:text-6xl sm:leading-tight md:text-7xl md:leading-tight">
+					<h1 className="relative z-10 inline-block animate-appear bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text font-heading text-balance text-transparent drop-shadow-2xl">
 						{title}
 					</h1>
 

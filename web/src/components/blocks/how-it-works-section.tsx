@@ -19,9 +19,7 @@ function AutoApply({
 }) {
 	return (
 		<div className="mt-8 flex flex-col gap-4 border-l-2 border-brand/30 pl-5">
-			<h3 className="font-heading text-lg font-semibold text-balance">
-				{autoApply.title}
-			</h3>
+			<h3 className="font-heading text-lg text-balance">{autoApply.title}</h3>
 			<p className="text-base text-pretty text-muted-foreground">
 				{autoApply.body}
 			</p>

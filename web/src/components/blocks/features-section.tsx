@@ -30,7 +30,7 @@ export function FeaturesSection() {
 							<Card className="h-full">
 								<CardHeader className="gap-3">
 									<Icon className="size-5 text-brand" aria-hidden="true" />
-									<h3 className="font-heading text-lg font-semibold text-balance">
+									<h3 className="font-heading text-lg text-balance">
 										{item.title}
 									</h3>
 								</CardHeader>

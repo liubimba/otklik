@@ -35,7 +35,7 @@ export function RisksSection() {
 				</Alert>
 			</Reveal>
 
-			<h3 className="mt-16 font-heading text-xl font-semibold text-balance">
+			<h3 className="mt-16 font-heading text-xl text-balance">
 				{risks.mitigationsTitle}
 			</h3>
 
@@ -48,7 +48,7 @@ export function RisksSection() {
 							<Card className="h-full">
 								<CardHeader className="gap-3">
 									<Icon className="size-5 text-brand" aria-hidden="true" />
-									<h4 className="font-heading text-base font-semibold text-balance">
+									<h4 className="font-heading text-base text-balance">
 										{item.title}
 									</h4>
 								</CardHeader>

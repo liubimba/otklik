@@ -3,12 +3,12 @@ import sys
 import pytest
 from patchright.async_api import Error as PlaywrightError
 
-from headhunter_backend.api.schemas import AuthStatusAPISchema
-from headhunter_backend.browser import BrowserCore
-from headhunter_backend.browser import core as core_module
-from headhunter_backend.browser.exceptions import BrowserNetworkError
-from headhunter_backend.browser.window import NoopWindowController
-from headhunter_backend.sites.hh_ru.auth_flow import HHRUAuthFlow
+from otklik_backend.api.schemas import AuthStatusAPISchema
+from otklik_backend.browser import BrowserCore
+from otklik_backend.browser import core as core_module
+from otklik_backend.browser.exceptions import BrowserNetworkError
+from otklik_backend.browser.window import NoopWindowController
+from otklik_backend.sites.hh_ru.auth_flow import HHRUAuthFlow
 
 requires_chromium = pytest.mark.skipif(
     sys.platform != "linux",

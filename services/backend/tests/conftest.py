@@ -1,9 +1,9 @@
 from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
-from headhunter_backend.log import configure_logging
-from headhunter_backend.api.schemas import WorkFormat, EmploymentType
-from headhunter_backend.api.app import app
-from headhunter_backend.api.dependencies import (
+from otklik_backend.log import configure_logging
+from otklik_backend.api.schemas import WorkFormat, EmploymentType
+from otklik_backend.api.app import app
+from otklik_backend.api.dependencies import (
     get_ai_layer,
     get_authorization_service,
     get_broadcaster,
@@ -15,12 +15,12 @@ from headhunter_backend.api.dependencies import (
     get_writer,
     get_search_service,
 )
-from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.schemas import AuthStatusAPISchema
-from headhunter_backend.db.base import Base
-from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
-from headhunter_backend.orchestrator.state_service import StateTransitionService
-from headhunter_backend.db.converters import vacancy_to_orm
+from otklik_backend.api.broadcaster import EventBroadcaster
+from otklik_backend.api.schemas import AuthStatusAPISchema
+from otklik_backend.db.base import Base
+from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from otklik_backend.orchestrator.state_service import StateTransitionService
+from otklik_backend.db.converters import vacancy_to_orm
 from typing import AsyncIterator
 from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
@@ -33,17 +33,17 @@ from pathlib import Path
 import pytest
 import uuid
 import asyncio
-from headhunter_backend.api.schemas import VacancyAPISchema
-from headhunter_backend.db.session import apply_sqlite_pragmas
-from headhunter_backend.core.site.result import SubmissionResult
-from headhunter_backend.orchestrator.search import (
+from otklik_backend.api.schemas import VacancyAPISchema
+from otklik_backend.db.session import apply_sqlite_pragmas
+from otklik_backend.core.site.result import SubmissionResult
+from otklik_backend.orchestrator.search import (
     SearchAlreadyRunningError,
     SearchSessionTask,
 )
-from headhunter_backend.api.schemas import VacanciesStartSearchRequestAPISchema
-from headhunter_backend.ai.deployment import LLMDeployment
-from headhunter_backend.ai.layer import AILayer
-from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from otklik_backend.api.schemas import VacanciesStartSearchRequestAPISchema
+from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.layer import AILayer
+from otklik_backend.db.repositories.vacancies import VacancyRepository
 
 configure_logging()
 
@@ -235,10 +235,10 @@ async def client(
         async with session_factory() as session:
             yield session
 
-    from headhunter_backend.orchestrator.authorization_service import (
+    from otklik_backend.orchestrator.authorization_service import (
         AuthorizationService,
     )
-    from headhunter_backend.orchestrator.cover_letter_service import CoverLetterService
+    from otklik_backend.orchestrator.cover_letter_service import CoverLetterService
 
     authorization_service = AuthorizationService(
         broadcaster=recording_broadcaster, auth_flow=fake_browser

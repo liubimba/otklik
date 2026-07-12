@@ -4,8 +4,8 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel
 
-from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.subscribers import CallbackEventSubscriber
+from otklik_backend.api.broadcaster import EventBroadcaster
+from otklik_backend.api.subscribers import CallbackEventSubscriber
 
 
 class _DummyData(BaseModel):

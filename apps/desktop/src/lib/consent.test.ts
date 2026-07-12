@@ -66,6 +66,46 @@ describe("loadConsent", () => {
 
 		await expect(loadConsent()).resolves.toBeNull();
 	});
+
+	it("falls back to the pre-rename file when the current one is absent", async () => {
+		fsMock.exists.mockImplementation(async (path: string) =>
+			path.startsWith(".headhunter_ai"),
+		);
+		fsMock.readTextFile.mockResolvedValue(
+			JSON.stringify({
+				termsVersion: TERMS_VERSION,
+				consentGiven: true,
+				acceptedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		const consent = await loadConsent();
+
+		expect(consent?.consentGiven).toBe(true);
+		expect(fsMock.readTextFile).toHaveBeenCalledWith(
+			".headhunter_ai/consent.json",
+			expect.any(Object),
+		);
+	});
+
+	it("prefers the current file over the pre-rename one", async () => {
+		fsMock.exists.mockResolvedValue(true);
+		fsMock.readTextFile.mockResolvedValue(
+			JSON.stringify({
+				termsVersion: TERMS_VERSION,
+				consentGiven: true,
+				acceptedAt: "2026-01-01T00:00:00.000Z",
+			}),
+		);
+
+		await loadConsent();
+
+		expect(fsMock.readTextFile).toHaveBeenCalledTimes(1);
+		expect(fsMock.readTextFile).toHaveBeenCalledWith(
+			".otklik/consent.json",
+			expect.any(Object),
+		);
+	});
 });
 
 describe("saveConsent", () => {
@@ -76,11 +116,11 @@ describe("saveConsent", () => {
 		await saveConsent(true);
 
 		expect(fsMock.mkdir).toHaveBeenCalledWith(
-			".headhunter_ai",
+			".otklik",
 			expect.objectContaining({ recursive: true }),
 		);
 		expect(fsMock.writeTextFile).toHaveBeenCalledWith(
-			".headhunter_ai/consent.json",
+			".otklik/consent.json",
 			expect.stringContaining('"consentGiven":true'),
 			expect.any(Object),
 		);

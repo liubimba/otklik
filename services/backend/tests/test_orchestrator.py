@@ -1,7 +1,7 @@
-from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from headhunter_backend.db.converters import vacancy_to_orm
-from headhunter_backend.api.schemas import ProcessingState, VacancyAPISchema
+from otklik_backend.db.converters import vacancy_to_orm
+from otklik_backend.api.schemas import ProcessingState, VacancyAPISchema
 from tests.conftest import (
     FakeWriter,
     FakeBrowser,
@@ -11,12 +11,12 @@ from tests.conftest import (
 
 import asyncio
 
-from headhunter_backend.core.site.result import SubmissionResult
-from headhunter_backend.db.models import RateLimitEventORM
-from headhunter_backend.core.events import CaptchaWSEvent, ApplicationWSEvent
-from headhunter_backend.db.repositories.applications import ApplicationRepository
-from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
-from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from otklik_backend.core.site.result import SubmissionResult
+from otklik_backend.db.models import RateLimitEventORM
+from otklik_backend.core.events import CaptchaWSEvent, ApplicationWSEvent
+from otklik_backend.db.repositories.applications import ApplicationRepository
+from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
+from otklik_backend.db.repositories.vacancies import VacancyRepository
 from sqlalchemy import select, func
 
 
@@ -296,8 +296,8 @@ async def test_worker_auto_resumes_on_authorized_ws_event(
     this test asserts the listener wiring in isolation. Because the
     broadcaster delivers events fire-and-forget via asyncio.create_task
     the assertion is wrapped in `wait_until`."""
-    from headhunter_backend.api.schemas import AuthStatusAPISchema
-    from headhunter_backend.core.events import AuthWSEvent
+    from otklik_backend.api.schemas import AuthStatusAPISchema
+    from otklik_backend.core.events import AuthWSEvent
 
     fake_orchestrator.start()
     try:
@@ -320,8 +320,8 @@ async def test_worker_does_not_auto_resume_when_still_unauthorized(
 ) -> None:
     """AuthWSEvent(unauthorized) or (authorizing) must not touch the pause
     state — only a successful re-auth clears the block."""
-    from headhunter_backend.api.schemas import AuthStatusAPISchema
-    from headhunter_backend.core.events import AuthWSEvent
+    from otklik_backend.api.schemas import AuthStatusAPISchema
+    from otklik_backend.core.events import AuthWSEvent
 
     fake_orchestrator.start()
     try:
@@ -344,8 +344,8 @@ async def test_worker_does_not_auto_resume_when_paused_for_other_reason(
 ) -> None:
     """Captcha pauses (and any future pause reasons) must not be lifted by
     the auth listener — they need their own resume path."""
-    from headhunter_backend.api.schemas import AuthStatusAPISchema
-    from headhunter_backend.core.events import AuthWSEvent
+    from otklik_backend.api.schemas import AuthStatusAPISchema
+    from otklik_backend.core.events import AuthWSEvent
 
     fake_orchestrator.start()
     try:
@@ -366,8 +366,8 @@ async def test_worker_auth_event_is_a_no_op_when_not_paused(
 ) -> None:
     """Sanity: incoming AuthWSEvent while the worker is running normally
     shouldn't call resume() and shouldn't panic."""
-    from headhunter_backend.api.schemas import AuthStatusAPISchema
-    from headhunter_backend.core.events import AuthWSEvent
+    from otklik_backend.api.schemas import AuthStatusAPISchema
+    from otklik_backend.core.events import AuthWSEvent
 
     fake_orchestrator.start()
     try:

@@ -2,9 +2,9 @@ import pytest
 from fastapi import Response
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from headhunter_backend.api.schemas import VacancyAPISchema, VacancyListPageAPISchema
-from headhunter_backend.core.state import ProcessingState
-from headhunter_backend.db.models import ApplicationORM, VacancyORM
+from otklik_backend.api.schemas import VacancyAPISchema, VacancyListPageAPISchema
+from otklik_backend.core.state import ProcessingState
+from otklik_backend.db.models import ApplicationORM, VacancyORM
 
 
 def test_vacancies_get(client):

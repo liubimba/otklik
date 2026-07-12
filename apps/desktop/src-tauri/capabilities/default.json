@@ -21,6 +21,8 @@
 		{
 			"identifier": "fs:scope",
 			"allow": [
+				{ "path": "$HOME/.otklik" },
+				{ "path": "$HOME/.otklik/*" },
 				{ "path": "$HOME/.headhunter_ai" },
 				{ "path": "$HOME/.headhunter_ai/*" }
 			]

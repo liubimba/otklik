@@ -1,5 +1,5 @@
-from headhunter_backend.ai.prompts import PromptBuilder
-from headhunter_backend.api.schemas import EmploymentType, VacancyAPISchema, WorkFormat
+from otklik_backend.ai.prompts import PromptBuilder
+from otklik_backend.api.schemas import EmploymentType, VacancyAPISchema, WorkFormat
 
 
 def _make_vacancy(**overrides) -> VacancyAPISchema:

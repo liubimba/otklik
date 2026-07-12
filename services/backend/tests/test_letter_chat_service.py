@@ -16,12 +16,12 @@ from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from headhunter_backend.ai.health import AILayerHealthStatus
-from headhunter_backend.api.schemas import ProcessingState
-from headhunter_backend.db.models import ApplicationORM, VacancyORM
-from headhunter_backend.db.repositories.chat_messages import ChatMessageRepository
-from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
-from headhunter_backend.orchestrator.letter_chat_service import LetterChatService
+from otklik_backend.ai.health import AILayerHealthStatus
+from otklik_backend.api.schemas import ProcessingState
+from otklik_backend.db.models import ApplicationORM, VacancyORM
+from otklik_backend.db.repositories.chat_messages import ChatMessageRepository
+from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
+from otklik_backend.orchestrator.letter_chat_service import LetterChatService
 
 REVISED_LETTER = (
     "Уважаемый работодатель, вот значительно расширенное письмо с деталями."

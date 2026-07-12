@@ -1,4 +1,4 @@
-from headhunter_backend.browser.window import BesidePlacement, Rect
+from otklik_backend.browser.window import BesidePlacement, Rect
 
 
 def test_places_browser_to_the_right_when_there_is_room() -> None:

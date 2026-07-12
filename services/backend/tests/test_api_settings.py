@@ -1,5 +1,5 @@
-from headhunter_backend.api.schemas import SettingsAPISchema
-from headhunter_backend.ai.deployment import LLMDeployment
+from otklik_backend.api.schemas import SettingsAPISchema
+from otklik_backend.ai.deployment import LLMDeployment
 from fastapi import Response
 
 

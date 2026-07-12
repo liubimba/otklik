@@ -1,8 +1,8 @@
 {
-	"name": "headhunter-ai",
+	"name": "otklik",
 	"version": "0.0.0",
 	"private": true,
-	"description": "Desktop app that automates hh.ru applications with AI-generated cover letters",
+	"description": "Desktop app that automates job applications with AI-generated cover letters. hh.ru today, more job boards to come",
 	"engines": {
 		"node": ">=20"
 	},

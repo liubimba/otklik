@@ -1,12 +1,12 @@
 import sys
 from pathlib import Path
-from headhunter_backend.log import get_logger
+from otklik_backend.log import get_logger
 import pytest
 
-from headhunter_backend.browser.core import BrowserCore
-from headhunter_backend.sites.hh_ru.parser import HHRUParser
-from headhunter_backend.sites.hh_ru.selectors import HHRU_SELECTORS
-from headhunter_backend.api.schemas import VacancyAPISchema
+from otklik_backend.browser.core import BrowserCore
+from otklik_backend.sites.hh_ru.parser import HHRUParser
+from otklik_backend.sites.hh_ru.selectors import HHRU_SELECTORS
+from otklik_backend.api.schemas import VacancyAPISchema
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "linux",

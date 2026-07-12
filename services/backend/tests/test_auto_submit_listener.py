@@ -16,24 +16,24 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.api.schemas import ProcessingState, VacancyAPISchema
-from headhunter_backend.core.events import (
+from otklik_backend.api.broadcaster import EventBroadcaster
+from otklik_backend.api.schemas import ProcessingState, VacancyAPISchema
+from otklik_backend.core.events import (
     ApplicationData,
     ApplicationWSEvent,
 )
-from headhunter_backend.db.converters import vacancy_to_orm
-from headhunter_backend.db.models import (
+from otklik_backend.db.converters import vacancy_to_orm
+from otklik_backend.db.models import (
     ApplicationORM,
     SettingsORM,
 )
-from headhunter_backend.db.repositories.applications import ApplicationRepository
-from headhunter_backend.db.repositories.settings import SettingsRepository
-from headhunter_backend.db.repositories.vacancies import VacancyRepository
-from headhunter_backend.orchestrator.listeners.auto_submit import AutoSubmitListener
-from headhunter_backend.orchestrator.state_machine import ApplicationEvent
-from headhunter_backend.orchestrator.state_service import StateTransitionService
-from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from otklik_backend.db.repositories.applications import ApplicationRepository
+from otklik_backend.db.repositories.settings import SettingsRepository
+from otklik_backend.db.repositories.vacancies import VacancyRepository
+from otklik_backend.orchestrator.listeners.auto_submit import AutoSubmitListener
+from otklik_backend.orchestrator.state_machine import ApplicationEvent
+from otklik_backend.orchestrator.state_service import StateTransitionService
+from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 
 
 async def _drain(broadcaster: EventBroadcaster) -> None:

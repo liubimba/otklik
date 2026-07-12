@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DB_FILE=$HOME/.headhunter_ai/db.sqlite
+DB_FILE=$HOME/.otklik/db.sqlite
 
 sqlite3 "$DB_FILE" <<EOF
 PRAGMA foreign_keys = OFF;

@@ -1,7 +1,7 @@
 [project]
-name = "headhunter-backend"
+name = "otklik-backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "Otklik backend — job-board automation and AI cover letters"
 readme = "README.md"
 authors = [
     { name = "bimba", email = "bimba@flashphoner.com" }
@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.scripts]
-headhunter-backend = "headhunter_backend.api.app:run"
+otklik-backend = "otklik_backend.api.app:run"
 
 [build-system]
 requires = ["uv_build>=0.11.12,<0.12.0"]

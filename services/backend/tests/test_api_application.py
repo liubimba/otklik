@@ -1,15 +1,15 @@
 from fastapi import Response
 
-from headhunter_backend.api.schemas import (
+from otklik_backend.api.schemas import (
     ApplicationDetailAPISchema,
     CoverLetterAPISchema,
     CoverLetterRequestAPISchema,
     ProcessingState,
     SubmitApplicationRequestAPISchema,
 )
-from headhunter_backend.db.repositories.applications import ApplicationRepository
-from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
-from headhunter_backend.orchestrator.state_machine import ApplicationEvent
+from otklik_backend.db.repositories.applications import ApplicationRepository
+from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
+from otklik_backend.orchestrator.state_machine import ApplicationEvent
 
 
 async def _seed_letter_ready(session_factory, vacancy_id: int = 1) -> int:

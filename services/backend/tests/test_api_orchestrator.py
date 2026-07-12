@@ -1,8 +1,8 @@
 from fastapi import Response
 from fastapi.testclient import TestClient
 
-from headhunter_backend.api.schemas import OrchestratorStatusAPISchema
-from headhunter_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from otklik_backend.api.schemas import OrchestratorStatusAPISchema
+from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 
 
 def test_resume_unpauses_paused_orchestrator(

@@ -5,19 +5,19 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from pydantic import HttpUrl
 
-from headhunter_backend.orchestrator.search import (
+from otklik_backend.orchestrator.search import (
     SearchService,
     SearchAlreadyRunningError,
 )
-from headhunter_backend.orchestrator.exceptions import SearchSessionNotFoundError
-from headhunter_backend.api.schemas import (
+from otklik_backend.orchestrator.exceptions import SearchSessionNotFoundError
+from otklik_backend.api.schemas import (
     VacanciesStartSearchRequestAPISchema,
     SearchStatusAPISchema,
     VacancyAPISchema,
 )
-from headhunter_backend.browser.exceptions import BrowserNetworkError
-from headhunter_backend.db.models import SearchHistoryORM, VacancyORM
-from headhunter_backend.core.events import SearchWSEvent, VacancyWSEvent
+from otklik_backend.browser.exceptions import BrowserNetworkError
+from otklik_backend.db.models import SearchHistoryORM, VacancyORM
+from otklik_backend.core.events import SearchWSEvent, VacancyWSEvent
 
 from tests.conftest import RecordingBroadcaster, wait_until
 

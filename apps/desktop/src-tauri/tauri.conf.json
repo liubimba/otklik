@@ -1,8 +1,8 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
-	"productName": "Headhunter",
+	"productName": "Otklik",
 	"version": "0.1.0",
-	"identifier": "ai.headhunter.app",
+	"identifier": "ai.otklik.app",
 	"build": {
 		"beforeDevCommand": "pnpm dev",
 		"devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
 		"windows": [
 			{
 				"label": "main",
-				"title": "Headhunter",
+				"title": "Otklik",
 				"width": 800,
 				"height": 600,
 				"minWidth": 720,
@@ -29,7 +29,7 @@
 	"plugins": {
 		"updater": {
 			"endpoints": [
-				"https://github.com/pauldekarin/headhunter_ai/releases/latest/download/latest.json"
+				"https://github.com/pauldekarin/otklik/releases/latest/download/latest.json"
 			],
 			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCREQ1QjQ0MEJFQTg4MTcKUldRWGlPb0xSRnZkYXpSSWZqaWdUM1RzWnpvMUdlcDVhUlZVaUswYnJGMnJwMC9Nb2d1SU90bzkK",
 			"windows": {

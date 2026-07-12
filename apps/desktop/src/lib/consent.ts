@@ -14,23 +14,35 @@ export interface Consent {
 	acceptedAt: string;
 }
 
-const CONSENT_DIR = ".headhunter_ai";
+const CONSENT_DIR = ".otklik";
 const CONSENT_FILE = `${CONSENT_DIR}/consent.json`;
+// Installs predating the rename kept consent in ~/.headhunter_ai. The backend
+// adopts that whole directory on its next start, but the UI boots alongside it
+// and may look first — read the old file so nobody is asked to accept the terms
+// twice. Drop this once the rename is far enough behind us.
+const LEGACY_CONSENT_FILE = ".headhunter_ai/consent.json";
 const HOME = {
 	baseDir: BaseDirectory.Home,
 };
 
-export async function loadConsent(): Promise<Consent | null> {
-	if (!(await exists(CONSENT_FILE, HOME))) {
+async function readConsent(path: string): Promise<Consent | null> {
+	if (!(await exists(path, HOME))) {
 		return null;
 	}
 
 	try {
-		const text = await readTextFile(CONSENT_FILE, HOME);
+		const text = await readTextFile(path, HOME);
 		return JSON.parse(text) as Consent;
-	} catch (e) {
+	} catch {
 		return null;
 	}
+}
+
+export async function loadConsent(): Promise<Consent | null> {
+	return (
+		(await readConsent(CONSENT_FILE)) ??
+		(await readConsent(LEGACY_CONSENT_FILE))
+	);
 }
 
 export async function saveConsent(isConsentGiven: boolean): Promise<void> {

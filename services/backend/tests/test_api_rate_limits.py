@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from headhunter_backend.api.schemas import RateLimitsBudgetAPISchema
-from headhunter_backend.db.repositories.rate_limits import RateLimitRepository
+from otklik_backend.api.schemas import RateLimitsBudgetAPISchema
+from otklik_backend.db.repositories.rate_limits import RateLimitRepository
 
 
 def test_budget_empty(client) -> None:

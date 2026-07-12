@@ -4,7 +4,7 @@ name: Release
 # Cargo.toml) and pushing a matching tag:  git tag v0.1.1 && git push --tags
 # tauri-action builds, signs (ed25519), and publishes the bundles plus the
 # updater manifest (latest.json) to a GitHub Release. The running app checks
-# https://github.com/pauldekarin/headhunter_ai/releases/latest/download/latest.json
+# https://github.com/pauldekarin/otklik/releases/latest/download/latest.json
 on:
   push:
     tags:
@@ -65,7 +65,7 @@ jobs:
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
-          releaseName: "Headhunter ${{ github.ref_name }}"
+          releaseName: "Otklik ${{ github.ref_name }}"
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true

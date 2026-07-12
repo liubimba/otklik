@@ -2,16 +2,16 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from headhunter_backend.api.broadcaster import EventBroadcaster
-from headhunter_backend.core.events import VacancyWSEvent
-from headhunter_backend.api.schemas import ProcessingState, VacancyAPISchema
-from headhunter_backend.db.converters import vacancy_to_orm
-from headhunter_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
-from headhunter_backend.db.repositories.applications import ApplicationRepository
-from headhunter_backend.db.repositories.settings import SettingsRepository
-from headhunter_backend.db.repositories.vacancies import VacancyRepository
-from headhunter_backend.orchestrator.listeners.auto_apply import AutoApplyListener
-from headhunter_backend.orchestrator.state_service import StateTransitionService
+from otklik_backend.api.broadcaster import EventBroadcaster
+from otklik_backend.core.events import VacancyWSEvent
+from otklik_backend.api.schemas import ProcessingState, VacancyAPISchema
+from otklik_backend.db.converters import vacancy_to_orm
+from otklik_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
+from otklik_backend.db.repositories.applications import ApplicationRepository
+from otklik_backend.db.repositories.settings import SettingsRepository
+from otklik_backend.db.repositories.vacancies import VacancyRepository
+from otklik_backend.orchestrator.listeners.auto_apply import AutoApplyListener
+from otklik_backend.orchestrator.state_service import StateTransitionService
 
 
 async def _drain(broadcaster: EventBroadcaster) -> None:
@@ -149,7 +149,7 @@ async def test_ignores_non_vacancy_events(
 
     service, broadcaster = await _make_service(session_factory)
 
-    from headhunter_backend.core.events import SearchData, SearchWSEvent
+    from otklik_backend.core.events import SearchData, SearchWSEvent
 
     await broadcaster.publish(
         event=SearchWSEvent(

@@ -1,7 +1,7 @@
 from fastapi import Response
 from fastapi.testclient import TestClient
 
-from headhunter_backend.ai.layer import AILayer
+from otklik_backend.ai.layer import AILayer
 
 from tests.test_ai import _fake_model_response
 

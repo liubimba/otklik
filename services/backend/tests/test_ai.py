@@ -1,9 +1,9 @@
-from headhunter_backend.ai.layer import AILayer
-from headhunter_backend.ai.health import AILayerHealthStatus
-from headhunter_backend.ai.result import AICoverLetterResult
-from headhunter_backend.ai.exceptions import GenerationCoverLetterError
-from headhunter_backend.ai.deployment import LLMDeployment
-from headhunter_backend.api.schemas import VacancyAPISchema
+from otklik_backend.ai.layer import AILayer
+from otklik_backend.ai.health import AILayerHealthStatus
+from otklik_backend.ai.result import AICoverLetterResult
+from otklik_backend.ai.exceptions import GenerationCoverLetterError
+from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.api.schemas import VacancyAPISchema
 from litellm import ModelResponse
 import pytest
 

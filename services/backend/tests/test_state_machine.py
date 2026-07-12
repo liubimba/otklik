@@ -8,8 +8,8 @@ edits (adding/removing a transition arc) at the source.
 import pytest
 from statemachine.exceptions import TransitionNotAllowed
 
-from headhunter_backend.api.schemas import ProcessingState
-from headhunter_backend.orchestrator.state_machine import (
+from otklik_backend.api.schemas import ProcessingState
+from otklik_backend.orchestrator.state_machine import (
     ApplicationEvent,
     ProcessingStateMachine,
 )

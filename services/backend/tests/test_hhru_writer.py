@@ -16,9 +16,9 @@ from typing import Any
 
 import pytest
 
-from headhunter_backend.core.site.result import SubmissionResultType
-from headhunter_backend.sites.hh_ru.selectors import HHRU_SELECTORS
-from headhunter_backend.sites.hh_ru.writer import HHRUWriter
+from otklik_backend.core.site.result import SubmissionResultType
+from otklik_backend.sites.hh_ru.selectors import HHRU_SELECTORS
+from otklik_backend.sites.hh_ru.writer import HHRUWriter
 
 
 class _StubPage:

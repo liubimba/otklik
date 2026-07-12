@@ -1,20 +1,20 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from headhunter_backend.db.models import VacancyORM
-from headhunter_backend.api.schemas import VacancyAPISchema
-from headhunter_backend.db.models import (
+from otklik_backend.db.models import VacancyORM
+from otklik_backend.api.schemas import VacancyAPISchema
+from otklik_backend.db.models import (
     ApplicationORM,
     CoverLetterORM,
     SearchHistoryORM,
 )
-from headhunter_backend.db.converters import vacancy_to_schema, vacancy_to_orm
-from headhunter_backend.api.schemas import ProcessingState, SearchStatusAPISchema
-from headhunter_backend.orchestrator.state_machine import ApplicationEvent
-from headhunter_backend.db.repositories.applications import ApplicationRepository
-from headhunter_backend.db.repositories.cover_letters import CoverLetterRepository
-from headhunter_backend.db.repositories.search_history import SearchHistoryRepository
-from headhunter_backend.db.repositories.vacancies import VacancyRepository
+from otklik_backend.db.converters import vacancy_to_schema, vacancy_to_orm
+from otklik_backend.api.schemas import ProcessingState, SearchStatusAPISchema
+from otklik_backend.orchestrator.state_machine import ApplicationEvent
+from otklik_backend.db.repositories.applications import ApplicationRepository
+from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
+from otklik_backend.db.repositories.search_history import SearchHistoryRepository
+from otklik_backend.db.repositories.vacancies import VacancyRepository
 
 
 async def test_vacancy_crud(

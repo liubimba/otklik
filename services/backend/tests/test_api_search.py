@@ -5,12 +5,12 @@ from fastapi.testclient import TestClient
 from pydantic import HttpUrl
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from headhunter_backend.api.schemas import (
+from otklik_backend.api.schemas import (
     SearchHistoryAPISchema,
     SearchStatusAPISchema,
     VacanciesStartSearchRequestAPISchema,
 )
-from headhunter_backend.db.models import SearchHistoryORM
+from otklik_backend.db.models import SearchHistoryORM
 from tests.conftest import FakeSearchService
 
 

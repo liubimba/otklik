@@ -2,12 +2,12 @@ import pytest
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from headhunter_backend.db.models import RateLimitEventORM
-from headhunter_backend.db.repositories.rate_limits import (
+from otklik_backend.db.models import RateLimitEventORM
+from otklik_backend.db.repositories.rate_limits import (
     RateLimitExceeded,
     RateLimitRepository,
 )
-from headhunter_backend.db.repositories.settings import SettingsRepository
+from otklik_backend.db.repositories.settings import SettingsRepository
 
 
 async def test_no_events_passes(

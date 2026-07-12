@@ -1,4 +1,4 @@
-from headhunter_backend.orchestrator.letter_chat_service import (
+from otklik_backend.orchestrator.letter_chat_service import (
     StreamingJsonChatParser,
 )
 

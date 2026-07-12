@@ -11,7 +11,7 @@ from sqlalchemy import event, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from headhunter_backend.db.session import (
+from otklik_backend.db.session import (
     _set_sqlite_params,
     apply_sqlite_pragmas,
     engine,

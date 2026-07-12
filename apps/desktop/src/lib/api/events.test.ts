@@ -281,3 +281,56 @@ describe("EventsWebSocket — error hook", () => {
 		expect(onError).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("EventsWebSocket — a bad URL must not take the app down", () => {
+	/**
+	 * Regression. `connect()` is called from an `$effect` in the root layout. When
+	 * VITE_BACKEND_IP/PORT are missing the URL becomes `ws://undefined:undefined/...`
+	 * and the WebSocket constructor throws a SyntaxError — inside the mount flush.
+	 * Svelte's scheduler then aborts: onMount never runs, reactivity stops flushing,
+	 * and SvelteKit's router never initialises, so every link falls back to a full
+	 * page load. The app renders, looks alive, and is quietly dead — the theme
+	 * button does nothing and each tab switch reloads the document (white flash).
+	 *
+	 * A connection we cannot open is a degraded backend, not a reason to kill the UI.
+	 */
+	it("does not throw when the WebSocket constructor rejects the url", () => {
+		vi.stubGlobal(
+			"WebSocket",
+			class {
+				constructor() {
+					throw new SyntaxError(
+						"The string did not match the expected pattern.",
+					);
+				}
+			},
+		);
+
+		const ws = new EventsWebSocket(() => {});
+
+		expect(() => ws.connect()).not.toThrow();
+
+		ws.close();
+	});
+
+	it("reports the failure through onError instead of throwing", () => {
+		vi.stubGlobal(
+			"WebSocket",
+			class {
+				constructor() {
+					throw new SyntaxError(
+						"The string did not match the expected pattern.",
+					);
+				}
+			},
+		);
+		const onError = vi.fn();
+
+		const ws = new EventsWebSocket(() => {}, onError);
+		ws.connect();
+
+		expect(onError).toHaveBeenCalledTimes(1);
+
+		ws.close();
+	});
+});

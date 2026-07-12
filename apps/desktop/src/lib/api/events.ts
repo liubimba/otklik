@@ -59,7 +59,30 @@ export class EventsWebSocket {
 		this.logger.info(
 			`Connecting to ${this.url}${this.attempts > 0 ? ` (attempt #${this.attempts + 1})` : ""}`,
 		);
-		this.ws = new WebSocket(this.url);
+
+		// The WebSocket constructor THROWS on a malformed url — and `connect()` is
+		// called from an `$effect` in the root layout, so that throw lands inside
+		// Svelte's mount flush and aborts the scheduler: onMount never runs,
+		// reactivity stops flushing, and SvelteKit's router never initialises, so
+		// every link degrades to a full page load. The app renders, looks alive and
+		// is quietly dead. That is exactly what a missing VITE_BACKEND_IP/PORT did
+		// (`ws://undefined:undefined/ws/events`).
+		//
+		// A connection we cannot open is a degraded backend, not a reason to kill
+		// the UI. Report it and let the caller decide.
+		try {
+			this.ws = new WebSocket(this.url);
+		} catch (error) {
+			this.logger.error(
+				`Cannot open the server-events socket (url=${this.url}): ${
+					error instanceof Error ? error.message : String(error)
+				}. Is VITE_BACKEND_IP/VITE_BACKEND_PORT set? See apps/desktop/.env.example`,
+			);
+			this.ws = null;
+			this.onError?.(new Event("error"));
+			return;
+		}
+
 		this.ws.onopen = () => {
 			this.logger.info("WebSocket connection established for server events");
 			this.resetBackoff();

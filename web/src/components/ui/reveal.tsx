@@ -20,7 +20,7 @@ export function Reveal({
 }: {
 	children: React.ReactNode;
 	className?: string;
-	delay?: "delay-100" | "delay-200" | "delay-300" | "delay-500";
+	delay?: "delay-100" | "delay-200" | "delay-300";
 }) {
 	const { ref, revealed } = useReveal<HTMLDivElement>();
 

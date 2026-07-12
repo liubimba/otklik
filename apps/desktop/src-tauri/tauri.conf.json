@@ -29,7 +29,7 @@
 	"plugins": {
 		"updater": {
 			"endpoints": [
-				"https://github.com/pauldekarin/otklik/releases/latest/download/latest.json"
+				"https://github.com/liubimba/otklik/releases/latest/download/latest.json"
 			],
 			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCREQ1QjQ0MEJFQTg4MTcKUldRWGlPb0xSRnZkYXpSSWZqaWdUM1RzWnpvMUdlcDVhUlZVaUswYnJGMnJwMC9Nb2d1SU90bzkK",
 			"windows": {

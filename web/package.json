@@ -8,7 +8,8 @@
 		"start": "next start",
 		"lint": "eslint",
 		"check:contrast": "node scripts/check-contrast.mjs",
-		"check:fonts": "node scripts/check-fonts.mjs"
+		"check:fonts": "node scripts/check-fonts.mjs",
+		"gen:screens": "node scripts/gen-screens.mjs"
 	},
 	"dependencies": {
 		"class-variance-authority": "^0.7.1",

@@ -79,3 +79,6 @@ scratch_*
 # lives (committed) inside tauri.conf.json's plugins.updater.pubkey.
 apps/desktop/src-tauri/updater.key
 apps/desktop/src-tauri/updater.key.pub
+
+# Local design/spec notes — not published
+description/

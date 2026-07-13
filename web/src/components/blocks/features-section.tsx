@@ -7,6 +7,8 @@ import { sectionIcons } from "@/lib/icons";
 
 const DELAYS = ["delay-100", "delay-200", "delay-300"] as const;
 
+// Без <Backdrop>: секцию почти целиком закрывает непрозрачная карточка интерактива,
+// и любое пятно света светило бы ровно за ней — эффект в никуда.
 export function FeaturesSection() {
 	return (
 		<Section id="features" variant="muted">

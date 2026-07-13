@@ -2,9 +2,12 @@ import { ArrowRightIcon } from "lucide-react";
 import type * as React from "react";
 
 import { AppShot, type Shot } from "@/components/ui/app-shot";
+import { Backdrop } from "@/components/ui/backdrop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Glow } from "@/components/ui/glow";
+import { Magnetic } from "@/components/ui/magnetic";
+import { ParallaxShot } from "@/components/ui/parallax-shot";
 import { cn } from "@/lib/utils";
 
 interface HeroAction {
@@ -43,7 +46,11 @@ export function HeroSection({
 				"fade-bottom overflow-hidden pb-0",
 			)}
 		>
-			<div className="mx-auto flex max-w-container flex-col gap-12 pt-16 sm:gap-24">
+			<Backdrop aurora beams />
+
+			{/* z-10 на всей колонке, а не только на заголовке: Backdrop — позиционированный
+			    слой с z-0, и без этого он накрыл бы бейдж, который лежит в обычном потоке. */}
+			<div className="relative z-10 mx-auto flex max-w-container flex-col gap-12 pt-16 sm:gap-24">
 				<div className="flex flex-col items-center gap-6 text-center sm:gap-12">
 					{badge && (
 						<Badge
@@ -71,36 +78,46 @@ export function HeroSection({
 
 					<div className="relative z-10 flex animate-enter-up flex-wrap justify-center gap-4 opacity-0 delay-400">
 						{actions.map((action) => (
-							<Button
-								key={action.href}
-								variant={action.variant}
-								size="lg"
-								asChild
-								className="h-11 rounded-lg px-6 text-base"
-							>
-								<a href={action.href} className="flex items-center gap-2">
-									{action.icon}
-									{action.text}
-								</a>
-							</Button>
+							<Magnetic key={action.href}>
+								<Button
+									variant={action.variant}
+									size="lg"
+									asChild
+									className="h-11 rounded-lg px-6 text-base"
+								>
+									<a href={action.href} className="flex items-center gap-2">
+										{action.icon}
+										{action.text}
+									</a>
+								</Button>
+							</Magnetic>
 						))}
 					</div>
 
 					<div className="relative w-full pt-12">
-						<AppShot
-							light={image.light}
-							dark={image.dark}
-							alt={image.alt}
-							placeholder={image.placeholder}
-							priority
-							// Hero занимает всю колонку, а не половину, как кадры шагов.
-							sizes="(max-width: 768px) 100vw, (max-width: 1280px) 92vw, 1200px"
-							className="animate-appear-zoom opacity-0 delay-600"
-						/>
+						{/* Свечение — ПЕРЕД кадром и по DOM, и по слою.
+						    Раньше оно шло следом и рисовалось поверх скриншота: `z-10`,
+						    который несёт рамка мокапа, живёт ВНУТРИ обёртки-параллакса,
+						    а та — motion.div с transform, то есть собственный контекст
+						    наложения. Снаружи этот z-10 не значит ничего, и соседнее
+						    свечение спокойно накрывало кадр. Лечится не z-index'ом
+						    внутри, а порядком снаружи. */}
 						<Glow
 							variant="top"
 							className="animate-appear-zoom opacity-0 delay-1000"
 						/>
+						<ParallaxShot shift={48} tilt={4} className="relative z-10">
+							<AppShot
+								light={image.light}
+								dark={image.dark}
+								alt={image.alt}
+								placeholder={image.placeholder}
+								priority
+								// Hero занимает всю колонку, а не половину, как кадры шагов.
+								sizes="(max-width: 768px) 100vw, (max-width: 1280px) 92vw, 1200px"
+								className="animate-appear-zoom opacity-0 delay-600"
+							/>
+						</ParallaxShot>
 					</div>
 				</div>
 			</div>

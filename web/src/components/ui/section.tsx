@@ -10,9 +10,18 @@ function Section({
 	id,
 	variant = "default",
 	className,
+	backdrop,
 	children,
 	...props
-}: React.ComponentProps<"section"> & { variant?: "default" | "muted" }) {
+}: React.ComponentProps<"section"> & {
+	variant?: "default" | "muted";
+	/**
+	 * Атмосферные слои (<Backdrop />). Отдельный слот, а не `children`: контент
+	 * сидит в обёртке с `z-10` и шириной max-w-container, и фон, попавший внутрь
+	 * неё, был бы обрезан по контейнеру и нарисован ПОВЕРХ текста.
+	 */
+	backdrop?: React.ReactNode;
+}) {
 	return (
 		<section
 			id={id}
@@ -27,6 +36,7 @@ function Section({
 			)}
 			{...props}
 		>
+			{backdrop}
 			<div className="relative z-10 mx-auto flex max-w-container flex-col">
 				{children}
 			</div>
@@ -61,7 +71,7 @@ function SectionHeader({
 				className,
 			)}
 		>
-			{eyebrow && <span className="label-mono text-brand">{eyebrow}</span>}
+			{eyebrow && <span className="label-mono label-chip">{eyebrow}</span>}
 			<h2 id={`${id}-title`} className="font-heading text-balance">
 				{title}
 			</h2>

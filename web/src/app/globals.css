@@ -253,6 +253,20 @@
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 	}
+
+	/* Эйрбоу как залитая плашка, а не как цветная строчка.
+	   Заливка на странице — валюта: она есть только у кнопки действия и у этой
+	   метки, поэтому метка и читается как ярлык раздела, а не как мелкий текст,
+	   который забыли покрасить в серый. Цвет — сплошной бренд, а не 10%-подложка:
+	   полупрозрачная плашка на фактурном фоне мутнеет и выглядит грязью. */
+	.label-chip {
+		display: inline-flex;
+		align-items: center;
+		background-color: var(--brand);
+		color: var(--primary-foreground);
+		padding: 0.25rem 0.5rem;
+		border-radius: calc(var(--radius) * 0.6);
+	}
 }
 
 @layer utilities {

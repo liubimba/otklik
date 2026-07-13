@@ -71,7 +71,7 @@ function SectionHeader({
 				className,
 			)}
 		>
-			{eyebrow && <span className="label-mono text-brand">{eyebrow}</span>}
+			{eyebrow && <span className="label-mono label-chip">{eyebrow}</span>}
 			<h2 id={`${id}-title`} className="font-heading text-balance">
 				{title}
 			</h2>

@@ -1,0 +1,338 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-brand: var(--brand);
+	--color-brand-foreground: var(--brand-foreground);
+	--color-footer: var(--footer);
+	--color-footer-foreground: var(--footer-foreground);
+	--color-footer-muted: var(--footer-muted);
+	--color-footer-border: var(--footer-border);
+	--font-sans: var(--font-body);
+	--font-mono: var(--font-mono);
+	--font-heading: var(--font-display);
+	--text-base: 1.0625rem;
+	--text-base--line-height: 1.6;
+	--container-container: 80rem;
+	--animate-appear: appear 0.5s ease-out forwards;
+	--animate-appear-zoom: appear-zoom 0.5s ease-out forwards;
+	--animate-enter-up: enter-up 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+	--animate-enter-clip: enter-clip 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive: var(--destructive);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@keyframes appear {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes appear-zoom {
+	from {
+		opacity: 0;
+		transform: scale(0.95);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes enter-up {
+	from {
+		opacity: 0;
+		transform: translateY(14px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes enter-clip {
+	from {
+		opacity: 0;
+		clip-path: inset(0 0 100% 0);
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		clip-path: inset(0 0 0 0);
+		transform: translateY(0);
+	}
+}
+
+:root {
+	--background: oklch(0.985 0.003 255);
+	--foreground: oklch(0.2 0.015 255);
+	--brand: oklch(0.505 0.213 27.518);
+	--brand-foreground: oklch(0.62 0.2 28);
+	/* Футер — единственная плита сплошного цвета на странице: подвал, а не ещё
+	   одна секция. Поэтому он тёмный в обеих темах и не несёт фактур. */
+	--footer: oklch(0.18 0.015 255);
+	--footer-foreground: oklch(0.97 0.004 255);
+	--footer-muted: oklch(0.74 0.012 255);
+	--footer-border: oklch(0.32 0.012 255);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.2 0.015 255);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.2 0.015 255);
+	--primary: oklch(0.505 0.213 27.518);
+	--primary-foreground: oklch(0.99 0 0);
+	--secondary: oklch(0.945 0.006 255);
+	--secondary-foreground: oklch(0.2 0.015 255);
+	--muted: oklch(0.945 0.006 255);
+	--muted-foreground: oklch(0.46 0.015 255);
+	--accent: oklch(0.945 0.006 255);
+	--accent-foreground: oklch(0.2 0.015 255);
+	--destructive: oklch(0.44 0.235 27.5);
+	--border: oklch(0.88 0.008 255);
+	--input: oklch(0.88 0.008 255);
+	--ring: oklch(0.505 0.213 27.518);
+	--chart-1: oklch(0.87 0 0);
+	--chart-2: oklch(0.556 0 0);
+	--chart-3: oklch(0.439 0 0);
+	--chart-4: oklch(0.371 0 0);
+	--chart-5: oklch(0.269 0 0);
+	--radius: 0.5rem;
+	--sidebar: oklch(0.985 0 0);
+	--sidebar-foreground: oklch(0.145 0 0);
+	--sidebar-primary: oklch(0.205 0 0);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent-foreground: oklch(0.205 0 0);
+	--sidebar-border: oklch(0.922 0 0);
+	--sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+	--background: oklch(0.15 0.012 255);
+	--foreground: oklch(0.96 0.004 255);
+	--brand: oklch(0.62 0.2 28);
+	--brand-foreground: oklch(0.72 0.16 32);
+	/* Темнее фона страницы (0.15), а не светлее: подвал «уходит вниз». */
+	--footer: oklch(0.11 0.012 255);
+	--footer-foreground: oklch(0.96 0.004 255);
+	--footer-muted: oklch(0.7 0.012 255);
+	--footer-border: oklch(0.26 0.012 255);
+	--card: oklch(0.19 0.012 255);
+	--card-foreground: oklch(0.96 0.004 255);
+	--popover: oklch(0.19 0.012 255);
+	--popover-foreground: oklch(0.96 0.004 255);
+	--primary: oklch(0.577 0.222 28.5);
+	--primary-foreground: oklch(0.99 0 0);
+	--secondary: oklch(0.23 0.012 255);
+	--secondary-foreground: oklch(0.96 0.004 255);
+	--muted: oklch(0.23 0.012 255);
+	--muted-foreground: oklch(0.72 0.012 255);
+	--accent: oklch(0.23 0.012 255);
+	--accent-foreground: oklch(0.96 0.004 255);
+	--destructive: oklch(0.72 0.23 25);
+	--border: oklch(0.3 0.012 255);
+	--input: oklch(0.3 0.012 255);
+	--ring: oklch(0.62 0.2 28);
+	--chart-1: oklch(0.87 0 0);
+	--chart-2: oklch(0.556 0 0);
+	--chart-3: oklch(0.439 0 0);
+	--chart-4: oklch(0.371 0 0);
+	--chart-5: oklch(0.269 0 0);
+	--sidebar: oklch(0.205 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.488 0.243 264.376);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.269 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	button:not(:disabled),
+	[role="button"]:not(:disabled) {
+		cursor: pointer;
+	}
+	html {
+		@apply font-sans;
+	}
+
+	/* Скачки размера ~3×, а не 1.5×; трекинг заголовков плотный. */
+	h1 {
+		font-size: clamp(2.75rem, 7vw, 5.5rem);
+		line-height: 1.02;
+		letter-spacing: -0.03em;
+		font-weight: 800;
+	}
+	h2 {
+		font-size: clamp(2rem, 4vw, 3rem);
+		line-height: 1.08;
+		letter-spacing: -0.025em;
+		font-weight: 800;
+	}
+	h3 {
+		letter-spacing: -0.015em;
+		font-weight: 800;
+	}
+}
+
+@layer components {
+	/* Служебный слой: эйрбоу, чипы, цифры, пути, статусы.
+     Моно НЕ используется для читаемого текста — аудитория шире, чем разработчики. */
+	.label-mono {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		font-weight: 500;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+}
+
+@layer utilities {
+	/* Animation delays. Tailwind's own delay-* only sets transition-delay. */
+	.delay-100 {
+		animation-delay: 100ms;
+	}
+	.delay-200 {
+		animation-delay: 200ms;
+	}
+	.delay-300 {
+		animation-delay: 300ms;
+	}
+	.delay-400 {
+		animation-delay: 400ms;
+	}
+	.delay-600 {
+		animation-delay: 600ms;
+	}
+	.delay-1000 {
+		animation-delay: 1000ms;
+	}
+
+	.fade-bottom {
+		mask-image: linear-gradient(to bottom, black calc(100% - 6rem), transparent);
+	}
+}
+
+@layer utilities {
+	/* Чертёжная сетка — фактура, а не заливка.
+	   Имя намеренно без префикса bg- (tailwind-merge иначе сливает её
+	   с bg-background/bg-hatch/bg-noise как «один и тот же» background-* конфликт-класс —
+	   see web/src/lib/utils.ts:cn, twMerge groups по префиксу). */
+	.texture-grid {
+		background-image: repeating-linear-gradient(
+				to right,
+				color-mix(in oklab, var(--foreground) 4%, transparent) 0 1px,
+				transparent 1px 72px
+			),
+			repeating-linear-gradient(
+				to bottom,
+				color-mix(in oklab, var(--foreground) 4%, transparent) 0 1px,
+				transparent 1px 72px
+			);
+	}
+
+	/* Утопленная поверхность: чередование секций — фактурой, а не другим цветом. */
+	.surface-recessed {
+		background-color: color-mix(in oklab, var(--muted) 55%, var(--background));
+		box-shadow: inset 0 1px 0 0
+			color-mix(in oklab, var(--foreground) 8%, transparent);
+	}
+
+	/* Утопленная поверхность несёт СВОЮ фактуру: чередование секций должно читаться
+	   сменой материала, а не сменой заливки. Диагональ против ортогональной сетки. */
+	.texture-hatch {
+		background-image: repeating-linear-gradient(
+			135deg,
+			color-mix(in oklab, var(--foreground) 3%, transparent) 0 1px,
+			transparent 1px 10px
+		);
+	}
+
+	/* Шум убирает «пластиковую» гладкость. Инлайн-SVG: внешние запросы CSP не пустит. */
+	.texture-noise::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		opacity: 0.025;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-delay: 0ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+
+	/* The appear animations start at opacity-0; without them the content must still be visible. */
+	.animate-appear,
+	.animate-appear-zoom,
+	.animate-enter-up,
+	.animate-enter-clip,
+	[data-reveal],
+	[data-typed] span {
+		opacity: 1 !important;
+		animation: none !important;
+	}
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	html {
+		scroll-behavior: smooth;
+	}
+}

@@ -48,8 +48,12 @@ export default function Home() {
 						},
 					]}
 					image={{
-						light: "/app-light.svg",
-						dark: "/app-dark.svg",
+						light: "/app-light.png",
+						dark: "/app-dark.png",
+						placeholder: {
+							light: "/app-light.svg",
+							dark: "/app-dark.svg",
+						},
 						alt: "Экран Otklik: очередь вакансий и сгенерированное сопроводительное письмо",
 					}}
 				/>

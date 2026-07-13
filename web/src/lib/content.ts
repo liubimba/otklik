@@ -35,8 +35,12 @@ export const howItWorks = {
 			title: "Подключите аккаунт hh.ru",
 			body: "Кнопка профиля внизу сайдбара → «Войти». Авторизуйтесь один раз в открывшемся окне — дальше приложение работает от вашего имени. Пароль вводите на самом hh.ru, приложение его не видит.",
 			shot: {
-				light: "/screens/step-1-auth.light.svg",
-				dark: "/screens/step-1-auth.dark.svg",
+				light: "/screens/step-1-auth.light.png",
+				dark: "/screens/step-1-auth.dark.png",
+				placeholder: {
+					light: "/screens/step-1-auth.light.svg",
+					dark: "/screens/step-1-auth.dark.svg",
+				},
 				alt: "Окно входа в аккаунт hh.ru внутри Otklik",
 			},
 		},
@@ -44,8 +48,12 @@ export const howItWorks = {
 			title: "Заполните настройки",
 			body: "Резюме, стиль письма, лимиты и хотя бы один LLM-провайдер с API-ключом. Провайдеров можно добавить несколько — они выстроятся в цепочку фолбэков, и если основной упадёт, письма продолжит генерировать следующий.",
 			shot: {
-				light: "/screens/step-2-settings.light.svg",
-				dark: "/screens/step-2-settings.dark.svg",
+				light: "/screens/step-2-settings.light.png",
+				dark: "/screens/step-2-settings.dark.png",
+				placeholder: {
+					light: "/screens/step-2-settings.light.svg",
+					dark: "/screens/step-2-settings.dark.svg",
+				},
 				alt: "Настройки Otklik: резюме, стиль письма и список LLM-провайдеров",
 			},
 		},
@@ -53,8 +61,12 @@ export const howItWorks = {
 			title: "Запустите поиск",
 			body: "Otklik откроет hh.ru, вы выставите фильтры руками прямо на сайте — регион, опыт, формат. Никакой урезанной формы поиска: ищете ровно так, как искали бы сами. Подходящие вакансии начнут появляться в очереди в реальном времени.",
 			shot: {
-				light: "/screens/step-3-search.light.svg",
-				dark: "/screens/step-3-search.dark.svg",
+				light: "/screens/step-3-search.light.png",
+				dark: "/screens/step-3-search.dark.png",
+				placeholder: {
+					light: "/screens/step-3-search.light.svg",
+					dark: "/screens/step-3-search.dark.svg",
+				},
 				alt: "Очередь вакансий Otklik: карточки со статусами",
 			},
 		},
@@ -62,8 +74,12 @@ export const howItWorks = {
 			title: "Проверьте письмо",
 			body: "Откройте вакансию, отредактируйте или перегенерируйте письмо. Не нравится тон — попросите AI-чат переписать: «сделай короче», «более формальный тон», «подчеркни релевантный опыт».",
 			shot: {
-				light: "/screens/step-4-review.light.svg",
-				dark: "/screens/step-4-review.dark.svg",
+				light: "/screens/step-4-review.light.png",
+				dark: "/screens/step-4-review.dark.png",
+				placeholder: {
+					light: "/screens/step-4-review.light.svg",
+					dark: "/screens/step-4-review.dark.svg",
+				},
 				alt: "Разбор сопроводительного письма и AI-чат в Otklik",
 			},
 			// Автоотклик показываем сразу здесь — в шаге про проверку письма.
@@ -87,8 +103,12 @@ export const howItWorks = {
 			title: "Откликнитесь",
 			body: "Нажмите «Откликнуться» — отклик уходит в ваш аккаунт hh.ru. В обычном режиме ни одно письмо не отправляется без вашего подтверждения.",
 			shot: {
-				light: "/screens/step-5-apply.light.svg",
-				dark: "/screens/step-5-apply.dark.svg",
+				light: "/screens/step-5-apply.light.png",
+				dark: "/screens/step-5-apply.dark.png",
+				placeholder: {
+					light: "/screens/step-5-apply.light.svg",
+					dark: "/screens/step-5-apply.dark.svg",
+				},
 				alt: "Отправленные отклики в очереди Otklik",
 			},
 		},

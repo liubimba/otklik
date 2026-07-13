@@ -1,7 +1,5 @@
-const GITHUB_OWNER = "pauldekarin";
-// TODO: подтвердить финальное имя репозитория. Автообновление в
-// apps/desktop/src-tauri/tauri.conf.json уже смотрит на /otklik, а репозиторий
-// пока может называться headhunter_ai — правится здесь, в одном месте.
+// Сверено с `git remote -v`: git@github.com:liubimba/otklik.git.
+const GITHUB_OWNER = "liubimba";
 const GITHUB_REPO = "otklik";
 
 const REPO_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;

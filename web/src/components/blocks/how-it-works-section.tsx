@@ -85,6 +85,7 @@ function StepSection({ step, index }: { step: Step; index: number }) {
 						light={step.shot.light}
 						dark={step.shot.dark}
 						alt={step.shot.alt}
+						placeholder={step.shot.placeholder}
 					/>
 				</Reveal>
 			</div>

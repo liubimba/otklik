@@ -1,7 +1,7 @@
 import { ArrowRightIcon } from "lucide-react";
 import type * as React from "react";
 
-import { AppShot } from "@/components/ui/app-shot";
+import { AppShot, type Shot } from "@/components/ui/app-shot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Glow } from "@/components/ui/glow";
@@ -25,11 +25,7 @@ interface HeroProps {
 	title: string;
 	description: string;
 	actions: HeroAction[];
-	image: {
-		light: string;
-		dark: string;
-		alt: string;
-	};
+	image: Shot;
 }
 
 export function HeroSection({
@@ -95,7 +91,10 @@ export function HeroSection({
 							light={image.light}
 							dark={image.dark}
 							alt={image.alt}
+							placeholder={image.placeholder}
 							priority
+							// Hero занимает всю колонку, а не половину, как кадры шагов.
+							sizes="(max-width: 768px) 100vw, (max-width: 1280px) 92vw, 1200px"
 							className="animate-appear-zoom opacity-0 delay-600"
 						/>
 						<Glow

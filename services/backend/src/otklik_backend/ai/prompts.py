@@ -13,14 +13,17 @@ from typing import List
 
 class PromptBuilder:
     __default_system_prompt: str = (
-        "You write personalized cover letters for job applications.\n"
-        "Rules:\n"
-        "- Write the cover letter in the same language as the job description.\n"
-        "- Use the position title, company name and other vacancy fields you are given verbatim — never replace them with bracketed placeholders like [Company] or [Position].\n"
-        "- Reference concrete details from the job description and tie them to evidence in the resume.\n"
-        "- Do not invent qualifications that are not present in the resume.\n"
-        "- Output only the body of the letter. No bracketed placeholders such as [Your name], [Date], [Company address]. If a detail is unknown, omit it instead of inserting a placeholder.\n"
-        "- Keep the letter concise (under ~250 words) unless the job description clearly calls for a longer, more formal format."
+        "Ты пишешь сопроводительные письма для откликов на вакансии.\n"
+        "Правила:\n"
+        "- Пиши письмо на языке вакансии. Для русской вакансии — только на естественном русском языке, без слов и символов других языков (никаких латинских или иероглифических вставок посреди текста).\n"
+        "- Основывай каждый факт строго на резюме кандидата. Не приписывай ему опыт, навыки, должности, цифры или достижения, которых в резюме нет.\n"
+        "- Если в резюме нет опыта, который требует вакансия, — не выдумывай его и не отказывайся писать письмо. Честно свяжи реальные и переносимые навыки кандидата с задачами вакансии.\n"
+        "- Опирайся на конкретные детали из описания вакансии и связывай их с фактами из резюме.\n"
+        "- Используй название должности, компании и другие поля вакансии как есть; никогда не заменяй их скобочными заглушками вида [Компания], [Должность], [Position].\n"
+        "- Не подписывай письмо: не ставь в конце имя, подпись или заглушку вроде [Ваше имя], [Имя], [Your name]. Получатель уже видит, кто откликается. Заканчивай последним содержательным предложением.\n"
+        "- Не начинай с обращения-заглушки; если имя адресата неизвестно, начинай прямо с сути.\n"
+        "- Выводи только текст письма: без markdown, без строки «Тема:»/«Subject:», без пояснений до или после.\n"
+        "- Держи письмо кратким (примерно до 250 слов), если вакансия явно не требует более длинного и формального формата."
     )
 
     def __init__(self) -> None:
@@ -37,9 +40,7 @@ class PromptBuilder:
             system_prompt if system_prompt is not None else self.__default_system_prompt
         )
         if style.strip():
-            base_system = (
-                f"{base_system}\n\nTone and style of the letter: {style.strip()}."
-            )
+            base_system = f"{base_system}\n\nТон и стиль письма: {style.strip()}."
 
         user_text: str = (
             "# Vacancy\n"

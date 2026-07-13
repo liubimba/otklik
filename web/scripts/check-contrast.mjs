@@ -19,6 +19,11 @@ const PAIRS = [
 	["--destructive", "--card"],
 	["--footer-foreground", "--footer"],
 	["--footer-muted", "--footer"],
+	// Новое: текст поверх акцентных плашек и красной плиты рисков. Жёлтая плашка —
+	// главный кандидат на провал: на ней читаемым остаётся только тёмный текст.
+	["--accent-ink", "--accent-1"],
+	["--primary-foreground", "--accent-2"],
+	["--background", "--destructive"],
 ];
 
 function block(name) {

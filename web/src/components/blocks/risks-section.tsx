@@ -1,13 +1,9 @@
 import { TriangleAlertIcon } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { PlainList } from "@/components/ui/plain-list";
 import { Reveal } from "@/components/ui/reveal";
 import { Section, SectionHeader } from "@/components/ui/section";
 import { risks } from "@/lib/content";
-import { sectionIcons } from "@/lib/icons";
-
-const DELAYS = ["delay-100", "delay-200", "delay-300"] as const;
 
 export function RisksSection() {
 	return (
@@ -19,52 +15,34 @@ export function RisksSection() {
 				description={risks.description}
 			/>
 
-			{/* destructive-токены, а не brand: brand тоже красный, они бы слиплись.
-			    Самый тяжёлый красный элемент страницы: сплошная заливка + жирная
-			    левая линейка вместо 5%-подложки — предупреждение о бане обязано
-			    перебивать эйрбоу, иконки карточек и кнопки-brand. */}
-			<Reveal delay="delay-100" className="mt-12">
-				<Alert
-					variant="destructive"
-					className="border-destructive/60 border-l-4 border-l-destructive bg-destructive/10 px-5 py-4"
-				>
-					<TriangleAlertIcon />
-					<AlertTitle className="font-heading text-lg font-extrabold">
-						{risks.warning.title}
-					</AlertTitle>
-					<AlertDescription className="text-base text-pretty">
-						{risks.warning.body}
-					</AlertDescription>
-				</Alert>
+			{/* Единственная сплошная плита на всю ширину окна. На пустой странице
+			    заливка — самое громкое, что вообще есть, и она достаётся ровно одному
+			    блоку: предупреждению о бане. destructive, а не brand: brand тоже
+			    красный, они бы слиплись. */}
+			<Reveal delay="delay-100" className="mt-14">
+				<div className="mx-[calc(50%-50vw)] w-screen bg-destructive text-background">
+					<div className="mx-auto flex max-w-container gap-4 px-4 py-10">
+						<TriangleAlertIcon
+							className="mt-1 size-7 shrink-0"
+							aria-hidden="true"
+						/>
+						<div className="flex flex-col gap-3">
+							<h3 className="max-w-[18ch] font-heading text-3xl text-balance md:text-4xl">
+								{risks.warning.title}
+							</h3>
+							<p className="max-w-[70ch] text-base text-pretty">
+								{risks.warning.body}
+							</p>
+						</div>
+					</div>
+				</div>
 			</Reveal>
 
-			<h3 className="mt-16 font-heading text-xl text-balance">
+			<h3 className="mt-20 font-heading text-xl text-balance">
 				{risks.mitigationsTitle}
 			</h3>
 
-			<div className="mt-6 grid gap-4 md:grid-cols-3">
-				{risks.mitigations.map((item, index) => {
-					const Icon = sectionIcons[item.icon];
-
-					return (
-						<Reveal key={item.title} delay={DELAYS[index % DELAYS.length]}>
-							<Card className="h-full">
-								<CardHeader className="gap-3">
-									<Icon className="size-5 text-brand" aria-hidden="true" />
-									<h4 className="font-heading text-base text-balance">
-										{item.title}
-									</h4>
-								</CardHeader>
-								<CardContent>
-									<p className="text-base text-pretty text-muted-foreground">
-										{item.body}
-									</p>
-								</CardContent>
-							</Card>
-						</Reveal>
-					);
-				})}
-			</div>
+			<PlainList items={risks.mitigations} columns={3} className="mt-8" />
 		</Section>
 	);
 }

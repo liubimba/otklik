@@ -3,23 +3,23 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Общая рамка секции. overflow-hidden здесь — самая дешёвая страховка от
- * горизонтального скролла на 375px, который легко устраивают свечения и блюры.
+ * Секция — пустота.
+ *
+ * Ни фактур, ни подложек, ни свечений: фон одинаков от секции до секции, объекты
+ * висят в ней и держатся собственной формой. Раньше здесь чередовались grid/hatch
+ * и surface-recessed — вместе с ними ушла и «карточность» страницы.
+ *
+ * overflow-hidden — не украшение: плашки повёрнуты, а поворот расширяет
+ * ограничивающий прямоугольник и на 375px рождает горизонтальную прокрутку.
  */
 function Section({
 	id,
-	variant = "default",
 	className,
 	backdrop,
 	children,
 	...props
 }: React.ComponentProps<"section"> & {
-	variant?: "default" | "muted";
-	/**
-	 * Атмосферные слои (<Backdrop />). Отдельный слот, а не `children`: контент
-	 * сидит в обёртке с `z-10` и шириной max-w-container, и фон, попавший внутрь
-	 * неё, был бы обрезан по контейнеру и нарисован ПОВЕРХ текста.
-	 */
+	/** Декоративные слои (конфетти). Отдельный слот: контент сидит на z-10. */
 	backdrop?: React.ReactNode;
 }) {
 	return (
@@ -27,11 +27,7 @@ function Section({
 			id={id}
 			aria-labelledby={`${id}-title`}
 			className={cn(
-				"relative scroll-mt-24 overflow-hidden px-4 py-16 sm:py-24 md:py-32",
-				"texture-noise",
-				variant === "muted"
-					? "surface-recessed texture-hatch"
-					: "bg-background texture-grid",
+				"relative scroll-mt-24 overflow-hidden px-4 py-24 md:py-36",
 				className,
 			)}
 			{...props}
@@ -45,47 +41,39 @@ function Section({
 }
 
 /**
- * Заголовок секции. Сознательно без градиента: bg-clip-text остаётся
- * привилегией <h1> в hero, иначе визуальная иерархия страницы рассыпается.
+ * Заголовок секции: гигантский тип по левому краю, крошечная метка над ним.
+ *
+ * Эффект даёт не размер, а разрыв — 15px метки рядом со 110px заголовка.
+ * Ничего не центрируется: центр на этой странице остался ровно в одном месте,
+ * в финальном CTA, и работает он потому, что единственный.
  */
 function SectionHeader({
 	id,
 	eyebrow,
 	title,
 	description,
-	align = "center",
 	className,
 }: {
 	id: string;
 	eyebrow?: string;
 	title: string;
 	description?: string;
-	align?: "center" | "start";
 	className?: string;
 }) {
 	return (
-		<div
-			className={cn(
-				"flex flex-col gap-4",
-				align === "center" ? "items-center text-center" : "items-start",
-				className,
+		<header className={cn("flex flex-col gap-6", className)}>
+			{eyebrow && (
+				<span className="label-mono label-chip self-start">{eyebrow}</span>
 			)}
-		>
-			{eyebrow && <span className="label-mono label-chip">{eyebrow}</span>}
-			<h2 id={`${id}-title`} className="font-heading text-balance">
+			<h2 id={`${id}-title`} className="max-w-[14ch] font-heading text-balance">
 				{title}
 			</h2>
 			{description && (
-				<p
-					className={cn(
-						"max-w-[620px] text-base text-pretty text-muted-foreground sm:text-lg",
-						align === "center" && "mx-auto",
-					)}
-				>
+				<p className="max-w-[54ch] text-base text-pretty text-muted-foreground">
 					{description}
 				</p>
 			)}
-		</div>
+		</header>
 	);
 }
 

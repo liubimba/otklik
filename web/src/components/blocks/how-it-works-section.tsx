@@ -3,6 +3,8 @@ import { ArrowRightIcon, TriangleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AppShot } from "@/components/ui/app-shot";
 import { Badge } from "@/components/ui/badge";
+import { Confetti } from "@/components/ui/confetti";
+import { Panel } from "@/components/ui/panel";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
 import { Reveal } from "@/components/ui/reveal";
 import { Section, SectionHeader } from "@/components/ui/section";
@@ -19,13 +21,13 @@ function AutoApply({
 	autoApply: NonNullable<Extract<Step, { autoApply: unknown }>["autoApply"]>;
 }) {
 	return (
-		<div className="mt-8 flex flex-col gap-4 border-l-2 border-brand/30 pl-5">
+		<div className="mt-8 flex flex-col gap-4 border-l-2 border-brand pl-5">
 			<h3 className="font-heading text-lg text-balance">{autoApply.title}</h3>
 			<p className="text-base text-pretty text-muted-foreground">
 				{autoApply.body}
 			</p>
 
-			<ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
+			<ol className="flex flex-wrap items-center gap-2">
 				{autoApply.pipeline.map((step, index) => (
 					<li key={step} className="flex items-center gap-2">
 						<Badge variant="outline" className="label-mono py-1.5">
@@ -54,65 +56,102 @@ function AutoApply({
 	);
 }
 
-function StepSection({ step, index }: { step: Step; index: number }) {
+/** Плашки чередуют цвет и наклон — чтобы пять шагов подряд не читались как список. */
+const TONES = ["brand", "accent2", "accent1", "brand", "accent2"] as const;
+const TILTS = [-3, 2.5, -2, 3, -2.5];
+
+function Step({ step, index }: { step: Step; index: number }) {
 	const number = index + 1;
 	const flipped = index % 2 === 1;
 
 	return (
-		<Section id={`step-${number}`} variant={flipped ? "muted" : "default"}>
-			<div
-				className={cn(
-					"grid items-center gap-10 lg:grid-cols-2 lg:gap-16",
-					// Змейка: у чётных шагов скриншот уезжает влево. Порядок в разметке
-					// не меняем — на мобильном текст всегда должен идти первым.
-					flipped && "lg:[&>*:first-child]:order-2",
+		<div
+			id={`step-${number}`}
+			className={cn(
+				"grid scroll-mt-24 items-center gap-10 py-16 md:grid-cols-2 md:gap-16 md:py-24",
+				flipped && "md:[&>*:first-child]:order-2",
+			)}
+		>
+			<div>
+				{/* Номер шага — гигантской цифрой: он и есть навигация по секции. */}
+				<span
+					aria-hidden="true"
+					className="block font-heading text-7xl leading-none text-brand md:text-8xl"
+				>
+					{String(number).padStart(2, "0")}
+				</span>
+				<h3
+					id={`step-${number}-title`}
+					className="mt-6 max-w-[16ch] font-heading text-3xl text-balance md:text-4xl"
+				>
+					{step.title}
+				</h3>
+				<p className="mt-4 max-w-[44ch] text-base text-pretty text-muted-foreground">
+					{step.body}
+				</p>
+				{"autoApply" in step && step.autoApply && (
+					<AutoApply autoApply={step.autoApply} />
 				)}
-			>
-				<div>
-					<SectionHeader
-						id={`step-${number}`}
-						align="start"
-						eyebrow={`Шаг ${String(number).padStart(2, "0")}`}
-						title={step.title}
-						description={step.body}
-					/>
-					{"autoApply" in step && step.autoApply && (
-						<AutoApply autoApply={step.autoApply} />
-					)}
-				</div>
+			</div>
 
-				<Reveal delay="delay-200">
-					{/* Ход вдвое меньше, чем у hero, и без наклона: пять кадров подряд,
-					    каждый из которых наклоняется под курсором, — это уже аттракцион. */}
-					<ParallaxShot shift={24} tilt={0}>
+			<Reveal delay="delay-200">
+				{/* Без наклона по курсору: пять наклоняющихся кадров подряд — аттракцион. */}
+				<ParallaxShot shift={26} tilt={0}>
+					<Panel tone={TONES[index]} tilt={TILTS[index]}>
 						<AppShot
 							light={step.shot.light}
 							dark={step.shot.dark}
 							alt={step.shot.alt}
 							placeholder={step.shot.placeholder}
+							frame={false}
 						/>
-					</ParallaxShot>
-				</Reveal>
-			</div>
-		</Section>
+					</Panel>
+				</ParallaxShot>
+			</Reveal>
+		</div>
 	);
 }
 
 export function HowItWorksSection() {
 	return (
-		<>
-			<Section id="how-it-works" className="pb-0 md:pb-0">
-				<SectionHeader
-					id="how-it-works"
-					eyebrow={howItWorks.eyebrow}
-					title={howItWorks.title}
-					description={howItWorks.description}
+		<Section
+			id="how-it-works"
+			backdrop={
+				<Confetti
+					bits={[
+						{ x: 4, y: 8, size: 12, shape: "dot", tone: "accent-1", speed: 50 },
+						{
+							x: 95,
+							y: 30,
+							size: 16,
+							shape: "diamond",
+							tone: "brand",
+							speed: 70,
+						},
+						{
+							x: 90,
+							y: 72,
+							size: 18,
+							shape: "ring",
+							tone: "accent-2",
+							speed: 35,
+						},
+					]}
 				/>
-			</Section>
+			}
+		>
+			<SectionHeader
+				id="how-it-works"
+				eyebrow={howItWorks.eyebrow}
+				title={howItWorks.title}
+				description={howItWorks.description}
+			/>
 
-			{howItWorks.steps.map((step, index) => (
-				<StepSection key={step.title} step={step} index={index} />
-			))}
-		</>
+			<div className="mt-8">
+				{howItWorks.steps.map((step, index) => (
+					<Step key={step.title} step={step} index={index} />
+				))}
+			</div>
+		</Section>
 	);
 }

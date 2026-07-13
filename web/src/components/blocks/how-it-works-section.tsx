@@ -3,6 +3,7 @@ import { ArrowRightIcon, TriangleAlertIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AppShot } from "@/components/ui/app-shot";
 import { Badge } from "@/components/ui/badge";
+import { ParallaxShot } from "@/components/ui/parallax-shot";
 import { Reveal } from "@/components/ui/reveal";
 import { Section, SectionHeader } from "@/components/ui/section";
 import { howItWorks } from "@/lib/content";
@@ -81,12 +82,16 @@ function StepSection({ step, index }: { step: Step; index: number }) {
 				</div>
 
 				<Reveal delay="delay-200">
-					<AppShot
-						light={step.shot.light}
-						dark={step.shot.dark}
-						alt={step.shot.alt}
-						placeholder={step.shot.placeholder}
-					/>
+					{/* Ход вдвое меньше, чем у hero, и без наклона: пять кадров подряд,
+					    каждый из которых наклоняется под курсором, — это уже аттракцион. */}
+					<ParallaxShot shift={24} tilt={0}>
+						<AppShot
+							light={step.shot.light}
+							dark={step.shot.dark}
+							alt={step.shot.alt}
+							placeholder={step.shot.placeholder}
+						/>
+					</ParallaxShot>
 				</Reveal>
 			</div>
 		</Section>

@@ -3,6 +3,7 @@ import { Geologica, Golos_Text, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { ScrollProgress } from "@/components/ui/scroll-progress";
 
 const display = Geologica({
 	variable: "--font-display",
@@ -57,6 +58,7 @@ export default function RootLayout({
 					enableSystem
 					disableTransitionOnChange
 				>
+					<ScrollProgress />
 					{children}
 				</ThemeProvider>
 			</body>

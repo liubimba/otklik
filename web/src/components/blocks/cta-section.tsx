@@ -3,6 +3,7 @@ import { AppleIcon, MonitorIcon, TerminalIcon } from "lucide-react";
 import { Backdrop } from "@/components/ui/backdrop";
 import { Button } from "@/components/ui/button";
 import { Glow } from "@/components/ui/glow";
+import { Magnetic } from "@/components/ui/magnetic";
 import { Reveal } from "@/components/ui/reveal";
 import { Section, SectionHeader } from "@/components/ui/section";
 import { cta } from "@/lib/content";
@@ -38,18 +39,19 @@ export function CtaSection() {
 				<div className="flex flex-col items-center gap-4">
 					<div className="flex flex-wrap justify-center gap-3">
 						{PLATFORMS.map(({ label, href, Icon }, index) => (
-							<Button
-								key={label}
-								asChild
-								variant={index === 0 ? "default" : "glow"}
-								size="lg"
-								className="h-11 rounded-lg px-6 text-base"
-							>
-								<a href={href} className="flex items-center gap-2">
-									<Icon className="size-5" aria-hidden="true" />
-									{label}
-								</a>
-							</Button>
+							<Magnetic key={label}>
+								<Button
+									asChild
+									variant={index === 0 ? "default" : "glow"}
+									size="lg"
+									className="h-11 rounded-lg px-6 text-base"
+								>
+									<a href={href} className="flex items-center gap-2">
+										<Icon className="size-5" aria-hidden="true" />
+										{label}
+									</a>
+								</Button>
+							</Magnetic>
 						))}
 					</div>
 					<p className="max-w-[520px] text-center text-base text-pretty text-muted-foreground">

@@ -2,6 +2,7 @@ import { ArrowRightIcon } from "lucide-react";
 import type * as React from "react";
 
 import { AppShot, type Shot } from "@/components/ui/app-shot";
+import { Backdrop } from "@/components/ui/backdrop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Glow } from "@/components/ui/glow";
@@ -43,7 +44,11 @@ export function HeroSection({
 				"fade-bottom overflow-hidden pb-0",
 			)}
 		>
-			<div className="mx-auto flex max-w-container flex-col gap-12 pt-16 sm:gap-24">
+			<Backdrop aurora beams />
+
+			{/* z-10 на всей колонке, а не только на заголовке: Backdrop — позиционированный
+			    слой с z-0, и без этого он накрыл бы бейдж, который лежит в обычном потоке. */}
+			<div className="relative z-10 mx-auto flex max-w-container flex-col gap-12 pt-16 sm:gap-24">
 				<div className="flex flex-col items-center gap-6 text-center sm:gap-12">
 					{badge && (
 						<Badge

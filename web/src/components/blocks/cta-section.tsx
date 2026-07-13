@@ -1,5 +1,6 @@
 import { AppleIcon, MonitorIcon, TerminalIcon } from "lucide-react";
 
+import { Backdrop } from "@/components/ui/backdrop";
 import { Button } from "@/components/ui/button";
 import { Glow } from "@/components/ui/glow";
 import { Reveal } from "@/components/ui/reveal";
@@ -15,7 +16,18 @@ const PLATFORMS = [
 
 export function CtaSection() {
 	return (
-		<Section id="download" className="pb-24 md:pb-40">
+		<Section
+			id="download"
+			className="pb-24 md:pb-40"
+			backdrop={
+				<>
+					<Backdrop aurora spotlight />
+					{/* Тоже фон: раньше свечение лежало в children и потому обрезалось
+					    по max-w-container, а рисовалось поверх кнопок. */}
+					<Glow variant="below" className="opacity-70" />
+				</>
+			}
+		>
 			<SectionHeader
 				id="download"
 				title={cta.title}
@@ -45,8 +57,6 @@ export function CtaSection() {
 					</p>
 				</div>
 			</Reveal>
-
-			<Glow variant="below" className="opacity-70" />
 		</Section>
 	);
 }

@@ -94,6 +94,16 @@
 	}
 }
 
+@keyframes drift {
+	from {
+		transform: translate3d(0, 0, 0) scale(1);
+	}
+	to {
+		transform: translate3d(var(--drift-x, 4rem), var(--drift-y, -3rem), 0)
+			scale(1.18);
+	}
+}
+
 @keyframes enter-clip {
 	from {
 		opacity: 0;
@@ -112,6 +122,11 @@
 	--foreground: oklch(0.2 0.015 255);
 	--brand: oklch(0.505 0.213 27.518);
 	--brand-foreground: oklch(0.62 0.2 28);
+	/* Аврора в светлой теме НЕ брендовая. Красный, размытый на 80px по белому,
+	   даёт розовую кляксу — ровно ту «AI-слоп»-эстетику, от которой уходим.
+	   Здесь она работает холодным графитом: читается как глубина, а не как цвет. */
+	--aurora-a: oklch(0.55 0.035 255);
+	--aurora-b: oklch(0.62 0.028 255);
 	/* Футер — единственная плита сплошного цвета на странице: подвал, а не ещё
 	   одна секция. Поэтому он тёмный в обеих темах и не несёт фактур. */
 	--footer: oklch(0.18 0.015 255);
@@ -155,6 +170,9 @@
 	--foreground: oklch(0.96 0.004 255);
 	--brand: oklch(0.62 0.2 28);
 	--brand-foreground: oklch(0.72 0.16 32);
+	/* На тёмном фоне бренд светится, а не мажет — здесь аврора брендовая. */
+	--aurora-a: var(--brand);
+	--aurora-b: var(--brand-foreground);
 	/* Темнее фона страницы (0.15), а не светлее: подвал «уходит вниз». */
 	--footer: oklch(0.11 0.012 255);
 	--footer-foreground: oklch(0.96 0.004 255);
@@ -295,6 +313,97 @@
 			135deg,
 			color-mix(in oklab, var(--foreground) 3%, transparent) 0 1px,
 			transparent 1px 10px
+		);
+	}
+
+	/* --- Аврора ------------------------------------------------------------
+	   Медленно дрейфующие пятна бренда. Анимируется ТОЛЬКО transform: любое
+	   другое свойство здесь заставит браузер перекрашивать полэкрана каждый
+	   кадр, а пятно размыто на 80px — это самый дорогой пиксель на странице.
+
+	   filter: blur() создаёт слой на GPU. Держим ровно три пятна: четвёртое
+	   уже видно в трейсе. */
+	.aurora-blob {
+		position: absolute;
+		border-radius: 9999px;
+		filter: blur(80px);
+		will-change: transform;
+		animation: drift 30s ease-in-out infinite alternate;
+	}
+
+	/* В светлой теме бренд — насыщенный красный, и то же пятно читается как
+	   розовая клякса. Гасим втрое. */
+	.aurora-blob {
+		opacity: 0.14;
+	}
+	.dark .aurora-blob {
+		opacity: 0.5;
+	}
+
+	.aurora-blob-1 {
+		top: -14rem;
+		left: -10rem;
+		width: 44rem;
+		height: 32rem;
+		background: radial-gradient(
+			closest-side,
+			var(--aurora-a) 0%,
+			transparent 100%
+		);
+		--drift-x: 5rem;
+		--drift-y: 3rem;
+		animation-duration: 34s;
+	}
+	.aurora-blob-2 {
+		top: -8rem;
+		right: -12rem;
+		width: 38rem;
+		height: 28rem;
+		background: radial-gradient(
+			closest-side,
+			var(--aurora-b) 0%,
+			transparent 100%
+		);
+		--drift-x: -4rem;
+		--drift-y: 4rem;
+		animation-duration: 26s;
+		animation-delay: -9s;
+	}
+	.aurora-blob-3 {
+		bottom: -18rem;
+		left: 30%;
+		width: 34rem;
+		height: 24rem;
+		background: radial-gradient(
+			closest-side,
+			var(--aurora-a) 0%,
+			transparent 100%
+		);
+		--drift-x: 3rem;
+		--drift-y: -4rem;
+		animation-duration: 40s;
+		animation-delay: -15s;
+	}
+
+	/* --- Лучи --------------------------------------------------------------
+	   Статичный слой: бюджет движения на экране тратим на аврору и spotlight.
+	   Наклон 105° спорит с ортогональной texture-grid ровно настолько, чтобы
+	   читаться как свет, а не как вторая сетка. */
+	.texture-beams::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background-image: repeating-linear-gradient(
+			105deg,
+			transparent 0 7rem,
+			color-mix(in oklab, var(--foreground) 2.5%, transparent) 7rem 7.5rem,
+			transparent 7.5rem 16rem
+		);
+		mask-image: radial-gradient(
+			ellipse 80% 60% at 50% 0%,
+			black,
+			transparent 75%
 		);
 	}
 

@@ -17,6 +17,8 @@ const PAIRS = [
 	["--brand", "--background"],
 	["--destructive", "--background"],
 	["--destructive", "--card"],
+	["--footer-foreground", "--footer"],
+	["--footer-muted", "--footer"],
 ];
 
 function block(name) {

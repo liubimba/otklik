@@ -1,4 +1,3 @@
-import { Separator } from "@/components/ui/separator";
 import { footer } from "@/lib/content";
 import { links } from "@/lib/links";
 
@@ -9,17 +8,17 @@ const NAV = [
 ] as const;
 
 export function SiteFooter() {
+	// Сплошная заливка без фактур: подвал — фундамент страницы, а не ещё одна
+	// секция. Секции чередуются сеткой/штриховкой, футер обрывает их цветом.
 	return (
-		<footer className="relative overflow-hidden bg-background px-4 pb-12 texture-grid texture-noise">
-			<div className="relative z-10 mx-auto flex max-w-container flex-col gap-6">
-				<Separator />
-
+		<footer className="bg-footer px-4 pt-14 pb-12 text-footer-foreground">
+			<div className="mx-auto flex max-w-container flex-col gap-8">
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div className="flex flex-col gap-1">
 						<span className="font-heading text-base font-extrabold">
 							Otklik
 						</span>
-						<p className="text-base text-muted-foreground">{footer.tagline}</p>
+						<p className="text-base text-footer-muted">{footer.tagline}</p>
 					</div>
 
 					<nav className="flex flex-wrap gap-x-6 gap-y-1">
@@ -27,7 +26,7 @@ export function SiteFooter() {
 							<a
 								key={item.href}
 								href={item.href}
-								className="-my-2 rounded-sm py-2 text-base text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+								className="-my-2 rounded-sm py-2 text-base text-footer-muted underline-offset-4 transition-colors hover:text-footer-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 							>
 								{item.label}
 							</a>
@@ -35,9 +34,11 @@ export function SiteFooter() {
 					</nav>
 				</div>
 
-				<p className="max-w-[70ch] text-base text-pretty text-muted-foreground">
-					{footer.disclaimer}
-				</p>
+				<div className="border-t border-footer-border pt-8">
+					<p className="max-w-[70ch] text-base text-pretty text-footer-muted">
+						{footer.disclaimer}
+					</p>
+				</div>
 			</div>
 		</footer>
 	);

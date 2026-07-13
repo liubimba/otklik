@@ -9,6 +9,10 @@
 	--color-foreground: var(--foreground);
 	--color-brand: var(--brand);
 	--color-brand-foreground: var(--brand-foreground);
+	--color-footer: var(--footer);
+	--color-footer-foreground: var(--footer-foreground);
+	--color-footer-muted: var(--footer-muted);
+	--color-footer-border: var(--footer-border);
 	--font-sans: var(--font-body);
 	--font-mono: var(--font-mono);
 	--font-heading: var(--font-display);
@@ -108,6 +112,12 @@
 	--foreground: oklch(0.2 0.015 255);
 	--brand: oklch(0.505 0.213 27.518);
 	--brand-foreground: oklch(0.62 0.2 28);
+	/* Футер — единственная плита сплошного цвета на странице: подвал, а не ещё
+	   одна секция. Поэтому он тёмный в обеих темах и не несёт фактур. */
+	--footer: oklch(0.18 0.015 255);
+	--footer-foreground: oklch(0.97 0.004 255);
+	--footer-muted: oklch(0.74 0.012 255);
+	--footer-border: oklch(0.32 0.012 255);
 	--card: oklch(1 0 0);
 	--card-foreground: oklch(0.2 0.015 255);
 	--popover: oklch(1 0 0);
@@ -145,6 +155,11 @@
 	--foreground: oklch(0.96 0.004 255);
 	--brand: oklch(0.62 0.2 28);
 	--brand-foreground: oklch(0.72 0.16 32);
+	/* Темнее фона страницы (0.15), а не светлее: подвал «уходит вниз». */
+	--footer: oklch(0.11 0.012 255);
+	--footer-foreground: oklch(0.96 0.004 255);
+	--footer-muted: oklch(0.7 0.012 255);
+	--footer-border: oklch(0.26 0.012 255);
 	--card: oklch(0.19 0.012 255);
 	--card-foreground: oklch(0.96 0.004 255);
 	--popover: oklch(0.19 0.012 255);

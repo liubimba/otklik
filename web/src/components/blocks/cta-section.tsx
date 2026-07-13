@@ -1,7 +1,9 @@
 import { AppleIcon, MonitorIcon, TerminalIcon } from "lucide-react";
 
+import { Accent } from "@/components/ui/accent";
 import { Backdrop } from "@/components/ui/backdrop";
 import { Button } from "@/components/ui/button";
+import { Etch } from "@/components/ui/etch";
 import { Glow } from "@/components/ui/glow";
 import { Magnetic } from "@/components/ui/magnetic";
 import { Reveal } from "@/components/ui/reveal";
@@ -29,6 +31,12 @@ export function CtaSection() {
 				</>
 			}
 		>
+			{/* Указующая рука — печатный жест, буквально показывающий на кнопки.
+			    Единственный объект в секции: центрированный CTA не терпит соседей. */}
+			<Accent className="top-12 right-[6%] hidden lg:block" speed={58} spin={7}>
+				<Etch name="manicule" width={120} className="opacity-25" />
+			</Accent>
+
 			<SectionHeader
 				id="download"
 				title={cta.title}

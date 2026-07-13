@@ -1,12 +1,10 @@
 import { ArrowRightIcon } from "lucide-react";
 import type * as React from "react";
 
-import { Accent } from "@/components/ui/accent";
 import { AppShot, type Shot } from "@/components/ui/app-shot";
 import { Backdrop } from "@/components/ui/backdrop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Etch } from "@/components/ui/etch";
 import { Glow } from "@/components/ui/glow";
 import { Magnetic } from "@/components/ui/magnetic";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
@@ -49,17 +47,6 @@ export function HeroSection({
 			)}
 		>
 			<Backdrop aurora beams />
-
-			{/* Гравюры — по полям, в верхней зоне: ниже начинается кадр приложения,
-			    и объект под ним всё равно не было бы видно. Разные скорости параллакса
-			    у соседних фигур — это и есть глубина; одинаковые превратили бы набор
-			    в наклейку. Прячем до lg: на узком экране полей просто нет. */}
-			<Accent className="top-20 left-[3%] hidden lg:block" speed={52} spin={-7}>
-				<Etch name="letter" width={180} className="opacity-30" />
-			</Accent>
-			<Accent className="top-28 right-[3%] hidden lg:block" speed={34} spin={5}>
-				<Etch name="quill-hand" width={170} className="opacity-25" />
-			</Accent>
 
 			{/* z-10 на всей колонке, а не только на заголовке: Backdrop — позиционированный
 			    слой с z-0, и без этого он накрыл бы бейдж, который лежит в обычном потоке. */}
@@ -108,7 +95,18 @@ export function HeroSection({
 					</div>
 
 					<div className="relative w-full pt-12">
-						<ParallaxShot shift={48} tilt={4}>
+						{/* Свечение — ПЕРЕД кадром и по DOM, и по слою.
+						    Раньше оно шло следом и рисовалось поверх скриншота: `z-10`,
+						    который несёт рамка мокапа, живёт ВНУТРИ обёртки-параллакса,
+						    а та — motion.div с transform, то есть собственный контекст
+						    наложения. Снаружи этот z-10 не значит ничего, и соседнее
+						    свечение спокойно накрывало кадр. Лечится не z-index'ом
+						    внутри, а порядком снаружи. */}
+						<Glow
+							variant="top"
+							className="animate-appear-zoom opacity-0 delay-1000"
+						/>
+						<ParallaxShot shift={48} tilt={4} className="relative z-10">
 							<AppShot
 								light={image.light}
 								dark={image.dark}
@@ -120,10 +118,6 @@ export function HeroSection({
 								className="animate-appear-zoom opacity-0 delay-600"
 							/>
 						</ParallaxShot>
-						<Glow
-							variant="top"
-							className="animate-appear-zoom opacity-0 delay-1000"
-						/>
 					</div>
 				</div>
 			</div>

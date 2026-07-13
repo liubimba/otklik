@@ -105,6 +105,49 @@ async def main() -> None:
                 if broken:
                     errors.append(f"[{name}] битые картинки: {broken}")
 
+            # Ничто декоративное не смеет рисоваться ПОВЕРХ скриншота приложения.
+            #
+            # Проверяем порядком отрисовки, а не пикселями: снимки кадра «до» и «после»
+            # различаются и без всякого перекрытия — пружина параллакса между двумя
+            # кадрами ещё доезжает, и кадр смещается на пиксель.
+            #
+            # elementFromPoint по умолчанию декор тоже не увидит: у него
+            # pointer-events: none. Поэтому на время пробы возвращаем свечению
+            # реакцию на указатель — hit-test идёт в том же порядке, что и отрисовка,
+            # и честно показывает, кто сверху.
+            #
+            # Ловушка, из-за которой баг и появился: transform создаёт контекст
+            # наложения, и z-index, выставленный ВНУТРИ обёртки-параллакса, снаружи
+            # не работает — свечение, идущее следующим по DOM, спокойно накрывает кадр.
+            probe = await page.add_style_tag(
+                content="[data-slot=glow]{pointer-events:auto !important}"
+            )
+            shots = page.locator("[data-slot=mockup] img").filter(visible=True)
+            covered = []
+            for i in range(await shots.count()):
+                shot = shots.nth(i)
+                await shot.scroll_into_view_if_needed()
+                await page.wait_for_timeout(120)
+                hits = await shot.evaluate(
+                    """img => {
+                        const r = img.getBoundingClientRect();
+                        // Несколько точек по высоте: свечение садится на ВЕРХ кадра,
+                        // проба только по центру его не увидит.
+                        return [0.1, 0.25, 0.5, 0.8].map(k => {
+                            const el = document.elementFromPoint(
+                                r.left + r.width / 2, r.top + r.height * k);
+                            if (!el || el === img || img.contains(el)) return null;
+                            if (el.contains(img)) return null;  // это обёртка кадра
+                            return el.getAttribute('data-slot')
+                                || el.className.toString().slice(0, 40);
+                        }).filter(Boolean);
+                    }"""
+                )
+                covered.extend(hits)
+            await probe.evaluate("el => el.remove()")
+            if covered:
+                errors.append(f"[{name}] поверх скриншота нарисован декор: {covered}")
+
             stuck = await page.evaluate(
                 "[...document.querySelectorAll("
                 "'[data-reveal], [data-typed] span, .animate-enter-up, .animate-enter-clip, .animate-appear-zoom')]"

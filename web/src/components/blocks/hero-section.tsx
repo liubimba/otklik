@@ -6,7 +6,7 @@ import { Confetti } from "@/components/ui/confetti";
 import { Laptop } from "@/components/ui/device";
 import { Magnetic } from "@/components/ui/magnetic";
 import { MascotStage } from "@/components/ui/mascot-stage";
-import { MascotShrug } from "@/components/ui/mascots";
+import { MascotReading } from "@/components/ui/mascots";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
 
 interface HeroAction {
@@ -83,14 +83,14 @@ export function HeroSection({
 						{description}
 					</p>
 
-					{/* Растерянный — он и есть проблема, которую решает продукт:
-					    вакансий много, писать письма некогда. */}
+					{/* Читает готовое письмо с чашкой в руке — обещание страницы: рутину
+					    забрало приложение, вам остаётся только прочитать и нажать. */}
 					<MascotStage
 						shape="circle"
 						tone="accent2"
 						className="hidden w-36 self-end md:block lg:w-44"
 					>
-						<MascotShrug tone="accent1" />
+						<MascotReading tone="accent1" />
 					</MascotStage>
 
 					<div className="flex flex-wrap gap-4">

@@ -1,7 +1,7 @@
 import { LetterFlow } from "@/components/blocks/letter-flow";
 import { Confetti } from "@/components/ui/confetti";
 import { MascotStage } from "@/components/ui/mascot-stage";
-import { MascotReading } from "@/components/ui/mascots";
+import { MascotJuggler } from "@/components/ui/mascots";
 import { PlainList } from "@/components/ui/plain-list";
 import { Section, SectionHeader } from "@/components/ui/section";
 import { features } from "@/lib/content";
@@ -33,7 +33,7 @@ export function FeaturesSection() {
 				description={features.description}
 				mascot={
 					<MascotStage shape="slab" tone="accent2" tilt={-5}>
-						<MascotReading tone="accent1" />
+						<MascotJuggler tone="accent1" />
 					</MascotStage>
 				}
 			/>

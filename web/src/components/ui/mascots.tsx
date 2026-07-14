@@ -795,6 +795,7 @@ export function MascotLaptop({ tone = "accent1", className }: MascotProps) {
 				height="10.56"
 				rx="5.28"
 				ry="5.28"
+				fill="var(--ink)"
 			/>
 			<rect
 				x="122.77"
@@ -894,8 +895,468 @@ export function MascotLaptop({ tone = "accent1", className }: MascotProps) {
 	);
 }
 
-/** Chubbs: читает письмо с кофе */
+/** Chubbs: сидит с чашкой и читает письмо */
 export function MascotReading({ tone = "accent1", className }: MascotProps) {
+	return (
+		<svg
+			viewBox="0 0 248 291"
+			aria-hidden="true"
+			focusable="false"
+			className={cn("h-auto w-full", className)}
+			style={TONE[tone]}
+		>
+			<path
+				d="M124.47,118.9l6.53,4.52s6.63-7.58,6.7-8.83c.18-3.24-.49-7,.57-10.25,1.75-5.35,7-4.08,8.3-1.22,0,0-8.56-.07,2,0a2.44,2.44,0,0,1,2,4c-.11.15,3,1.17,1,4.29,2.52,2.79-.64,4.48-.86,4.7-3.81,3.61-8.2,11.49-10.4,15-4.78,7.71-18.1.35-19-.46C121,130.42,124.47,118.9,124.47,118.9Z"
+				fill="var(--body)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M124.47,118.9l6.53,4.52s6.63-7.58,6.7-8.83c.18-3.24-.49-7,.57-10.25,1.75-5.35,7-4.08,8.3-1.22,0,0-8.56-.07,2,0a2.44,2.44,0,0,1,2,4c-.11.15,3,1.17,1,4.29,2.52,2.79-.64,4.48-.86,4.7-3.81,3.61-8.2,11.49-10.4,15-4.78,7.71-18.1.35-19-.46C121,130.42,124.47,118.9,124.47,118.9Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M143.79,103.24c-3,.36-3.79,4.55.12,4.37,1.53-.07,3.51-.23,3.38-.2-.48.1-6.55.42-4.74,3.11,1.14,1.68,5.89,1,5.73,1a8.88,8.88,0,0,0-2.94.81c-2.81,1.12-2.09,3.49.66,3.73.7.06,1.71.09,2.44.09"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M130.91,101.6h12.87v13.29a2.84,2.84,0,0,1-2.83,2.84h-7.21a2.84,2.84,0,0,1-2.83-2.84Z"
+				fill="var(--body)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M130.91,101.6h12.87v13.29a2.84,2.84,0,0,1-2.83,2.84h-7.21a2.84,2.84,0,0,1-2.83-2.84Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				strokeMiterlimit="22.93"
+				stroke="var(--ink)"
+			/>
+			<path
+				d="M134.44,98.66c-2.42-6.3,2.13-6,2.11-9.79,0-2-1.74-2.71-1.86-4.52"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				strokeMiterlimit="22.93"
+				stroke="var(--ink)"
+			/>
+			<path
+				d="M137.26,100c-2.51-5.74-.22-5.26.77-8.69"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				strokeMiterlimit="22.93"
+				stroke="var(--ink)"
+			/>
+			<path
+				d="M103.76,173.66h0a2.58,2.58,0,0,0-2.56,2.57l0,44.38a2.57,2.57,0,0,0,5.13,0l0-44.38A2.58,2.58,0,0,0,103.76,173.66Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M103.76,173.66h0a2.58,2.58,0,0,0-2.56,2.57l0,44.38a2.57,2.57,0,0,0,5.13,0l0-44.38A2.58,2.58,0,0,0,103.76,173.66Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<rect
+				x="82.55"
+				y="172.92"
+				width="42.67"
+				height="10.56"
+				rx="5.28"
+				ry="5.28"
+				fill="var(--ink)"
+			/>
+			<rect
+				x="82.55"
+				y="172.92"
+				width="42.67"
+				height="10.56"
+				rx="5.28"
+				ry="5.28"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M105.29,176.42h0a2.57,2.57,0,0,0-1.45,3.32L120,221.08a2.56,2.56,0,1,0,4.77-1.87l-16.13-41.33A2.57,2.57,0,0,0,105.29,176.42Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M105.29,176.42h0a2.57,2.57,0,0,0-1.45,3.32L120,221.08a2.56,2.56,0,1,0,4.77-1.87l-16.13-41.33A2.57,2.57,0,0,0,105.29,176.42Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M101.66,176.42h0a2.57,2.57,0,0,1,1.46,3.32L87,221.08a2.56,2.56,0,0,1-4.77-1.87l16.14-41.33A2.56,2.56,0,0,1,101.66,176.42Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M101.66,176.42h0a2.57,2.57,0,0,1,1.46,3.32L87,221.08a2.56,2.56,0,0,1-4.77-1.87l16.14-41.33A2.56,2.56,0,0,1,101.66,176.42Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M158,206.12H137a.66.66,0,0,0-.64.64l-1,14.16h33.57c.63-5.93-3.71-7.73-8.83-10.27C158.11,209.18,158,206.12,158,206.12Z"
+				fill="var(--body)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M158,206.12H137a.66.66,0,0,0-.64.64l-1,14.16h33.57c.63-5.93-3.71-7.73-8.83-10.27C158.11,209.18,158,206.12,158,206.12Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<rect
+				x="134.31"
+				y="218.65"
+				width="35.27"
+				height="4.31"
+				rx="0.64"
+				ry="0.64"
+				fill="var(--body)"
+			/>
+			<rect
+				x="134.31"
+				y="218.65"
+				width="35.27"
+				height="4.31"
+				rx="0.64"
+				ry="0.64"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<path
+				d="M157.66,206.42l.44,1.76a148.24,148.24,0,0,0-16.79-1.7Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M157.66,206.42l.44,1.76a148.24,148.24,0,0,0-16.79-1.7Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M141.05,206.08h-21a.67.67,0,0,0-.64.64l-1,14.16H152c.63-5.93-3.71-7.73-8.84-10.27C141.21,209.14,141.05,206.08,141.05,206.08Z"
+				fill="var(--body)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M141.05,206.08h-21a.67.67,0,0,0-.64.64l-1,14.16H152c.63-5.93-3.71-7.73-8.84-10.27C141.21,209.14,141.05,206.08,141.05,206.08Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<rect
+				x="117.41"
+				y="218.62"
+				width="35.27"
+				height="4.31"
+				rx="0.64"
+				ry="0.64"
+				fill="var(--body)"
+			/>
+			<rect
+				x="117.41"
+				y="218.62"
+				width="35.27"
+				height="4.31"
+				rx="0.64"
+				ry="0.64"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<path
+				d="M141.06,206.38l.43,1.77a128,128,0,0,0-16.37-1.71Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M141.06,206.38l.43,1.77a128,128,0,0,0-16.37-1.71Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M120.22,81.8c0,8.55,0,8.41,0,17-.15,21.11,12.37,21.53,10.92,50.63-.21,4.25-3.68,3.72-4.33,9.43-4.8,1.17-17.65-3.52-22.45-2.36-4.79-1.16-16.66,8.43-21.45,7.26-1.29-5.64-2.86-9-2.82-13.44.19-27,11.39-33.72,11.37-50l0-18.46C91.43,62.86,120.19,63.51,120.22,81.8Z"
+				fill="var(--body)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M120.22,81.8c0,8.55,0,8.41,0,17-.15,21.11,12.37,21.53,10.92,50.63-.21,4.25-3.68,3.72-4.33,9.43-4.8,1.17-17.65-3.52-22.45-2.36-4.79-1.16-16.66,8.43-21.45,7.26-1.29-5.64-2.86-9-2.82-13.44.19-27,11.39-33.72,11.37-50l0-18.46C91.43,62.86,120.19,63.51,120.22,81.8Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<path
+				d="M137.19,148.77c8.34.49,22.54,4.08,21.92,23.7,0,19.15.08,32.95,0,33.94.79.25-39.75.2-39.75.2s.29-22.64.16-27.05c-.11-3.71-.29-6.72-5.55-6.7-.93,0-12.64,0-13.62.06-8.08.3-22.2,1-21.94-15,0-2.4.75-4.79,1.75-8.44a3.6,3.6,0,0,0,0-.73h46.48C129.94,148.77,134,148.59,137.19,148.77Z"
+				fill="var(--body)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M137.19,148.77c8.34.49,22.54,4.08,21.92,23.7,0,19.15.08,32.95,0,33.94.79.25-39.75.2-39.75.2s.29-22.64.16-27.05c-.11-3.71-.29-6.72-5.55-6.7-.93,0-12.64,0-13.62.06-8.08.3-22.2,1-21.94-15,0-2.4.75-4.79,1.75-8.44a3.6,3.6,0,0,0,0-.73h46.48C129.94,148.77,134,148.59,137.19,148.77Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<path
+				d="M91.73,103.69h28.5a2,2,0,0,1,0,4H91.73a2,2,0,1,1,0-4Z"
+				fill="var(--body)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M91.73,103.69h28.5a2,2,0,0,1,0,4H91.73a2,2,0,1,1,0-4Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<line
+				x1="91.46"
+				y1="80.14"
+				x2="135.3"
+				y2="80.14"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M120.86,107.71l.44,1.77a142.65,142.65,0,0,0-16.79-1.7Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M120.86,107.71l.44,1.77a142.65,142.65,0,0,0-16.79-1.7Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M119.77,80.07l.44,1.77a142.3,142.3,0,0,0-16.79-1.7Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M119.77,80.07l.44,1.77a142.3,142.3,0,0,0-16.79-1.7Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M142.48,206.74V170.36c0-1.72.78-20.35-15.84-21.63"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M119.26,92.69A1.67,1.67,0,1,1,120.93,91,1.68,1.68,0,0,1,119.26,92.69Z"
+				fill="var(--paper)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M119.26,92.69A1.67,1.67,0,1,1,120.93,91,1.68,1.68,0,0,1,119.26,92.69Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<path
+				d="M105.23,89.35A1.67,1.67,0,1,1,103.56,91,1.67,1.67,0,0,1,105.23,89.35Z"
+				fill="var(--paper)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M105.23,89.35A1.67,1.67,0,1,1,103.56,91,1.67,1.67,0,0,1,105.23,89.35Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<path
+				d="M118.63,84.54a3.31,3.31,0,0,1,1.93.3"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M105.94,84.54a3.28,3.28,0,0,0-1.93.3"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M119.76,91.71a.19.19,0,0,1,.19.19.2.2,0,0,1-.19.19.19.19,0,0,1-.19-.19A.18.18,0,0,1,119.76,91.71Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M119.76,91.71a.19.19,0,0,1,.19.19.2.2,0,0,1-.19.19.19.19,0,0,1-.19-.19A.18.18,0,0,1,119.76,91.71Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<path
+				d="M105.84,91.9a.2.2,0,0,1-.19-.19.2.2,0,0,1,.19-.2.19.19,0,0,1,.19.2A.19.19,0,0,1,105.84,91.9Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M105.84,91.9a.2.2,0,0,1-.19-.19.2.2,0,0,1,.19-.2.19.19,0,0,1,.19.2A.19.19,0,0,1,105.84,91.9Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeLinejoin="round"
+			/>
+			<path
+				d="M107.87,95.88c.39.94,1.48,1.06,2.38,1.06"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				strokeMiterlimit="22.93"
+				stroke="var(--ink)"
+			/>
+			<path
+				d="M115.58,110.21l15.52,5.5-7.58,27-17-6,7.17-25.53A1.42,1.42,0,0,1,115.58,110.21Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M115.58,110.21l15.52,5.5-7.58,27-17-6,7.17-25.53A1.42,1.42,0,0,1,115.58,110.21Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M137,110.64l-5.72,5-7.58,27,6.86-6,6.83-24.31C137.84,110.84,137.66,110.09,137,110.64Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M137,110.64l-5.72,5-7.58,27,6.86-6,6.83-24.31C137.84,110.84,137.66,110.09,137,110.64Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M96.75,114.2c3.51,4.94,4.16,9.91,8.75,14.19.86.8,6.9,2.57,11.47,3.88,1.94.55,5.55-.61,6.45-.33s2.48,1.1,1.19,3.43c-.25.46,3.13.13,3.77.81,1.79,1.93-1,3.37-1,3.37.15,1.52-.89,2.1-2.44,2.7a2,2,0,0,1-1.69,1.37,33.22,33.22,0,0,1-12-1c-1.41-.39-2.9-.86-4.32-1.35-7.27-2.51-13-4-16.52-11.31-.31-.64-1.85-3.74-3-5.91-3-5.8,6.72-14.09,9.31-9.9"
+				fill="var(--body)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M96.75,114.2c3.51,4.94,4.16,9.91,8.75,14.19.86.8,6.9,2.57,11.47,3.88,1.94.55,5.55-.61,6.45-.33s2.48,1.1,1.19,3.43c-.25.46,3.13.13,3.77.81,1.79,1.93-1,3.37-1,3.37.15,1.52-.89,2.1-2.44,2.7a2,2,0,0,1-1.69,1.37,33.22,33.22,0,0,1-12-1c-1.41-.39-2.9-.86-4.32-1.35-7.27-2.51-13-4-16.52-11.31-.31-.64-1.85-3.74-3-5.91"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M123,139a13.52,13.52,0,0,0,4.64.47"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M120.5,141.69a13.46,13.46,0,0,0,4.63.47"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<path
+				d="M117,144.84c-7.89-.82-17.13-5.28-21-8-.56-.4-2.19-1.88-.07-.26s6,3,9,4.08a49.63,49.63,0,0,0,16.71,3.1S120.41,145.19,117,144.84Z"
+				fill="var(--ink)"
+				fillRule="evenodd"
+			/>
+			<path
+				d="M117,144.84c-7.89-.82-17.13-5.28-21-8-.56-.4-2.19-1.88-.07-.26s6,3,9,4.08a49.63,49.63,0,0,0,16.71,3.1S120.41,145.19,117,144.84Z"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+			<line
+				x1="124.96"
+				y1="135.62"
+				x2="121.01"
+				y2="135.13"
+				fill="none"
+				strokeLinecap="round"
+				strokeWidth="0.57px"
+				stroke="var(--ink)"
+				strokeMiterlimit="22.93"
+			/>
+		</svg>
+	);
+}
+
+/** Chubbs: жонглирует — держит все отклики в воздухе */
+export function MascotJuggler({ tone = "accent1", className }: MascotProps) {
 	return (
 		<svg
 			viewBox="0 0 248 291"
@@ -959,6 +1420,7 @@ export function MascotReading({ tone = "accent1", className }: MascotProps) {
 				cy="226.07"
 				r="15.54"
 				transform="matrix(0.05, -1, 1, 0.05, -91.96, 355.38)"
+				fill="var(--ink)"
 			/>
 			<circle
 				cx="141.01"
@@ -1317,7 +1779,7 @@ export function MascotReading({ tone = "accent1", className }: MascotProps) {
 				stroke="var(--ink)"
 				strokeLinejoin="round"
 			/>
-			<circle cx="163.25" cy="64.92" r="15.54" />
+			<circle cx="163.25" cy="64.92" r="15.54" fill="var(--ink)" />
 			<circle
 				cx="163.25"
 				cy="64.92"
@@ -1534,6 +1996,7 @@ export function MascotBox({ tone = "accent1", className }: MascotProps) {
 				width="70"
 				height="78.5"
 				transform="matrix(0.99, -0.1, 0.1, 0.99, -10.32, 13.82)"
+				fill="var(--ink)"
 			/>
 			<rect
 				x="95.62"
@@ -1955,6 +2418,7 @@ export function MascotPlane({ tone = "accent1", className }: MascotProps) {
 				rx="2.55"
 				ry="2.55"
 				transform="translate(-28.36 50.1) rotate(-22.97)"
+				fill="var(--ink)"
 			/>
 			<rect
 				x="102.67"

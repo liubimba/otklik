@@ -8,6 +8,9 @@ import type * as React from "react";
  * единственный «человеческий» жест на странице, собранной машиной.
  *
  * Обводка лежит ПОД текстом (`-z-10`) и не ловит курсор.
+ *
+ * Овал заметно шире и выше самой фразы: при тесной посадке линия проходила прямо
+ * по буквам — обводка должна огибать текст, а не перечёркивать его.
  */
 export function Scribble({ children }: { children: React.ReactNode }) {
 	return (
@@ -16,7 +19,7 @@ export function Scribble({ children }: { children: React.ReactNode }) {
 				aria-hidden="true"
 				viewBox="0 0 200 60"
 				preserveAspectRatio="none"
-				className="pointer-events-none absolute -inset-x-3 -inset-y-2 -z-10 h-[calc(100%+1rem)] w-[calc(100%+1.5rem)] text-brand"
+				className="pointer-events-none absolute -inset-x-8 -inset-y-6 -z-10 h-[calc(100%+3rem)] w-[calc(100%+4rem)] text-brand"
 			>
 				<path
 					d="M22 14C60 2 148 0 182 12c14 6 16 22 4 32-22 18-118 20-158 8C12 48 6 32 18 20c8-8 30-14 58-16"

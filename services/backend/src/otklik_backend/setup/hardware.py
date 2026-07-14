@@ -36,6 +36,10 @@ class HardwareProbe:
 
     def probe(self) -> HardwareSpecs:
         ram_gb = psutil.virtual_memory().total / BYTES_PER_GB
+        # psutil.cpu_count() без аргументов считает логические ядра (потоки
+        # SMT/Hyper-Threading), а не физические — ноутбук 4 ядра/8 потоков
+        # пройдёт этот порог как «8 ядер». Порог не трогаем: пре-фильтр
+        # намеренно грубый, окончательный вердикт всё равно даёт замер.
         cores = psutil.cpu_count() or 0
         capable = ram_gb >= self._min_ram_gb and cores >= self._min_cores
         return HardwareSpecs(

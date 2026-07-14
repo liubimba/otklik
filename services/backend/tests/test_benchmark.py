@@ -2,7 +2,7 @@ import asyncio
 
 from otklik_backend.ai.deployment import LLMDeployment
 from otklik_backend.ai.result import AICoverLetterResult
-from otklik_backend.setup.benchmark import BenchmarkRunner
+from otklik_backend.setup.benchmark import BenchmarkFailureReason, BenchmarkRunner
 
 DEPLOYMENT = LLMDeployment(model="ollama_chat/qwen2.5:7b", api_base="http://x:11434")
 
@@ -39,9 +39,13 @@ async def test_fast_machine_passes_and_returns_the_letter() -> None:
     assert result.passed is True
     assert result.letter == "Здравствуйте! Это письмо."
     assert result.seconds < 1.0
+    assert result.failure_reason is None
+    assert result.error is None
 
 
 async def test_slow_machine_fails_on_the_deadline() -> None:
+    """Модель ответила, просто не успела — это DEADLINE, а не ошибка модели.
+    Фронтенд обязан отличать эту ветку от MODEL_ERROR (см. test_model_error_...)."""
     layer = _FakeLayer(delay=10.0)
     runner = BenchmarkRunner(deadline_sec=0.05, layer_factory=lambda _: layer)  # type: ignore[arg-type, return-value]
 
@@ -50,6 +54,8 @@ async def test_slow_machine_fails_on_the_deadline() -> None:
     assert result.passed is False
     assert result.letter is None
     assert result.seconds >= 0.05
+    assert result.failure_reason is BenchmarkFailureReason.DEADLINE
+    assert result.error is None
 
 
 async def test_deadline_actually_cancels_the_request() -> None:
@@ -64,6 +70,11 @@ async def test_deadline_actually_cancels_the_request() -> None:
 
 
 async def test_model_error_fails_the_benchmark() -> None:
+    """Модель вообще не ответила (упала, OOM, обрыв соединения) — это
+    MODEL_ERROR с текстом причины, а не «машина медленная». Смешивание этих
+    двух исходов раньше вело к записи deployment'а на модель, которая ни разу
+    не ответила."""
+
     class _BrokenLayer:
         async def generate_cover_letter(self, **_: object) -> AICoverLetterResult:
             raise RuntimeError("connection refused")
@@ -74,3 +85,5 @@ async def test_model_error_fails_the_benchmark() -> None:
 
     assert result.passed is False
     assert result.letter is None
+    assert result.failure_reason is BenchmarkFailureReason.MODEL_ERROR
+    assert result.error == "connection refused"

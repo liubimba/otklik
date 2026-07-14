@@ -1,6 +1,7 @@
 import asyncio
 import time
 from collections.abc import Callable
+from enum import Enum
 
 from pydantic import BaseModel
 
@@ -16,10 +17,28 @@ from otklik_backend.setup.fixtures import (
 )
 
 
+class BenchmarkFailureReason(str, Enum):
+    """Почему `passed=False` — фронтенду нужно различать, а не только знать факт провала.
+
+    DEADLINE: модель ответила, но не уложилась в дедлайн — «машина медленная»,
+    честная развилка (оставаться на локальной / уйти в облако).
+    MODEL_ERROR: модель не ответила вовсе (упала, OOM, соединение отвалилось) —
+    это не про скорость, показывать «медленно» здесь нельзя: пользователь
+    решит остаться на модели, которая ни разу не сработала.
+    """
+
+    DEADLINE = "deadline"
+    MODEL_ERROR = "model_error"
+
+
 class BenchmarkResult(BaseModel):
     passed: bool
     seconds: float
     letter: str | None = None
+    # None когда passed=True. Иначе — DEADLINE или MODEL_ERROR (см. выше).
+    failure_reason: BenchmarkFailureReason | None = None
+    # Текст исключения — только при MODEL_ERROR, для диагностики на экране.
+    error: str | None = None
 
 
 class BenchmarkRunner:
@@ -62,11 +81,20 @@ class BenchmarkRunner:
                 "Benchmark: model did not finish within %.1fs — machine is too slow",
                 self._deadline_sec,
             )
-            return BenchmarkResult(passed=False, seconds=round(elapsed, 1))
+            return BenchmarkResult(
+                passed=False,
+                seconds=round(elapsed, 1),
+                failure_reason=BenchmarkFailureReason.DEADLINE,
+            )
         except Exception as error:
             elapsed = time.monotonic() - started
             self._log.error("Benchmark failed: %s", error)
-            return BenchmarkResult(passed=False, seconds=round(elapsed, 1))
+            return BenchmarkResult(
+                passed=False,
+                seconds=round(elapsed, 1),
+                failure_reason=BenchmarkFailureReason.MODEL_ERROR,
+                error=str(error),
+            )
 
         elapsed = time.monotonic() - started
         self._log.info("Benchmark: letter written in %.1fs", elapsed)

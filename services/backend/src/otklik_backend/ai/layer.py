@@ -40,10 +40,11 @@ class AILayer:
             style,
         )
         # Раньше здесь был health-ping — отдельный полный вызов модели перед
-        # каждой генерацией (см. docs/local-model-eval/report.md: +59с на
-        # локальной модели, и это ещё не считая второго пинга из вызывающего
-        # сервиса). Мёртвая модель роняет acompletion ниже и превращается в
-        # GenerationCoverLetterError — ping не добавлял информации, только цену.
+        # каждой генерацией (по результатам замера моделей — отчёт вне
+        # репозитория: +59с на локальной модели, и это ещё не считая второго
+        # пинга из вызывающего сервиса). Мёртвая модель роняет acompletion
+        # ниже и превращается в GenerationCoverLetterError — ping не добавлял
+        # информации, только цену.
         if len(self._deployments) == 0:
             self._log.error(
                 "Failed to generate cover letter: no deployments configured"

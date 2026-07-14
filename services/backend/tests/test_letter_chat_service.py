@@ -12,6 +12,7 @@ lives in its own field and cannot leak into the reply. These tests feed the
 service that structured stream and assert the revision is applied.
 """
 
+import json
 from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -26,6 +27,17 @@ from otklik_backend.orchestrator.letter_chat_service import LetterChatService
 REVISED_LETTER = (
     "Уважаемый работодатель, вот значительно расширенное письмо с деталями."
 )
+
+# Long enough that LetterCleaner actually cleans it instead of tripping its
+# gut-guard (MIN_LETTER_CHARS) and returning the input untouched — the other
+# fixtures in this file are all short letters, which never exercises the
+# cleaner's real cleaning path, only its fallback.
+LONG_LETTER_BODY = (
+    "Уважаемый работодатель, хочу присоединиться к вашей команде и принести "
+    "пользу проекту. Мой опыт разработки бэкенда и внимание к деталям помогут "
+    "закрыть эту вакансию быстро и качественно."
+)
+LONG_LETTER_WITH_SIGNATURE = LONG_LETTER_BODY + "\nС уважением,\n[Ваше имя]"
 
 
 class _FakeAILayer:
@@ -204,6 +216,61 @@ async def test_question_produces_reply_only_no_version(
     events = await _run(session_factory, chunks, message="Почему такой тон?")
 
     assert [e for e in events if e["type"] == "letter"] == []
+    done = next(e for e in events if e["type"] == "done")
+    assert done["version"] is None
+
+    async with session_factory() as session:
+        latest = await CoverLetterRepository.get_latest_by_application_id(
+            session=session, application_id=1
+        )
+        assert latest is not None and latest.version == 1  # unchanged
+
+
+async def test_signature_and_placeholder_are_stripped_from_saved_letter(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    # LetterCleaner is wired into the chat path, but every other fixture here
+    # is short enough to hit its gut-guard and skip cleaning entirely. Use a
+    # long revision so the signature and `[Ваше имя]` placeholder are actually
+    # cut — proving the cleaner runs, not just that it's a no-op.
+    await _seed_letter_ready(session_factory)
+
+    payload = (
+        '{"reply": "Убрал подпись, как договорились.", "letter": '
+        f"{json.dumps(LONG_LETTER_WITH_SIGNATURE)}}}"
+    )
+    chunks = [payload[i : i + 11] for i in range(0, len(payload), 11)]
+
+    events = await _run(session_factory, chunks, message="Убери подпись.")
+
+    done = next(e for e in events if e["type"] == "done")
+    assert done["version"] is not None
+
+    async with session_factory() as session:
+        latest = await CoverLetterRepository.get_latest_by_application_id(
+            session=session, application_id=1
+        )
+        assert latest is not None
+        assert latest.version == 2
+        assert latest.text == LONG_LETTER_BODY
+        assert "С уважением" not in latest.text
+        assert "[" not in latest.text and "]" not in latest.text
+
+
+async def test_echoed_letter_with_trailing_newline_does_not_create_a_version(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    # Regression: the letter/reply channel is cleaned with
+    # `self._cleaner.clean(...)`, whose gut-guard returns the input verbatim
+    # (unstripped) for short letters — which is every letter in this test
+    # file. If the caller doesn't strip that result before comparing it to
+    # `current_letter.strip()`, a trailing newline the model echoes back
+    # looks like a real edit and spawns a spurious version.
+    await _seed_letter_ready(session_factory)
+    payload = '{"reply": "Ничего не меняю.", "letter": "Старое письмо\\n"}'
+    chunks = [payload[i : i + 6] for i in range(0, len(payload), 6)]
+    events = await _run(session_factory, chunks, message="Всё ок?")
+
     done = next(e for e in events if e["type"] == "done")
     assert done["version"] is None
 

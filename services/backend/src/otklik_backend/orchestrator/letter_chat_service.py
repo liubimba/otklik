@@ -216,7 +216,14 @@ class LetterChatService:
         # текст на границе чанка (регулярка увидела бы половину строки).
         # Пользователю в стрим летят сырые токены, а в базу и в результат —
         # уже собранное и очищенное письмо.
-        letter_text = self._cleaner.clean(parser.letter) if parser.letter else ""
+        # .strip() тут, а не в LetterCleaner: предохранитель чистильщика
+        # осознанно возвращает исходный текст как есть при коротких письмах
+        # (см. test_returns_original_when_cleaning_would_gut_the_letter), а
+        # нестрипнутый хвост из этой ветки иначе даёт ложное "письмо
+        # изменилось" при сравнении с current_letter.strip() ниже.
+        letter_text = (
+            self._cleaner.clean(parser.letter).strip() if parser.letter else ""
+        )
         letter = (
             letter_text
             if parser.has_letter

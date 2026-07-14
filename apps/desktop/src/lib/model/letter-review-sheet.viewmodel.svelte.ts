@@ -13,6 +13,7 @@ import type { createVacancyQuery } from "$lib/queries/vacancies";
 import { vacanciesQueryKey } from "$lib/queries/vacancies";
 import type { LetterReviewStore } from "$lib/stores/letter_review.svelte";
 import type { QueryClient } from "@tanstack/svelte-query";
+import { explainProviderError } from "./provider-error";
 
 type ApplicationQuery = ReturnType<typeof createApplicationQuery>;
 type VacancyQuery = ReturnType<typeof createVacancyQuery>;
@@ -68,7 +69,13 @@ class Review {
 		this.isLoading = $derived(this.applicationStatus.isPending);
 
 		this.isError = $derived(this.applicationStatus.isError);
-		this.error = $derived(this.applicationStatus.data?.reason);
+		// `reason` is the raw provider error persisted by the backend (see
+		// provider-error.ts) — translate it into a human sentence before it
+		// hits the banner in letter-review-sheet.svelte.
+		this.error = $derived.by(() => {
+			const reason = this.applicationStatus.data?.reason;
+			return reason ? explainProviderError(reason) : reason;
+		});
 
 		this.isGenerating = $derived(this.status === "letter_pending");
 		this.isSubmitting = $derived(this.status === "letter_sending");

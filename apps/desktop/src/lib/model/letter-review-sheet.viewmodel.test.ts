@@ -286,6 +286,67 @@ describe("Review — derived state from ApplicationQuery", () => {
 		expect(vm.review.canRegenerate).toBe(true);
 	});
 
+	// Task 12: the ping before every generation call was removed (it doubled
+	// the cost of a letter — +59s on a local model), so the raw provider
+	// error now reaches the UI as `reason`. A dead Ollama, a rejected key or
+	// a slow local model must read as a human sentence with a next step, not
+	// as "connection refused".
+	describe("error explains provider failures in plain language", () => {
+		it("explains a dead local model instead of showing the raw provider error", () => {
+			const vm = makeVM({
+				data: detail({ status: "error", reason: "connection refused" }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toContain("Ollama");
+		});
+
+		it("explains ECONNREFUSED the same way", () => {
+			const vm = makeVM({
+				data: detail({ status: "error", reason: "ECONNREFUSED" }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toContain("Ollama");
+		});
+
+		it("explains a rejected api key", () => {
+			const vm = makeVM({
+				data: detail({ status: "error", reason: "401 invalid api key" }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toContain("Настройках");
+		});
+
+		it("explains a timeout", () => {
+			const vm = makeVM({
+				data: detail({ status: "error", reason: "Request timed out" }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toContain("облачный ключ");
+		});
+
+		it("passes an unrecognized error through verbatim — no false confidence behind a generic phrase", () => {
+			const vm = makeVM({
+				data: detail({ status: "error", reason: "database is locked" }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toBe("database is locked");
+		});
+
+		it("stays null/undefined when there is no reason", () => {
+			const vm = makeVM({
+				data: detail({ status: "letter_ready", reason: null }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toBeFalsy();
+		});
+	});
+
 	it("looks up the vacancy in the QueryClient cache by id", () => {
 		const cachedVacancy: Vacancy = {
 			id: 1,

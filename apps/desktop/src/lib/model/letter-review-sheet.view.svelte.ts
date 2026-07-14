@@ -14,11 +14,21 @@ import type {
 	LetterReviewSheetViewModel,
 	Tab,
 } from "./letter-review-sheet.viewmodel.svelte";
+import { explainProviderError } from "./provider-error";
 
 type Actions = ReturnType<typeof createActions>;
 
 function errMsg(e: unknown): string {
 	return e instanceof Error ? e.message : "unknown";
+}
+
+// Every mutation here surfaces whatever the backend threw, which — since the
+// pre-generation model ping was removed (Task 2) — can be the raw provider
+// error (`connection refused`, `401`, `timeout`). Route it through the same
+// translator the letter review error banner uses so a toast reads as a
+// sentence with a next step, not a stack-trace fragment.
+function errText(e: unknown): string {
+	return explainProviderError(errMsg(e));
 }
 
 export function createLetterReviewSheetView(
@@ -36,7 +46,10 @@ export function createLetterReviewSheetView(
 			await actions.letter.review.generate.mutateAsync(id);
 			toast.success(m.review_generate_success());
 		} catch (e) {
-			toast.error(m.review_generate_failed({ error: errMsg(e) }));
+			// generate() also backs the footer's "Regenerate" button, so this
+			// covers both the initial generation and regeneration paths — both
+			// go straight to the AI layer, so their errors are provider errors.
+			toast.error(m.review_generate_failed({ error: errText(e) }));
 		}
 	}
 
@@ -89,7 +102,10 @@ export function createLetterReviewSheetView(
 		try {
 			await actions.letter.review.retry.mutateAsync(id);
 		} catch (e) {
-			toast.error(m.review_retry_failed({ error: errMsg(e) }));
+			// RETRY resumes ERROR by re-running LLM generation on the backend
+			// (ApplicationEvent.RETRY → LETTER_PENDING), so this is a provider
+			// error too — unlike submit/skip, which stay in the hh.ru domain.
+			toast.error(m.review_retry_failed({ error: errText(e) }));
 		}
 	}
 
@@ -199,11 +215,13 @@ export function createLetterReviewSheetView(
 						queryKey: coverLettersHistoryQueryKey(id),
 					});
 				} else if (event.type === "error") {
-					toast.error(event.detail);
+					// Chat edits call the AI layer just like generate/retry, so
+					// `event.detail` can be the same raw provider error.
+					toast.error(explainProviderError(event.detail));
 				}
 			}
 		} catch (e) {
-			toast.error(`Не удалось выполнить правку: ${errMsg(e)}`);
+			toast.error(m.review_chat_failed({ error: errText(e) }));
 		} finally {
 			vm.chat.reset();
 		}

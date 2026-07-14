@@ -1,14 +1,13 @@
-import { ArrowRightIcon } from "lucide-react";
 import type * as React from "react";
 
 import { AppShot, type Shot } from "@/components/ui/app-shot";
-import { Backdrop } from "@/components/ui/backdrop";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Glow } from "@/components/ui/glow";
+import { Confetti } from "@/components/ui/confetti";
+import { Laptop } from "@/components/ui/device";
 import { Magnetic } from "@/components/ui/magnetic";
+import { MascotStage } from "@/components/ui/mascot-stage";
+import { MascotReading } from "@/components/ui/mascots";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
-import { cn } from "@/lib/utils";
 
 interface HeroAction {
 	text: string;
@@ -18,65 +17,83 @@ interface HeroAction {
 }
 
 interface HeroProps {
-	badge?: {
-		text: string;
-		action: {
-			text: string;
-			href: string;
-		};
-	};
+	kicker: string;
 	title: string;
 	description: string;
 	actions: HeroAction[];
 	image: Shot;
 }
 
+/**
+ * Hero: гигантский тип в пустоте.
+ *
+ * Заголовок занимает половину экрана, а текст рядом с ним — 15px. Работает именно
+ * разрыв, а не размер: одинаково крупные заголовок и лид дали бы просто «большой
+ * шрифт», а не акцент.
+ *
+ * Ушли три визитки шаблонного лендинга: бейдж-пилюля со стрелкой, градиентный
+ * заголовок через bg-clip-text и свечение под кадром. Кадр приложения больше не
+ * парит по центру в рамке — он лежит на плоской цветной плашке, повёрнутой на пару
+ * градусов, и упирается в правый край экрана.
+ */
 export function HeroSection({
-	badge,
+	kicker,
 	title,
 	description,
 	actions,
 	image,
 }: HeroProps) {
 	return (
-		<section
-			className={cn(
-				"relative bg-background text-foreground texture-grid texture-noise",
-				"px-4 py-12 sm:py-24 md:py-32",
-				"fade-bottom overflow-hidden pb-0",
-			)}
-		>
-			<Backdrop aurora beams />
+		<section className="relative overflow-hidden bg-background px-4 pt-10 pb-24 text-foreground sm:pt-16 md:pb-32">
+			<Confetti
+				bits={[
+					{ x: 6, y: 18, size: 14, shape: "dot", tone: "accent-1", speed: 60 },
+					{
+						x: 88,
+						y: 12,
+						size: 18,
+						shape: "diamond",
+						tone: "accent-2",
+						speed: 40,
+					},
+					{ x: 92, y: 44, size: 10, shape: "dot", tone: "brand", speed: 80 },
+					{
+						x: 14,
+						y: 52,
+						size: 22,
+						shape: "ring",
+						tone: "accent-2",
+						speed: 30,
+					},
+					{ x: 70, y: 6, size: 12, shape: "diamond", tone: "brand", speed: 70 },
+				]}
+			/>
 
-			{/* z-10 на всей колонке, а не только на заголовке: Backdrop — позиционированный
-			    слой с z-0, и без этого он накрыл бы бейдж, который лежит в обычном потоке. */}
-			<div className="relative z-10 mx-auto flex max-w-container flex-col gap-12 pt-16 sm:gap-24">
-				<div className="flex flex-col items-center gap-6 text-center sm:gap-12">
-					{badge && (
-						<Badge
-							variant="outline"
-							className="animate-enter-up opacity-0 gap-2 py-1"
-						>
-							<span className="text-muted-foreground">{badge.text}</span>
-							<a
-								href={badge.action.href}
-								className="flex items-center gap-1 rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-							>
-								{badge.action.text}
-								<ArrowRightIcon className="size-3" aria-hidden="true" />
-							</a>
-						</Badge>
-					)}
+			<div className="relative z-10 mx-auto max-w-container">
+				<p className="label-mono flex items-center gap-3 text-brand">
+					<span className="h-px w-8 bg-brand" aria-hidden="true" />
+					{kicker}
+				</p>
 
-					<h1 className="relative z-10 inline-block animate-enter-clip opacity-0 delay-100 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text font-heading text-balance text-transparent drop-shadow-2xl">
-						{title}
-					</h1>
+				{/* Заголовок намеренно шире колонки текста: он и есть картинка. */}
+				<h1 className="mt-8 max-w-[13ch] font-heading text-balance">{title}</h1>
 
-					<p className="relative z-10 max-w-[550px] animate-enter-up text-base font-medium text-pretty text-muted-foreground opacity-0 delay-300 sm:text-xl">
+				<div className="mt-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+					<p className="max-w-[46ch] text-base text-pretty text-muted-foreground">
 						{description}
 					</p>
 
-					<div className="relative z-10 flex animate-enter-up flex-wrap justify-center gap-4 opacity-0 delay-400">
+					{/* Читает готовое письмо с чашкой в руке — обещание страницы: рутину
+					    забрало приложение, вам остаётся только прочитать и нажать. */}
+					<MascotStage
+						shape="circle"
+						tone="accent2"
+						className="hidden w-36 self-end md:block lg:w-44"
+					>
+						<MascotReading tone="accent1" />
+					</MascotStage>
+
+					<div className="flex flex-wrap gap-4">
 						{actions.map((action) => (
 							<Magnetic key={action.href}>
 								<Button
@@ -93,33 +110,24 @@ export function HeroSection({
 							</Magnetic>
 						))}
 					</div>
-
-					<div className="relative w-full pt-12">
-						{/* Свечение — ПЕРЕД кадром и по DOM, и по слою.
-						    Раньше оно шло следом и рисовалось поверх скриншота: `z-10`,
-						    который несёт рамка мокапа, живёт ВНУТРИ обёртки-параллакса,
-						    а та — motion.div с transform, то есть собственный контекст
-						    наложения. Снаружи этот z-10 не значит ничего, и соседнее
-						    свечение спокойно накрывало кадр. Лечится не z-index'ом
-						    внутри, а порядком снаружи. */}
-						<Glow
-							variant="top"
-							className="animate-appear-zoom opacity-0 delay-1000"
-						/>
-						<ParallaxShot shift={48} tilt={4} className="relative z-10">
-							<AppShot
-								light={image.light}
-								dark={image.dark}
-								alt={image.alt}
-								placeholder={image.placeholder}
-								priority
-								// Hero занимает всю колонку, а не половину, как кадры шагов.
-								sizes="(max-width: 768px) 100vw, (max-width: 1280px) 92vw, 1200px"
-								className="animate-appear-zoom opacity-0 delay-600"
-							/>
-						</ParallaxShot>
-					</div>
 				</div>
+			</div>
+
+			{/* Плашка держит левую ось заголовка и упирается в правый край окна. */}
+			<div className="relative z-10 mt-20 pl-4 sm:pl-[max(1rem,calc((100vw-80rem)/2))]">
+				<ParallaxShot shift={40} tilt={0} className="relative z-10 origin-left">
+					<Laptop tone="brand" tilt={-2}>
+						<AppShot
+							light={image.light}
+							dark={image.dark}
+							alt={image.alt}
+							placeholder={image.placeholder}
+							priority
+							sizes="(max-width: 768px) 100vw, 90vw"
+							className="animate-appear-zoom opacity-0 delay-600"
+						/>
+					</Laptop>
+				</ParallaxShot>
 			</div>
 		</section>
 	);

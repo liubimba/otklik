@@ -32,21 +32,21 @@ def test_empty_style_does_not_append_tone_section() -> None:
     messages = PromptBuilder().build_cover_letter_prompt(
         vacancy_model=_make_vacancy(), resume="resume", style=""
     )
-    assert "Tone and style of the letter:" not in _system(messages)
+    assert "Тон и стиль письма:" not in _system(messages)
 
 
 def test_whitespace_only_style_does_not_append_tone_section() -> None:
     messages = PromptBuilder().build_cover_letter_prompt(
         vacancy_model=_make_vacancy(), resume="resume", style="   \n\t"
     )
-    assert "Tone and style of the letter:" not in _system(messages)
+    assert "Тон и стиль письма:" not in _system(messages)
 
 
 def test_style_is_appended_and_trimmed() -> None:
     messages = PromptBuilder().build_cover_letter_prompt(
         vacancy_model=_make_vacancy(), resume="resume", style="  laid-back  "
     )
-    assert "Tone and style of the letter: laid-back." in _system(messages)
+    assert "Тон и стиль письма: laid-back." in _system(messages)
 
 
 def test_custom_system_prompt_overrides_default() -> None:
@@ -70,7 +70,7 @@ def test_custom_system_prompt_still_accepts_style() -> None:
     )
     system: str = _system(messages)
     assert system.startswith("Custom system instructions.")
-    assert "Tone and style of the letter: formal." in system
+    assert "Тон и стиль письма: formal." in system
 
 
 def test_user_message_contains_vacancy_position_and_company() -> None:
@@ -172,8 +172,18 @@ def test_default_system_prompt_includes_anti_placeholder_rule() -> None:
         vacancy_model=_make_vacancy(), resume="resume", style=""
     )
     system: str = _system(messages)
-    assert "bracketed placeholders" in system
-    assert "[Company]" in system or "[Position]" in system
+    assert "заглушк" in system
+    assert "[Компания]" in system or "[Position]" in system
+
+
+def test_default_system_prompt_forbids_signature() -> None:
+    system: str = _system(
+        PromptBuilder().build_cover_letter_prompt(
+            vacancy_model=_make_vacancy(), resume="resume", style=""
+        )
+    )
+    assert "Не подписывай" in system
+    assert "[Ваше имя]" in system
 
 
 def test_build_ping_returns_single_user_message() -> None:

@@ -1,6 +1,5 @@
 import Image from "next/image";
 
-import { Mockup, MockupFrame } from "@/components/ui/mockup";
 import { cn } from "@/lib/utils";
 
 export type Shot = {
@@ -12,7 +11,7 @@ export type Shot = {
 };
 
 /**
- * Скриншот приложения в рамке мокапа.
+ * Скриншот приложения. Корпус вокруг него рисует <Laptop>, здесь — только кадр.
  *
  * Обе темы рендерятся в разметку, нужную выбирает CSS. Это не украшательство:
  * на сервере темы нет, и если выбирать src через useTheme(), React при
@@ -43,17 +42,23 @@ export function AppShot({
 	// заметно мажет. Вес растёт незначительно: кадры почти без градиентов.
 	const common = { width, height, priority, sizes, quality: 90 };
 
+	const shot = (
+		<>
+			<Placeholder src={placeholder?.light} className="dark:hidden">
+				<Image {...common} src={light} alt={alt} className="h-auto w-full" />
+			</Placeholder>
+			<Placeholder src={placeholder?.dark} className="hidden dark:block">
+				<Image {...common} src={dark} alt={alt} className="h-auto w-full" />
+			</Placeholder>
+		</>
+	);
+
+	// data-slot=mockup — не украшение: по этому селектору гейт verify-page.py
+	// считает кадры, сверяет тему и ловит декор, нарисованный поверх скриншота.
 	return (
-		<MockupFrame className={cn("mx-auto w-full", className)} size="small">
-			<Mockup type="responsive">
-				<Placeholder src={placeholder?.light} className="dark:hidden">
-					<Image {...common} src={light} alt={alt} className="h-auto w-full" />
-				</Placeholder>
-				<Placeholder src={placeholder?.dark} className="hidden dark:block">
-					<Image {...common} src={dark} alt={alt} className="h-auto w-full" />
-				</Placeholder>
-			</Mockup>
-		</MockupFrame>
+		<div data-slot="mockup" className={cn("w-full", className)}>
+			{shot}
+		</div>
 	);
 }
 

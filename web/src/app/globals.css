@@ -9,6 +9,9 @@
 	--color-foreground: var(--foreground);
 	--color-brand: var(--brand);
 	--color-brand-foreground: var(--brand-foreground);
+	--color-accent-1: var(--accent-1);
+	--color-accent-2: var(--accent-2);
+	--color-accent-ink: var(--accent-ink);
 	--color-footer: var(--footer);
 	--color-footer-foreground: var(--footer-foreground);
 	--color-footer-muted: var(--footer-muted);
@@ -16,8 +19,8 @@
 	--font-sans: var(--font-body);
 	--font-mono: var(--font-mono);
 	--font-heading: var(--font-display);
-	--text-base: 1.0625rem;
-	--text-base--line-height: 1.6;
+	--text-base: 0.9375rem;
+	--text-base--line-height: 1.7;
 	--container-container: 80rem;
 	--animate-appear: appear 0.5s ease-out forwards;
 	--animate-appear-zoom: appear-zoom 0.5s ease-out forwards;
@@ -94,16 +97,6 @@
 	}
 }
 
-@keyframes drift {
-	from {
-		transform: translate3d(0, 0, 0) scale(1);
-	}
-	to {
-		transform: translate3d(var(--drift-x, 4rem), var(--drift-y, -3rem), 0)
-			scale(1.18);
-	}
-}
-
 @keyframes enter-clip {
 	from {
 		opacity: 0;
@@ -122,11 +115,12 @@
 	--foreground: oklch(0.2 0.015 255);
 	--brand: oklch(0.505 0.213 27.518);
 	--brand-foreground: oklch(0.62 0.2 28);
-	/* Аврора в светлой теме НЕ брендовая. Красный, размытый на 80px по белому,
-	   даёт розовую кляксу — ровно ту «AI-слоп»-эстетику, от которой уходим.
-	   Здесь она работает холодным графитом: читается как глубина, а не как цвет. */
-	--aurora-a: oklch(0.55 0.035 255);
-	--aurora-b: oklch(0.62 0.028 255);
+	/* Акценты ТОЛЬКО для декора: плашки, конфетти, пометки. Никогда на кнопках,
+	   статусах и ссылках — иначе развалится система, где красный = действие,
+	   а destructive = опасность. */
+	--accent-1: oklch(0.86 0.16 92);
+	--accent-2: oklch(0.52 0.22 275);
+	--accent-ink: oklch(0.2 0.015 255);
 	/* Футер — единственная плита сплошного цвета на странице: подвал, а не ещё
 	   одна секция. Поэтому он тёмный в обеих темах и не несёт фактур. */
 	--footer: oklch(0.18 0.015 255);
@@ -170,9 +164,10 @@
 	--foreground: oklch(0.96 0.004 255);
 	--brand: oklch(0.62 0.2 28);
 	--brand-foreground: oklch(0.72 0.16 32);
-	/* На тёмном фоне бренд светится, а не мажет — здесь аврора брендовая. */
-	--aurora-a: var(--brand);
-	--aurora-b: var(--brand-foreground);
+	/* На чёрном те же акценты звучат громче — гасим светлоту. */
+	--accent-1: oklch(0.83 0.17 92);
+	--accent-2: oklch(0.5 0.22 275);
+	--accent-ink: oklch(0.15 0.012 255);
 	/* Темнее фона страницы (0.15), а не светлее: подвал «уходит вниз». */
 	--footer: oklch(0.11 0.012 255);
 	--footer-foreground: oklch(0.96 0.004 255);
@@ -224,18 +219,26 @@
 		@apply font-sans;
 	}
 
-	/* Скачки размера ~3×, а не 1.5×; трекинг заголовков плотный. */
+	/* Дисплейный тип — главный герой страницы.
+	   Эффект даёт не сам размер, а РАЗРЫВ: 15px тела рядом со 170px заголовка.
+	   Поэтому интерлиньяж ниже единицы — строки должны стоять вплотную, как кирпичи,
+	   а не как абзац. */
 	h1 {
-		font-size: clamp(2.75rem, 7vw, 5.5rem);
-		line-height: 1.02;
-		letter-spacing: -0.03em;
+		/* Потолок задан не вкусом, а самым длинным словом: «ОТКЛИКАЙТЕСЬ» — одно
+		   неразрывное слово, и на 13vw оно вылезало за контейнер, а overflow-hidden
+		   молча его срезал. */
+		font-size: clamp(2.25rem, 11vw, 9rem);
+		line-height: 0.86;
+		letter-spacing: -0.04em;
 		font-weight: 800;
+		text-transform: uppercase;
 	}
 	h2 {
-		font-size: clamp(2rem, 4vw, 3rem);
-		line-height: 1.08;
-		letter-spacing: -0.025em;
+		font-size: clamp(1.9rem, 7.5vw, 5.5rem);
+		line-height: 0.9;
+		letter-spacing: -0.035em;
 		font-weight: 800;
+		text-transform: uppercase;
 	}
 	h3 {
 		letter-spacing: -0.015em;
@@ -289,146 +292,18 @@
 	.delay-1000 {
 		animation-delay: 1000ms;
 	}
-
-	.fade-bottom {
-		mask-image: linear-gradient(to bottom, black calc(100% - 6rem), transparent);
-	}
 }
 
 @layer utilities {
-	/* Чертёжная сетка — фактура, а не заливка.
-	   Имя намеренно без префикса bg- (tailwind-merge иначе сливает её
-	   с bg-background/bg-hatch/bg-noise как «один и тот же» background-* конфликт-класс —
-	   see web/src/lib/utils.ts:cn, twMerge groups по префиксу). */
-	.texture-grid {
-		background-image: repeating-linear-gradient(
-				to right,
-				color-mix(in oklab, var(--foreground) 4%, transparent) 0 1px,
-				transparent 1px 72px
-			),
-			repeating-linear-gradient(
-				to bottom,
-				color-mix(in oklab, var(--foreground) 4%, transparent) 0 1px,
-				transparent 1px 72px
-			);
-	}
+	/* Пустота — главный приём страницы. Ни сетки, ни штриховки, ни шума, ни свечений:
+	   объекты висят в пустоте и держатся только собственной формой. Всё, что было
+	   здесь раньше (texture-grid / texture-hatch / texture-noise / surface-recessed /
+	   aurora / beams / fade-bottom), снесено намеренно. */
 
-	/* Утопленная поверхность: чередование секций — фактурой, а не другим цветом. */
-	.surface-recessed {
-		background-color: color-mix(in oklab, var(--muted) 55%, var(--background));
-		box-shadow: inset 0 1px 0 0
-			color-mix(in oklab, var(--foreground) 8%, transparent);
-	}
-
-	/* Утопленная поверхность несёт СВОЮ фактуру: чередование секций должно читаться
-	   сменой материала, а не сменой заливки. Диагональ против ортогональной сетки. */
-	.texture-hatch {
-		background-image: repeating-linear-gradient(
-			135deg,
-			color-mix(in oklab, var(--foreground) 3%, transparent) 0 1px,
-			transparent 1px 10px
-		);
-	}
-
-	/* --- Аврора ------------------------------------------------------------
-	   Медленно дрейфующие пятна бренда. Анимируется ТОЛЬКО transform: любое
-	   другое свойство здесь заставит браузер перекрашивать полэкрана каждый
-	   кадр, а пятно размыто на 80px — это самый дорогой пиксель на странице.
-
-	   filter: blur() создаёт слой на GPU. Держим ровно три пятна: четвёртое
-	   уже видно в трейсе. */
-	.aurora-blob {
-		position: absolute;
-		border-radius: 9999px;
-		filter: blur(80px);
-		will-change: transform;
-		animation: drift 30s ease-in-out infinite alternate;
-	}
-
-	/* В светлой теме бренд — насыщенный красный, и то же пятно читается как
-	   розовая клякса. Гасим втрое. */
-	.aurora-blob {
-		opacity: 0.14;
-	}
-	.dark .aurora-blob {
-		opacity: 0.5;
-	}
-
-	.aurora-blob-1 {
-		top: -14rem;
-		left: -10rem;
-		width: 44rem;
-		height: 32rem;
-		background: radial-gradient(
-			closest-side,
-			var(--aurora-a) 0%,
-			transparent 100%
-		);
-		--drift-x: 5rem;
-		--drift-y: 3rem;
-		animation-duration: 34s;
-	}
-	.aurora-blob-2 {
-		top: -8rem;
-		right: -12rem;
-		width: 38rem;
-		height: 28rem;
-		background: radial-gradient(
-			closest-side,
-			var(--aurora-b) 0%,
-			transparent 100%
-		);
-		--drift-x: -4rem;
-		--drift-y: 4rem;
-		animation-duration: 26s;
-		animation-delay: -9s;
-	}
-	.aurora-blob-3 {
-		bottom: -18rem;
-		left: 30%;
-		width: 34rem;
-		height: 24rem;
-		background: radial-gradient(
-			closest-side,
-			var(--aurora-a) 0%,
-			transparent 100%
-		);
-		--drift-x: 3rem;
-		--drift-y: -4rem;
-		animation-duration: 40s;
-		animation-delay: -15s;
-	}
-
-	/* --- Лучи --------------------------------------------------------------
-	   Статичный слой: бюджет движения на экране тратим на аврору и spotlight.
-	   Наклон 105° спорит с ортогональной texture-grid ровно настолько, чтобы
-	   читаться как свет, а не как вторая сетка. */
-	.texture-beams::after {
-		content: "";
-		position: absolute;
-		inset: 0;
-		pointer-events: none;
-		background-image: repeating-linear-gradient(
-			105deg,
-			transparent 0 7rem,
-			color-mix(in oklab, var(--foreground) 2.5%, transparent) 7rem 7.5rem,
-			transparent 7.5rem 16rem
-		);
-		mask-image: radial-gradient(
-			ellipse 80% 60% at 50% 0%,
-			black,
-			transparent 75%
-		);
-	}
-
-	/* Шум убирает «пластиковую» гладкость. Инлайн-SVG: внешние запросы CSP не пустит. */
-	.texture-noise::before {
-		content: "";
-		position: absolute;
-		inset: 0;
-		pointer-events: none;
-		opacity: 0.025;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+	/* Рукописная пометка обводит фразу, а не подчёркивает её. */
+	.scribble-host {
+		position: relative;
+		display: inline-block;
 	}
 }
 

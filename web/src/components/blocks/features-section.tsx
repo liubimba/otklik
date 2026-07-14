@@ -1,51 +1,50 @@
 import { LetterFlow } from "@/components/blocks/letter-flow";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Reveal } from "@/components/ui/reveal";
+import { Confetti } from "@/components/ui/confetti";
+import { MascotStage } from "@/components/ui/mascot-stage";
+import { MascotJuggler } from "@/components/ui/mascots";
+import { PlainList } from "@/components/ui/plain-list";
 import { Section, SectionHeader } from "@/components/ui/section";
 import { features } from "@/lib/content";
-import { sectionIcons } from "@/lib/icons";
 
-const DELAYS = ["delay-100", "delay-200", "delay-300"] as const;
-
-// Без <Backdrop>: секцию почти целиком закрывает непрозрачная карточка интерактива,
-// и любое пятно света светило бы ровно за ней — эффект в никуда.
 export function FeaturesSection() {
 	return (
-		<Section id="features" variant="muted">
+		<Section
+			id="features"
+			backdrop={
+				<Confetti
+					bits={[
+						{
+							x: 3,
+							y: 20,
+							size: 16,
+							shape: "diamond",
+							tone: "accent-1",
+							speed: 55,
+						},
+						{ x: 94, y: 62, size: 12, shape: "dot", tone: "brand", speed: 75 },
+					]}
+				/>
+			}
+		>
 			<SectionHeader
 				id="features"
 				eyebrow={features.eyebrow}
 				title={features.title}
 				description={features.description}
+				mascot={
+					<MascotStage shape="slab" tone="accent2" tilt={-5}>
+						<MascotJuggler tone="accent1" />
+					</MascotStage>
+				}
 			/>
 
-			{/* Схема раскрывает заголовок секции: видно, что каждая фраза письма
+			{/* Интерактив раскрывает заголовок секции: видно, что каждая фраза письма
 			    выросла из резюме и описания вакансии, а не выдумана. */}
-			<LetterFlow />
-
-			<div className="mt-14 grid gap-4 md:grid-cols-2">
-				{features.items.map((item, index) => {
-					const Icon = sectionIcons[item.icon];
-
-					return (
-						<Reveal key={item.title} delay={DELAYS[index % DELAYS.length]}>
-							<Card className="h-full">
-								<CardHeader className="gap-3">
-									<Icon className="size-5 text-brand" aria-hidden="true" />
-									<h3 className="font-heading text-lg text-balance">
-										{item.title}
-									</h3>
-								</CardHeader>
-								<CardContent>
-									<p className="text-base text-pretty text-muted-foreground">
-										{item.body}
-									</p>
-								</CardContent>
-							</Card>
-						</Reveal>
-					);
-				})}
+			<div className="mt-14">
+				<LetterFlow />
 			</div>
+
+			<PlainList items={features.items} />
 		</Section>
 	);
 }

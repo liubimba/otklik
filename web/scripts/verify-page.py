@@ -148,6 +148,24 @@ async def main() -> None:
             if covered:
                 errors.append(f"[{name}] поверх скриншота нарисован декор: {covered}")
 
+            # Гигантский тип не смеет вылезать за контейнер. Ловушка: секции
+            # закрыты overflow-hidden (иначе повёрнутые плашки дают горизонтальный
+            # скролл), и переполнение заголовка не вызывает прокрутку — его просто
+            # молча срезает. Поэтому меряем сам заголовок, а не страницу.
+            clipped = await page.evaluate(
+                """() => [...document.querySelectorAll('h1,h2,h3')]
+                     .filter(el => el.offsetParent !== null)
+                     .map(el => {
+                       const p = el.parentElement.getBoundingClientRect();
+                       const e = el.getBoundingClientRect();
+                       const over = Math.max(e.right - p.right, el.scrollWidth - el.clientWidth);
+                       return over > 1 ? `${el.textContent.slice(0, 24)}… +${Math.round(over)}px` : null;
+                     })
+                     .filter(Boolean)"""
+            )
+            if clipped:
+                errors.append(f"[{name}] заголовок обрезан: {clipped}")
+
             stuck = await page.evaluate(
                 "[...document.querySelectorAll("
                 "'[data-reveal], [data-typed] span, .animate-enter-up, .animate-enter-clip, .animate-appear-zoom')]"

@@ -73,3 +73,42 @@ async def test_server_answering_without_binary_is_still_running() -> None:
 async def test_timeout_is_treated_as_silent_server() -> None:
     state = await _state_with(binary=True, tags_response=httpx.ReadTimeout("slow"))
     assert state == OllamaState.NOT_RUNNING
+
+
+async def test_models_null_is_treated_as_silent_server() -> None:
+    # {"models": null} — синтаксически валидный JSON, но нетипичный формат
+    response = httpx.Response(
+        200,
+        json={"models": None},
+        request=httpx.Request("GET", "http://localhost:11434/api/tags"),
+    )
+    state = await _state_with(binary=True, tags_response=response)
+    assert state == OllamaState.NOT_RUNNING
+
+
+async def test_top_level_array_is_treated_as_malformed() -> None:
+    # JSON-массив верхнего уровня вместо объекта
+    response = httpx.Response(
+        200,
+        json=[{"name": "qwen2.5:7b"}],
+        request=httpx.Request("GET", "http://localhost:11434/api/tags"),
+    )
+    state = await _state_with(binary=True, tags_response=response)
+    assert state == OllamaState.NOT_RUNNING
+
+
+async def test_model_entry_without_name_is_treated_as_malformed() -> None:
+    # Элемент в массиве не имеет ключа "name"
+    response = httpx.Response(
+        200,
+        json={"models": [{"size": 123}]},
+        request=httpx.Request("GET", "http://localhost:11434/api/tags"),
+    )
+    state = await _state_with(binary=True, tags_response=response)
+    assert state == OllamaState.NOT_RUNNING
+
+
+async def test_empty_models_list_means_model_missing() -> None:
+    # Пустой список — это не молчащий сервер, это работающий сервер без моделей
+    state = await _state_with(binary=True, tags_response=_tags())
+    assert state == OllamaState.MODEL_MISSING

@@ -60,4 +60,16 @@ class OllamaGate:
         except (httpx.HTTPError, ValueError) as error:
             self._log.info("Ollama is not answering on %s: %s", self._host, error)
             return None
-        return [str(model["name"]) for model in payload.get("models", [])]
+
+        try:
+            models = payload.get("models", [])
+            if models is None:
+                # {"models": null} — сервер отвечает странно
+                return None
+            return [str(model["name"]) for model in models]
+        except (TypeError, AttributeError, KeyError) as error:
+            # payload не словарь, или models не список, или элемент без "name"
+            self._log.info(
+                "Ollama response has unexpected format on %s: %s", self._host, error
+            )
+            return None

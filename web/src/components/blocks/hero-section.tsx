@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Confetti } from "@/components/ui/confetti";
 import { Laptop } from "@/components/ui/device";
 import { Magnetic } from "@/components/ui/magnetic";
+import { MascotShrug } from "@/components/ui/mascots";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
 
 interface HeroAction {
@@ -80,6 +81,13 @@ export function HeroSection({
 					<p className="max-w-[46ch] text-base text-pretty text-muted-foreground">
 						{description}
 					</p>
+
+					{/* Растерянный — он и есть проблема, которую решает продукт:
+					    вакансий много, писать письма некогда. */}
+					<MascotShrug
+						tone="accent1"
+						className="hidden w-32 self-end md:block lg:w-40"
+					/>
 
 					<div className="flex flex-wrap gap-4">
 						{actions.map((action) => (

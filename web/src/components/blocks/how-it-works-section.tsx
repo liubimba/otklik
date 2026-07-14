@@ -5,6 +5,7 @@ import { AppShot } from "@/components/ui/app-shot";
 import { Badge } from "@/components/ui/badge";
 import { Confetti } from "@/components/ui/confetti";
 import { Laptop } from "@/components/ui/device";
+import { MascotLaptop } from "@/components/ui/mascots";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
 import { Reveal } from "@/components/ui/reveal";
 import { Section, SectionHeader } from "@/components/ui/section";
@@ -146,6 +147,7 @@ export function HowItWorksSection() {
 				eyebrow={howItWorks.eyebrow}
 				title={howItWorks.title}
 				description={howItWorks.description}
+				mascot={<MascotLaptop tone="accent2" />}
 			/>
 
 			<div className="mt-8">

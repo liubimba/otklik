@@ -52,28 +52,41 @@ function SectionHeader({
 	eyebrow,
 	title,
 	description,
+	mascot,
 	className,
 }: {
 	id: string;
 	eyebrow?: string;
 	title: string;
 	description?: string;
+	/** Маскот справа от заголовка. Ниже md прячется: на телефоне колонка узкая,
+	 *  и фигура рядом с гигантским типом превращается в давку. */
+	mascot?: React.ReactNode;
 	className?: string;
 }) {
 	return (
-		<header className={cn("flex flex-col gap-6", className)}>
-			{eyebrow && (
-				<span className="label-mono label-chip self-start">{eyebrow}</span>
+		<div className={cn("flex items-end justify-between gap-10", className)}>
+			<header className="flex flex-col gap-6">
+				{eyebrow && (
+					<span className="label-mono label-chip self-start">{eyebrow}</span>
+				)}
+				<h2
+					id={`${id}-title`}
+					className="max-w-[14ch] font-heading text-balance"
+				>
+					{title}
+				</h2>
+				{description && (
+					<p className="max-w-[54ch] text-base text-pretty text-muted-foreground">
+						{description}
+					</p>
+				)}
+			</header>
+
+			{mascot && (
+				<div className="hidden w-40 shrink-0 md:block lg:w-52">{mascot}</div>
 			)}
-			<h2 id={`${id}-title`} className="max-w-[14ch] font-heading text-balance">
-				{title}
-			</h2>
-			{description && (
-				<p className="max-w-[54ch] text-base text-pretty text-muted-foreground">
-					{description}
-				</p>
-			)}
-		</header>
+		</div>
 	);
 }
 

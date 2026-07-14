@@ -1,5 +1,6 @@
 import { TriangleAlertIcon } from "lucide-react";
 
+import { MascotAngry } from "@/components/ui/mascots";
 import { PlainList } from "@/components/ui/plain-list";
 import { Reveal } from "@/components/ui/reveal";
 import { Section, SectionHeader } from "@/components/ui/section";
@@ -13,6 +14,7 @@ export function RisksSection() {
 				eyebrow={risks.eyebrow}
 				title={risks.title}
 				description={risks.description}
+				mascot={<MascotAngry tone="danger" />}
 			/>
 
 			{/* Единственная сплошная плита на всю ширину окна. На пустой странице

@@ -106,20 +106,47 @@ class OllamaGate:
                 f"{self._host}/api/pull",
                 json={"model": self._model_tag, "stream": True},
             ) as response:
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPError as error:
+                    raise OllamaPullError(f"Failed to pull model: {error}") from error
+
                 async for line in response.aiter_lines():
                     if not line.strip():
                         continue
-                    event: dict[str, Any] = json.loads(line)
+                    try:
+                        event: dict[str, Any] = json.loads(line)
+                    except json.JSONDecodeError as error:
+                        raise OllamaPullError(
+                            f"Invalid JSON in response: {error}"
+                        ) from error
+
                     if "error" in event:
                         raise OllamaPullError(str(event["error"]))
-                    yield self._to_progress(event)
+
+                    try:
+                        yield self._to_progress(event)
+                    except (TypeError, ValueError) as error:
+                        raise OllamaPullError(
+                            f"Invalid response format: {error}"
+                        ) from error
 
     @staticmethod
     def _to_progress(event: dict[str, Any]) -> PullProgress:
         status = str(event.get("status", ""))
-        completed = int(event.get("completed", 0))
-        total = int(event.get("total", 0))
+        # Handle null values: dict.get returns None only if key is absent,
+        # but JSON payload can have null values present. That's an error.
+        completed_raw = event.get("completed", 0)
+        total_raw = event.get("total", 0)
+
+        if completed_raw is None or total_raw is None:
+            raise TypeError(
+                f"Null value in response: completed={completed_raw}, "
+                f"total={total_raw}"
+            )
+
+        completed = int(completed_raw)
+        total = int(total_raw)
         done = status == "success"
         percent = 100.0 if done else (completed / total * 100 if total else 0.0)
         return PullProgress(

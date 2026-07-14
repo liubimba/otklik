@@ -171,3 +171,62 @@ async def test_pull_raises_on_server_error() -> None:
     events_source = '{"error":"no space left on device"}'
     with pytest.raises(OllamaPullError, match="no space left on device"):
         await _pull_with([events_source])
+
+
+class _FakeStreamWithHTTPError:
+    """Подделка потока, которая выбросит HTTP-ошибку при raise_for_status()."""
+
+    def __init__(self, status_code: int = 500) -> None:
+        self._status_code = status_code
+
+    async def __aenter__(self) -> "_FakeStreamWithHTTPError":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    def raise_for_status(self) -> None:
+        response = httpx.Response(
+            self._status_code,
+            request=httpx.Request("POST", "http://localhost:11434/api/pull"),
+        )
+        response.raise_for_status()
+
+    async def aiter_lines(self):
+        yield ""
+
+
+async def test_pull_raises_on_http_error_500() -> None:
+    """HTTP-ошибка 500 от /api/pull должна выбросить OllamaPullError."""
+    with patch("otklik_backend.setup.ollama.httpx.AsyncClient") as client_cls:
+        client = client_cls.return_value.__aenter__.return_value
+        client.stream = lambda *a, **kw: _FakeStreamWithHTTPError(status_code=500)
+        with pytest.raises(OllamaPullError, match="Failed to pull model"):
+            [progress async for progress in _gate().pull()]
+
+
+async def test_pull_raises_on_http_error_404() -> None:
+    """HTTP-ошибка 404 от /api/pull должна выбросить OllamaPullError."""
+    with patch("otklik_backend.setup.ollama.httpx.AsyncClient") as client_cls:
+        client = client_cls.return_value.__aenter__.return_value
+        client.stream = lambda *a, **kw: _FakeStreamWithHTTPError(status_code=404)
+        with pytest.raises(OllamaPullError, match="Failed to pull model"):
+            [progress async for progress in _gate().pull()]
+
+
+async def test_pull_raises_on_malformed_json() -> None:
+    """Битая строка в NDJSON-стриме должна выбросить OllamaPullError."""
+    with pytest.raises(OllamaPullError, match="Invalid JSON in response"):
+        await _pull_with(['{"status":"downloading"', '{"status":"success"}'])
+
+
+async def test_pull_raises_on_null_completed() -> None:
+    """null в поле completed должна выбросить OllamaPullError."""
+    with pytest.raises(OllamaPullError, match="Invalid response format"):
+        await _pull_with(['{"status":"downloading","completed":null,"total":4000}'])
+
+
+async def test_pull_raises_on_null_total() -> None:
+    """null в поле total должна выбросить OllamaPullError."""
+    with pytest.raises(OllamaPullError, match="Invalid response format"):
+        await _pull_with(['{"status":"downloading","completed":1000,"total":null}'])

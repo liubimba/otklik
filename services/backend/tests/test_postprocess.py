@@ -68,3 +68,19 @@ def test_returns_original_when_cleaning_would_gut_the_letter(
 def test_keeps_parenthesis_inside_body(cleaner: LetterCleaner) -> None:
     letter = f"Здравствуйте! Я работал в закупках (пять лет) и готов помочь. {BODY}"
     assert "(пять лет)" in cleaner.clean(letter)
+
+
+def test_keeps_legitimate_trailing_parenthesis(cleaner: LetterCleaner) -> None:
+    # Письмо может заканчиваться легитимной скобочной строкой.
+    # Она должна пройти чистку без потерь.
+    letter = f"{BODY}\n\n(P.S. буду ждать звонка)"
+    assert cleaner.clean(letter) == letter
+
+
+def test_removes_long_placeholder(cleaner: LetterCleaner) -> None:
+    # Заглушка длиннее 60 символов должна вычищаться.
+    long_placeholder = "[" + "x" * 65 + "]"
+    result = cleaner.clean(f"{BODY} {long_placeholder} конец.")
+    assert "[" not in result
+    assert "]" not in result
+    assert "x" not in result

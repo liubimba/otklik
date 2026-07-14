@@ -7,7 +7,7 @@ MIN_LETTER_CHARS = 120
 
 
 class LetterCleaner:
-    """Срезает то, что модель дописывает вопреки промпту: подпись, мета-скобку
+    """Срезает то, что модель дописывает вопреки промпту: подпись
     и квадратные заглушки.
 
     Замер (`docs/local-model-eval/report.md`) показал: запрет в system-промпте
@@ -25,9 +25,7 @@ class LetterCleaner:
         r"[\s\S]*$",
         re.IGNORECASE,
     )
-    # Только в самом конце: скобки в теле письма («(пять лет)») трогать нельзя.
-    _TRAILING_PAREN = re.compile(r"\n\s*\([^)\n]*\)\s*$")
-    _PLACEHOLDER = re.compile(r"\[[^\]\n]{0,60}\]")
+    _PLACEHOLDER = re.compile(r"\[[^\]\n]*\]")
     _ORPHANED_SALUTATION = re.compile(
         r"^\s*(уважаем\w+|здравствуйте|дорог\w+)[\s,!.:—-]*$",
         re.IGNORECASE | re.MULTILINE,
@@ -41,7 +39,6 @@ class LetterCleaner:
 
     def clean(self, text: str) -> str:
         cleaned = self._SIGNATURE_TAIL.sub("", text)
-        cleaned = self._TRAILING_PAREN.sub("", cleaned)
         cleaned = self._PLACEHOLDER.sub("", cleaned)
         cleaned = self._ORPHANED_SALUTATION.sub("", cleaned)
         cleaned = self._SPACE_BEFORE_PUNCT.sub(r"\1", cleaned)

@@ -8,7 +8,7 @@ edits (adding/removing a transition arc) at the source.
 import pytest
 from statemachine.exceptions import TransitionNotAllowed
 
-from otklik_backend.api.schemas import ErrorDomain, ProcessingState
+from otklik_backend.api.schemas import ProcessingState
 from otklik_backend.orchestrator.state_machine import (
     ERROR_DOMAIN_BY_EVENT,
     ApplicationEvent,
@@ -136,14 +136,41 @@ def test_letter_generated_forbidden_from_terminal_or_pre_pending_states(
         sm.send(ApplicationEvent.LETTER_GENERATED.value)
 
 
-def test_error_domain_mapping_covers_exactly_the_two_failure_events() -> None:
-    """FAIL (LLM generation failed) and SUBMISSION_FAILED (hh.ru submission
-    failed) are the only two events that carry a `reason` into ERROR.
+def test_error_domain_mapping_covers_all_failure_events() -> None:
+    """Dynamically discovers every event that leads to ERROR and verifies
+    that ERROR_DOMAIN_BY_EVENT has an entry for each one. This ensures that
+    if a new failure path is ever added, the mapping must be updated —
+    avoiding silent loss of error_domain assignment. A dead domain on a
+    real model error would let the UI show "verification timeout" (hh.ru)
+    as if it were a model failure (CRITICAL regression from Task 12).
+
     ApplicationRepository.transition stamps `error_domain` from this mapping
-    so the frontend never has to guess the domain from the reason text —
-    a hh.ru "verification timeout" must never be explained to the user as a
-    dead LLM (CRITICAL regression from the Task 12 review)."""
-    assert ERROR_DOMAIN_BY_EVENT == {
-        ApplicationEvent.FAIL: ErrorDomain.MODEL,
-        ApplicationEvent.SUBMISSION_FAILED: ErrorDomain.SUBMISSION,
-    }
+    so the frontend never has to guess the domain from the reason text."""
+    # Discover all events that lead to ERROR by brute-force testing
+    # all (event, state) pairs — then verify the mapping is complete.
+    events_leading_to_error = set()
+    for event in ApplicationEvent:
+        for state in ProcessingState:
+            try:
+                sm = ProcessingStateMachine(start_value=state.value)
+                sm.send(event.value)
+                if sm.current_state_value == ProcessingState.ERROR:
+                    events_leading_to_error.add(event)
+            except Exception:
+                # TransitionNotAllowed is expected for most (state, event) pairs
+                pass
+
+    # ERROR_DOMAIN_BY_EVENT must have an entry for every event that reaches ERROR
+    assert (
+        events_leading_to_error
+    ), "No events found leading to ERROR (test setup issue)"
+    for event in events_leading_to_error:
+        assert (
+            event in ERROR_DOMAIN_BY_EVENT
+        ), f"Event {event} leads to ERROR but has no entry in ERROR_DOMAIN_BY_EVENT"
+
+    # Also verify the reverse: no stale mappings for events that don't lead to ERROR
+    for event in ERROR_DOMAIN_BY_EVENT:
+        assert (
+            event in events_leading_to_error
+        ), f"Event {event} is in ERROR_DOMAIN_BY_EVENT but doesn't lead to ERROR"

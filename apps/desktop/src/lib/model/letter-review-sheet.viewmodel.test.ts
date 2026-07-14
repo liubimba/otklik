@@ -425,7 +425,7 @@ describe("Review — derived state from ApplicationQuery", () => {
 			expect(vm.review.error).toBe("not authorized");
 		});
 
-		it("still translates a real model reason when error_domain is absent from an older cached payload", () => {
+		it("does not translate a reason when error_domain is absent from an older cached payload", () => {
 			// Defensive: only "model" opts in. Anything else (including an
 			// unset/undefined domain from a stale cache shape) stays raw rather
 			// than risk mislabeling — showing the true error text is always

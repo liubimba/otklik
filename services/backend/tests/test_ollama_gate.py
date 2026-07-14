@@ -7,7 +7,6 @@ from otklik_backend.setup.ollama import (
     OllamaGate,
     OllamaState,
     OllamaPullError,
-    PullProgress,  # noqa: F401 — type imported for completeness
 )
 
 
@@ -61,7 +60,7 @@ async def test_ready_when_tag_present() -> None:
     assert state == OllamaState.READY
 
 
-async def test_ready_ignores_the_latest_suffix() -> None:
+async def test_tag_with_extra_suffix_is_a_different_model() -> None:
     # Ollama отдаёт теги как `qwen2.5:7b`, но пользователь мог тянуть
     # `qwen2.5:7b-instruct-q4_K_M` — это другая модель, совпадением не считаем.
     state = await _state_with(

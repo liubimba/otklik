@@ -27,8 +27,10 @@ async function accept() {
 	try {
 		info("Saving user consent...");
 		await saveConsent(true);
-		info("Consent saved successfully. Navigating to main page.");
-		await goto("/");
+		info("Consent saved successfully. Navigating to the model setup step.");
+		// Согласие — не финиш онбординга: без настроенной модели первая же
+		// генерация письма падает, поэтому ведём на шаг выбора модели.
+		await goto("/onboarding/model");
 	} catch (err) {
 		error(`Error saving consent: ${err}`);
 		saveError = err instanceof Error ? err.message : String(err);

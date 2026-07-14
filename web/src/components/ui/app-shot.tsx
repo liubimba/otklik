@@ -1,6 +1,5 @@
 import Image from "next/image";
 
-import { Mockup, MockupFrame } from "@/components/ui/mockup";
 import { cn } from "@/lib/utils";
 
 export type Shot = {
@@ -12,7 +11,7 @@ export type Shot = {
 };
 
 /**
- * Скриншот приложения в рамке мокапа.
+ * Скриншот приложения. Корпус вокруг него рисует <Laptop>, здесь — только кадр.
  *
  * Обе темы рендерятся в разметку, нужную выбирает CSS. Это не украшательство:
  * на сервере темы нет, и если выбирать src через useTheme(), React при
@@ -25,7 +24,6 @@ export function AppShot({
 	alt,
 	placeholder,
 	priority = false,
-	frame = true,
 	className,
 	width = 1248,
 	height = 765,
@@ -35,11 +33,6 @@ export function AppShot({
 	sizes = "(max-width: 1024px) 100vw, 620px",
 }: Shot & {
 	priority?: boolean;
-	/**
-	 * Рамка-мокап. Выключена везде, где кадр лежит на цветной плашке: рамка со
-	 * скруглением и тенью поверх плоской заливки спорит сама с собой.
-	 */
-	frame?: boolean;
 	className?: string;
 	width?: number;
 	height?: number;
@@ -60,20 +53,12 @@ export function AppShot({
 		</>
 	);
 
-	if (!frame) {
-		// data-slot=mockup — не украшение: по этому селектору гейт verify-page.py
-		// считает кадры, сверяет тему и ловит декор, нарисованный поверх скриншота.
-		return (
-			<div data-slot="mockup" className={cn("w-full", className)}>
-				{shot}
-			</div>
-		);
-	}
-
+	// data-slot=mockup — не украшение: по этому селектору гейт verify-page.py
+	// считает кадры, сверяет тему и ловит декор, нарисованный поверх скриншота.
 	return (
-		<MockupFrame className={cn("mx-auto w-full", className)} size="small">
-			<Mockup type="responsive">{shot}</Mockup>
-		</MockupFrame>
+		<div data-slot="mockup" className={cn("w-full", className)}>
+			{shot}
+		</div>
 	);
 }
 

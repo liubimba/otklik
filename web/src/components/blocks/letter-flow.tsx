@@ -4,7 +4,7 @@ import { FileTextIcon, RotateCcwIcon, SparklesIcon } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { MockupFrame } from "@/components/ui/mockup";
+import { Laptop } from "@/components/ui/device";
 import { useReveal } from "@/hooks/use-reveal";
 import { type LetterVariant, letterFlow } from "@/lib/content";
 import { sectionIcons } from "@/lib/icons";
@@ -108,10 +108,11 @@ export function LetterFlow() {
 
 	return (
 		<div ref={ref} className="mt-14 md:mt-20">
-			{/* Та же рамка, что у скриншотов приложения выше: интерактив должен
-			    читаться как окно Otklik, а не как набор карточек на лендинге. */}
-			<MockupFrame size="small" className="w-full">
-				<div className="w-full overflow-hidden rounded-md bg-card md:rounded-xl">
+			{/* Тот же корпус, что у скриншотов выше: интерактив должен читаться как
+			    окно Otklik, а не как набор карточек на лендинге. Наклона нет — в
+			    перекошенное окно неудобно ни читать, ни жать кнопки. */}
+			<Laptop tone="none" tilt={0}>
+				<div className="w-full bg-card">
 					{/* Титул-бар окна */}
 					<div
 						aria-hidden
@@ -272,7 +273,7 @@ export function LetterFlow() {
 						</div>
 					</section>
 				</div>
-			</MockupFrame>
+			</Laptop>
 
 			<p className="mt-4 text-center text-base text-pretty text-muted-foreground">
 				{letterFlow.chat.hint}

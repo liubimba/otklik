@@ -4,7 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AppShot } from "@/components/ui/app-shot";
 import { Badge } from "@/components/ui/badge";
 import { Confetti } from "@/components/ui/confetti";
-import { Panel } from "@/components/ui/panel";
+import { Laptop } from "@/components/ui/device";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
 import { Reveal } from "@/components/ui/reveal";
 import { Section, SectionHeader } from "@/components/ui/section";
@@ -56,9 +56,11 @@ function AutoApply({
 	);
 }
 
-/** Плашки чередуют цвет и наклон — чтобы пять шагов подряд не читались как список. */
+/** Плиты позади корпусов чередуют цвет и наклон — чтобы пять шагов подряд не
+ *  читались как список. Наклон корпуса держим в пределах ±3°: дальше кадр внутри
+ *  начинает читаться хуже, а ноутбук — заваливаться. */
 const TONES = ["brand", "accent2", "accent1", "brand", "accent2"] as const;
-const TILTS = [-3, 2.5, -2, 3, -2.5];
+const TILTS = [-2.5, 2, -1.5, 2.5, -2];
 
 function Step({ step, index }: { step: Step; index: number }) {
 	const number = index + 1;
@@ -97,15 +99,14 @@ function Step({ step, index }: { step: Step; index: number }) {
 			<Reveal delay="delay-200">
 				{/* Без наклона по курсору: пять наклоняющихся кадров подряд — аттракцион. */}
 				<ParallaxShot shift={26} tilt={0}>
-					<Panel tone={TONES[index]} tilt={TILTS[index]}>
+					<Laptop tone={TONES[index]} tilt={TILTS[index]}>
 						<AppShot
 							light={step.shot.light}
 							dark={step.shot.dark}
 							alt={step.shot.alt}
 							placeholder={step.shot.placeholder}
-							frame={false}
 						/>
-					</Panel>
+					</Laptop>
 				</ParallaxShot>
 			</Reveal>
 		</div>

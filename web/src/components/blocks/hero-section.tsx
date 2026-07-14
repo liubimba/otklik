@@ -3,8 +3,8 @@ import type * as React from "react";
 import { AppShot, type Shot } from "@/components/ui/app-shot";
 import { Button } from "@/components/ui/button";
 import { Confetti } from "@/components/ui/confetti";
+import { Laptop } from "@/components/ui/device";
 import { Magnetic } from "@/components/ui/magnetic";
-import { Panel } from "@/components/ui/panel";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
 
 interface HeroAction {
@@ -104,18 +104,17 @@ export function HeroSection({
 			{/* Плашка держит левую ось заголовка и упирается в правый край окна. */}
 			<div className="relative z-10 mt-20 pl-4 sm:pl-[max(1rem,calc((100vw-80rem)/2))]">
 				<ParallaxShot shift={40} tilt={0} className="relative z-10 origin-left">
-					<Panel tone="brand" tilt={-2}>
+					<Laptop tone="brand" tilt={-2}>
 						<AppShot
 							light={image.light}
 							dark={image.dark}
 							alt={image.alt}
 							placeholder={image.placeholder}
 							priority
-							frame={false}
 							sizes="(max-width: 768px) 100vw, 90vw"
 							className="animate-appear-zoom opacity-0 delay-600"
 						/>
-					</Panel>
+					</Laptop>
 				</ParallaxShot>
 			</div>
 		</section>

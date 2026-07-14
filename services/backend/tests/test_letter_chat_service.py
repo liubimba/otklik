@@ -219,14 +219,25 @@ async def test_signature_the_user_asked_for_is_preserved(
     # only (AILayer.generate_cover_letter).
     await _seed_letter_ready(session_factory)
 
+    # Body long enough that, if LetterCleaner ran on this path, stripping
+    # the signature tail would still leave >= MIN_LETTER_CHARS (120) of
+    # text — the "cleanup would gut the letter, keep the original" safety
+    # net in LetterCleaner.clean() would NOT fire, so the signature would
+    # genuinely get cut. REVISED_LETTER (used elsewhere in this file) is
+    # only ~70 chars — short enough that the safety net alone would save
+    # the signature regardless of whether the cleaner runs, which is why
+    # this regression test used to pass even with LetterCleaner wired back
+    # into the chat path.
+    body = (
+        "Уважаемый работодатель, я внимательно изучил вашу вакансию и хочу "
+        "поделиться, почему эта позиция мне подходит: за последние три года "
+        "я разрабатывал похожие системы и готов приступить к работе "
+        "немедленно."
+    )
     signature = "С уважением, Иван Петров"
-    signed_letter = REVISED_LETTER + "\n" + signature
+    signed_letter = body + "\n" + signature
     payload = (
-        '{"reply": "Добавил подпись.", "letter": "'
-        + REVISED_LETTER
-        + "\\n"
-        + signature
-        + '"}'
+        '{"reply": "Добавил подпись.", "letter": "' + body + "\\n" + signature + '"}'
     )
     chunks = [payload[i : i + 9] for i in range(0, len(payload), 9)]
 

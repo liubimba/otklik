@@ -227,6 +227,7 @@
 	"settings_ai_letter_style_hint": "Тон и стилистика — например «нейтрально, профессионально».",
 	"settings_ai_system_prompt_label": "System-промпт",
 	"settings_ai_system_prompt_hint": "Опциональный override default-промпта. Если пусто — используется встроенный.",
+	"settings_ai_setup_wizard": "Настроить модель",
 	"settings_ai_deployments_label": "LLM-провайдеры",
 	"settings_ai_deployments_hint": "Первый в списке — primary. Остальные — fallback chain. Перетаскивайте за иконку слева, чтобы изменить порядок.",
 	"settings_ai_deployments_empty": "Пока нет ни одного провайдера. AI-генерация будет недоступна, пока вы не добавите хотя бы один.",

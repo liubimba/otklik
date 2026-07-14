@@ -1,4 +1,5 @@
 <script lang="ts">
+import { goto } from "$app/navigation";
 import SortableDeployment from "$lib/components/sortable-deployment.svelte";
 import * as Accordion from "$lib/components/ui/accordion";
 import { Badge } from "$lib/components/ui/badge";
@@ -18,6 +19,7 @@ import Eye from "@lucide/svelte/icons/eye";
 import EyeOff from "@lucide/svelte/icons/eye-off";
 import GripVertical from "@lucide/svelte/icons/grip-vertical";
 import Plus from "@lucide/svelte/icons/plus";
+import Sparkles from "@lucide/svelte/icons/sparkles";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { SuperForm } from "sveltekit-superforms";
 
@@ -137,11 +139,29 @@ function deploymentBadge(index: number): string {
 	</Form.Field>
 
 	<div class="space-y-3">
-		<div class="space-y-1">
-			<p class="text-sm font-medium">{m.settings_ai_deployments_label()}</p>
-			<p class="text-muted-foreground text-sm">
-				{m.settings_ai_deployments_hint()}
-			</p>
+		<div class="flex flex-wrap items-start justify-between gap-3">
+			<div class="space-y-1">
+				<p class="text-sm font-medium">{m.settings_ai_deployments_label()}</p>
+				<p class="text-muted-foreground text-sm">
+					{m.settings_ai_deployments_hint()}
+				</p>
+			</div>
+			<!--
+				Тот же мастер, что и при первом онбординге (/onboarding/model):
+				он умеет распознать уже настроенный deployment и не гонять замер
+				заново, поэтому сюда можно возвращаться сколько угодно раз —
+				настроить модель заново, сменить на другую, добавить облачный ключ.
+			-->
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				class="shrink-0"
+				onclick={() => goto("/onboarding/model")}
+			>
+				<Sparkles class="size-4" />
+				{m.settings_ai_setup_wizard()}
+			</Button>
 		</div>
 
 		{#if $formData.llm.deployments.length === 0}

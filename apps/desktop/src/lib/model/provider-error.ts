@@ -17,6 +17,12 @@ const HINTS: ReadonlyArray<[RegExp, () => string]> = [
 		m.error_model_unreachable,
 	],
 	[/401|403|api key|unauthorized/i, m.error_model_bad_key],
+	// Deployment записан вовсе без ключа (например, пресет GigaChat из
+	// онбординга — connectCloud пишет его с api_key: null). Провайдеры
+	// сообщают об этом не через 401/"api key", а собственным текстом:
+	// GigaChat — "credentials not provided" плюс "GIGACHAT_API_KEY" через
+	// подчёркивание, которое не подходит под хинт выше.
+	[/credentials not provided/i, m.error_model_missing_credentials],
 	[/timeout|timed out/i, m.error_model_timeout],
 	// "Настрою позже" на онбординге оставляет пользователя без единого
 	// deployment'а — первая же генерация письма падает с этим техническим

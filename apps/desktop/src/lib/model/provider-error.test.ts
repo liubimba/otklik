@@ -40,6 +40,16 @@ describe("explainProviderError", () => {
 		},
 	);
 
+	it("explains a real GigaChat missing-credentials blob, pointing at Настройках → AI", () => {
+		// Реальный текст, снятый с живого прогона: GigaChat-пресет пишется с
+		// пустым ключом, и генерация падает этим многострочным блобом
+		// LiteLLM. Ни "401"/"unauthorized" в нём нет, ни "api key" (там
+		// подчёркивание — GIGACHAT_API_KEY) — существующие хинты его не ловят.
+		const raw =
+			"litellm.APIConnectionError: GigachatException - GigaChat credentials not provided. Set GIGACHAT_CREDENTIALS or GIGACHAT_API_KEY environment variable... Received Model Group=gigachat/GigaChat-2 / Available Model Group Fallbacks=[] / Error doing the fallback: ... LiteLLM Retried: 2 times";
+		expect(explainProviderError(raw)).toContain("Настройках");
+	});
+
 	it("passes an unrecognized message through unchanged — no false confidence", () => {
 		expect(explainProviderError("database is locked")).toBe(
 			"database is locked",

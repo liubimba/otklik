@@ -8,12 +8,25 @@ edits (adding/removing a transition arc) at the source.
 import pytest
 from statemachine.exceptions import TransitionNotAllowed
 
-from otklik_backend.api.schemas import ProcessingState
+from otklik_backend.api.schemas import ErrorDomain, ProcessingState
 from otklik_backend.orchestrator.state_machine import (
     ERROR_DOMAIN_BY_EVENT,
     ApplicationEvent,
     ProcessingStateMachine,
 )
+
+# The domain each failure event is *supposed* to carry. Kept separate from
+# (and checked against) ERROR_DOMAIN_BY_EVENT in state_machine.py: a pure
+# key-coverage check would stay green even if FAIL and SUBMISSION_FAILED
+# were swapped (ERROR_DOMAIN_BY_EVENT[SUBMISSION_FAILED] = ErrorDomain.MODEL)
+# — exactly the misattribution bug this mapping exists to prevent (see the
+# docstring below). Extending this dict is deliberately required in lockstep
+# with ERROR_DOMAIN_BY_EVENT: the completeness assertions below fail loudly
+# if either one is missing an entry the other has.
+EXPECTED_ERROR_DOMAIN_BY_EVENT: dict[ApplicationEvent, ErrorDomain] = {
+    ApplicationEvent.FAIL: ErrorDomain.MODEL,
+    ApplicationEvent.SUBMISSION_FAILED: ErrorDomain.SUBMISSION,
+}
 
 
 def _at(state: ProcessingState) -> ProcessingStateMachine:
@@ -168,6 +181,16 @@ def test_error_domain_mapping_covers_all_failure_events() -> None:
         assert (
             event in ERROR_DOMAIN_BY_EVENT
         ), f"Event {event} leads to ERROR but has no entry in ERROR_DOMAIN_BY_EVENT"
+        assert event in EXPECTED_ERROR_DOMAIN_BY_EVENT, (
+            f"Event {event} leads to ERROR but this test has no expected domain "
+            "for it — add one to EXPECTED_ERROR_DOMAIN_BY_EVENT"
+        )
+        # The actual regression this mapping guards against: not a missing
+        # key, but a wrong value (domains swapped between two failure events).
+        assert ERROR_DOMAIN_BY_EVENT[event] == EXPECTED_ERROR_DOMAIN_BY_EVENT[event], (
+            f"Event {event} is mapped to {ERROR_DOMAIN_BY_EVENT[event]}, "
+            f"expected {EXPECTED_ERROR_DOMAIN_BY_EVENT[event]}"
+        )
 
     # Also verify the reverse: no stale mappings for events that don't lead to ERROR
     for event in ERROR_DOMAIN_BY_EVENT:

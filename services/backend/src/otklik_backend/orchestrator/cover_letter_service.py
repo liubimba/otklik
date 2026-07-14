@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from otklik_backend.ai.exceptions import AILayerUnhealthyError
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.ai.result import AICoverLetterResult
 from otklik_backend.db.converters import vacancy_to_schema
@@ -28,8 +27,6 @@ class CoverLetterService:
         self._log = get_logger(__name__)
 
     async def regenerate(self, vacancy_id: int) -> AICoverLetterResult:
-        if not (await self._ai_layer.get_health_status()).is_ready():
-            raise AILayerUnhealthyError()
         async with self._session_maker() as session:
             vacancy_orm: VacancyORM | None = await VacancyRepository.get_by_id(
                 session=session, vacancy_id=vacancy_id

@@ -37,19 +37,16 @@ class AILayer:
             len(resume),
             style,
         )
-        health_status: AILayerHealthStatus = await self.get_health_status()
-        if health_status == AILayerHealthStatus.NO_DEPLOYMENTS:
+        # Раньше здесь был health-ping — отдельный полный вызов модели перед
+        # каждой генерацией (см. docs/local-model-eval/report.md: +59с на
+        # локальной модели, и это ещё не считая второго пинга из вызывающего
+        # сервиса). Мёртвая модель роняет acompletion ниже и превращается в
+        # GenerationCoverLetterError — ping не добавлял информации, только цену.
+        if len(self._deployments) == 0:
             self._log.error(
                 "Failed to generate cover letter: no deployments configured"
             )
             raise GenerationCoverLetterError("no deployments configured")
-        if not health_status.is_ready():
-            self._log.error(
-                "Failed to generate cover letter: ai layer is not ready to generate cover letter"
-            )
-            raise GenerationCoverLetterError(
-                "ai layer is not ready to generate cover letter"
-            )
         try:
             llm: LLMDeployment = self._get_primary_llm()
             messages: list[AllMessageValues] = (
@@ -101,10 +98,11 @@ class AILayer:
         the caller parses the stream into the reply and the (optional) revised
         letter without depending on a fragile in-band text marker.
         """
-        health_status: AILayerHealthStatus = await self.get_health_status()
-        if not health_status.is_ready():
-            self._log.error("Cannot start letter chat: ai layer is not ready")
-            raise GenerationCoverLetterError("ai layer is not ready")
+        # Та же логика, что в generate_cover_letter — бесплатная проверка вместо
+        # платного health-ping'а.
+        if len(self._deployments) == 0:
+            self._log.error("Cannot start letter chat: no deployments configured")
+            raise GenerationCoverLetterError("no deployments configured")
 
         llm: LLMDeployment = self._get_primary_llm()
         messages: list[AllMessageValues] = (

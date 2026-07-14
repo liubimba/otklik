@@ -3,7 +3,6 @@ from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from otklik_backend.ai.exceptions import AILayerUnhealthyError
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.api.schemas import ProcessingState
 from otklik_backend.db.converters import vacancy_to_schema
@@ -151,9 +150,6 @@ class LetterChatService:
     async def stream_turn(
         self, vacancy_id: int, message: str
     ) -> AsyncIterator[dict[str, object]]:
-        if not (await self._ai_layer.get_health_status()).is_ready():
-            raise AILayerUnhealthyError()
-
         # 1. Load context + guard + persist the user turn (short-lived session).
         async with self._session_maker() as session:
             vacancy_orm: VacancyORM | None = await VacancyRepository.get_by_id(

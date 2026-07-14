@@ -74,20 +74,35 @@ async def test_ai_generate_cover_letter(
 async def test_ai_generate_raises_when_router_fails(
     make_ai_layer, vacancy_model: VacancyAPISchema
 ) -> None:
+    """Мёртвая модель роняет саму генерацию (health-ping больше не звонит
+    отдельно) — наружу должна выйти реальная ошибка провайдера, обёрнутая
+    в GenerationCoverLetterError."""
+    layer: AILayer = make_ai_layer(
+        [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="test-key")]
+    )
+    layer._router.acompletion.side_effect = Exception("connection refused")
+    with pytest.raises(GenerationCoverLetterError, match="connection refused"):
+        await layer.generate_cover_letter(
+            vacancy_model=vacancy_model, resume="", style=""
+        )
+    layer._router.acompletion.assert_awaited_once()
+
+
+async def test_generate_cover_letter_makes_a_single_model_call(
+    make_ai_layer, vacancy_model: VacancyAPISchema
+) -> None:
+    """Регрессия: раньше перед каждым письмом шёл health-ping — второй полный
+    вызов модели. На локальной модели он стоил +59 с (гейт, итерация 1)."""
     layer: AILayer = make_ai_layer(
         [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="test-key")]
     )
     layer._router.acompletion.return_value = _fake_model_response(
-        content="pong"
-    )  # ping ok
-    layer._router.acompletion.side_effect = [
-        _fake_model_response(content="pong"),  # health ping
-        Exception("boom"),  # actual generation call
-    ]
-    with pytest.raises(GenerationCoverLetterError, match="boom"):
-        await layer.generate_cover_letter(
-            vacancy_model=vacancy_model, resume="", style=""
-        )
+        content="Здравствуйте! " + "Меня заинтересовала ваша вакансия. " * 5
+    )
+    await layer.generate_cover_letter(
+        vacancy_model=vacancy_model, resume="резюме", style="деловой"
+    )
+    assert layer._router.acompletion.await_count == 1
 
 
 async def test_ai_rebuild_swaps_deployments_and_router(make_ai_layer) -> None:

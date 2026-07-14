@@ -83,14 +83,26 @@ function mockFetchJson(body: unknown, status = 200): void {
 // кадрами `data: …\n\n` разом — streamSSE сам режет буфер на кадры, так что
 // многокадровый чанк для него не отличим от нескольких мелких.
 function mockFetchSSE(lines: string[]): void {
+	mockFetchSSEWithChunks([`${lines.join("\n\n")}\n\n`]);
+}
+
+// Расширенный хелпер для тестирования буферизации: читает SSE в несколько чанков.
+// Каждый элемент chunks — это сырая строка (БЕЗ `\n\n` между ними; кадры уже
+// разбиты нужным образом). Это позволяет проверить, что streamSSE верно собирает
+// кадры, разъехавшиеся между чтениями — даже посередине JSON-тела или прямо на
+// границе `\n\n`.
+function mockFetchSSEWithChunks(chunks: string[]): void {
 	const encoder = new TextEncoder();
-	const chunk = encoder.encode(`${lines.join("\n\n")}\n\n`);
-	let sent = false;
+	const encodedChunks = chunks.map((c) => encoder.encode(c));
+	let chunkIndex = 0;
 	const reader = {
 		read: async () => {
-			if (sent) return { done: true, value: undefined };
-			sent = true;
-			return { done: false, value: chunk };
+			if (chunkIndex >= encodedChunks.length) {
+				return { done: true, value: undefined };
+			}
+			const value = encodedChunks[chunkIndex];
+			chunkIndex += 1;
+			return { done: false, value };
 		},
 	};
 	const response = {
@@ -506,5 +518,75 @@ describe("API.setup", () => {
 			expect.stringContaining("/api/v1/setup/deployment"),
 			expect.objectContaining({ method: "POST" }),
 		);
+	});
+
+	describe("SSE frame assembly across multiple reads", () => {
+		it("assembles a frame split inside JSON payload", async () => {
+			// Граница куска проходит посередине JSON-тела кадра: `completed_by` `tes`:
+			const payload1 = '{"status":"downloading","completed_by';
+			const payload2 = 'tes":1,"total_bytes":2,"percent":50,"done":false}';
+			const payload3 =
+				'{"status":"success","completed_bytes":2,"total_bytes":2,"percent":100,"done":true}';
+
+			mockFetchSSEWithChunks([
+				`data: ${payload1}`,
+				`${payload2}\n\ndata: ${payload3}\n\n`,
+			]);
+
+			const frames: PullProgress[] = [];
+			for await (const frame of API.setup.pull()) frames.push(frame);
+
+			expect(frames).toHaveLength(2);
+			expect(frames[0]).toMatchObject({
+				status: "downloading",
+				completed_bytes: 1,
+				total_bytes: 2,
+				percent: 50,
+				done: false,
+			});
+			expect(frames[1]).toMatchObject({
+				status: "success",
+				completed_bytes: 2,
+				total_bytes: 2,
+				percent: 100,
+				done: true,
+			});
+		});
+
+		it("assembles frames split on the frame boundary \\n\\n", async () => {
+			// Разделитель кадров `\n\n` разъехался между чтениями:
+			// - чанк 1 заканчивается на первый `\n`
+			// - чанк 2 начинается со второго `\n`
+			mockFetchSSEWithChunks([
+				'data: {"status":"downloading","completed_bytes":1,"total_bytes":2,"percent":50,"done":false}\n',
+				'\ndata: {"status":"success","completed_bytes":2,"total_bytes":2,"percent":100,"done":true}\n\n',
+			]);
+
+			const frames: PullProgress[] = [];
+			for await (const frame of API.setup.pull()) frames.push(frame);
+
+			expect(frames).toHaveLength(2);
+			expect(frames[0].percent).toBe(50);
+			expect(frames[1].percent).toBe(100);
+		});
+
+		it("assembles frames when the frame boundary is split byte-by-byte", async () => {
+			// Граница между кадрами разбита по байтам (экстремальный случай):
+			mockFetchSSEWithChunks([
+				'data: {"status":"downloading","completed_bytes":1,"total_bytes":2,"percent":50,"done":false}',
+				"\n",
+				"\n",
+				'data: {"status":"success","completed_bytes":2,"total_bytes":2,"percent":100,"done":true}',
+				"\n",
+				"\n",
+			]);
+
+			const frames: PullProgress[] = [];
+			for await (const frame of API.setup.pull()) frames.push(frame);
+
+			expect(frames).toHaveLength(2);
+			expect(frames[0].percent).toBe(50);
+			expect(frames[1].percent).toBe(100);
+		});
 	});
 });

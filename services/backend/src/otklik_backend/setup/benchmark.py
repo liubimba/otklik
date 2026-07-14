@@ -1,0 +1,75 @@
+import asyncio
+import time
+from collections.abc import Callable
+
+from pydantic import BaseModel
+
+from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.layer import AILayer
+from otklik_backend.ai.result import AICoverLetterResult
+from otklik_backend.log import get_logger
+from otklik_backend.setup.constants import BENCHMARK_DEADLINE_SEC
+from otklik_backend.setup.fixtures import (
+    BENCHMARK_RESUME,
+    BENCHMARK_STYLE,
+    BENCHMARK_VACANCY,
+)
+
+
+class BenchmarkResult(BaseModel):
+    passed: bool
+    seconds: float
+    letter: str | None = None
+
+
+class BenchmarkRunner:
+    """Пишет одно настоящее письмо с дедлайном и решает, тянет ли машина модель.
+
+    Порог гейта (≤45 с на письмо) и таймаут запроса — одно и то же число: мы
+    измеряем ровно то, что пользователь будет чувствовать, и ровно тем
+    критерием, которым задан порог. Никаких экстраполяций, которые потом
+    пришлось бы защищать.
+
+    Это же и есть проверка готовности перед «Готово» (P0-5): успешный замер
+    доказывает, что модель отвечает, — отдельный health-ping не нужен.
+    """
+
+    def __init__(
+        self,
+        deadline_sec: float = BENCHMARK_DEADLINE_SEC,
+        layer_factory: Callable[[list[LLMDeployment]], AILayer] = AILayer,
+    ) -> None:
+        self._deadline_sec = deadline_sec
+        self._layer_factory = layer_factory
+        self._log = get_logger(__name__)
+
+    async def run(self, deployment: LLMDeployment) -> BenchmarkResult:
+        # Ровно один deployment: с несколькими LiteLLM-роутер построит
+        # кросс-продукт фолбэков и может втихую подменить модель — тогда мы
+        # замерим не то, что думаем.
+        layer = self._layer_factory([deployment])
+        started = time.monotonic()
+        try:
+            async with asyncio.timeout(self._deadline_sec):
+                result: AICoverLetterResult = await layer.generate_cover_letter(
+                    vacancy_model=BENCHMARK_VACANCY,
+                    resume=BENCHMARK_RESUME,
+                    style=BENCHMARK_STYLE,
+                )
+        except TimeoutError:
+            elapsed = time.monotonic() - started
+            self._log.info(
+                "Benchmark: model did not finish within %.1fs — machine is too slow",
+                self._deadline_sec,
+            )
+            return BenchmarkResult(passed=False, seconds=round(elapsed, 1))
+        except Exception as error:
+            elapsed = time.monotonic() - started
+            self._log.error("Benchmark failed: %s", error)
+            return BenchmarkResult(passed=False, seconds=round(elapsed, 1))
+
+        elapsed = time.monotonic() - started
+        self._log.info("Benchmark: letter written in %.1fs", elapsed)
+        return BenchmarkResult(
+            passed=True, seconds=round(elapsed, 1), letter=result.text
+        )

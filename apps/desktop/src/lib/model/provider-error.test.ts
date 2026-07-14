@@ -30,6 +30,16 @@ describe("explainProviderError", () => {
 		},
 	);
 
+	it.each([
+		"no deployments configured",
+		"Failed to generate cover letter: no deployments configured",
+	])(
+		"explains %s as an unconfigured model, pointing at Настройки → AI",
+		(raw) => {
+			expect(explainProviderError(raw)).toContain("Настройки → AI");
+		},
+	);
+
 	it("passes an unrecognized message through unchanged — no false confidence", () => {
 		expect(explainProviderError("database is locked")).toBe(
 			"database is locked",

@@ -7,7 +7,7 @@ import { m } from "$lib/paraglide/messages";
  * Теперь наружу выходит сырой текст ошибки провайдера (`connection refused`,
  * `401 invalid api key`, `timeout`) — точнее, но нечитаемо для пользователя.
  *
- * Три частых случая переводим в понятную подсказку с следующим шагом.
+ * Четыре частых случая переводим в понятную подсказку с следующим шагом.
  * Всё остальное показываем как есть — лучше сырой текст, чем ложная
  * уверенность за общей фразой.
  */
@@ -18,6 +18,10 @@ const HINTS: ReadonlyArray<[RegExp, () => string]> = [
 	],
 	[/401|403|api key|unauthorized/i, m.error_model_bad_key],
 	[/timeout|timed out/i, m.error_model_timeout],
+	// "Настрою позже" на онбординге оставляет пользователя без единого
+	// deployment'а — первая же генерация письма падает с этим техническим
+	// текстом (otklik_backend.ai.layer.GenerationCoverLetterError).
+	[/no deployments configured/i, m.error_model_not_configured],
 ];
 
 export function explainProviderError(message: string): string {

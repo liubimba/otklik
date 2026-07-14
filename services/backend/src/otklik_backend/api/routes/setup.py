@@ -1,3 +1,4 @@
+import json
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter
@@ -15,8 +16,12 @@ from otklik_backend.api.schemas import SettingsAPISchema, SetupStateAPISchema
 from otklik_backend.db.converters import settings_to_orm, settings_to_schema
 from otklik_backend.db.models import SettingsORM
 from otklik_backend.db.repositories.settings import SettingsRepository
+from otklik_backend.log import get_logger
 from otklik_backend.setup.benchmark import BenchmarkResult
 from otklik_backend.setup.constants import CLOUD_MODEL, LOCAL_MODEL, OLLAMA_HOST
+from otklik_backend.setup.ollama import OllamaPullError
+
+log = get_logger(__name__)
 
 setup_router = APIRouter(prefix="/setup", tags=["setup"])
 
@@ -38,11 +43,26 @@ async def setup_state(
 @setup_router.post("/pull")
 async def setup_pull(ollama: OllamaGateDep) -> StreamingResponse:
     """Стримит прогресс загрузки модели кадрами SSE — тем же форматом, что и
-    чат письма, поэтому фронтенд читает его уже готовым парсером."""
+    чат письма, поэтому фронтенд читает его уже готовым парсером.
+
+    Ответ коммитится со статусом 200 в момент первого кадра, поэтому упавшую
+    на середине загрузку (нет места, нет сети, битый ответ Ollama) нельзя
+    доставить HTTP-статусом — соединение к тому моменту уже открыто.
+    Доставляем такую ошибку отдельным кадром `error` внутри того же стрима,
+    после чего закрываем его штатно, чтобы полоса прогресса на фронтенде не
+    висела вечно.
+    """
 
     async def frames() -> AsyncIterator[str]:
-        async for progress in ollama.pull():
-            yield f"data: {progress.model_dump_json()}\n\n"
+        try:
+            async for progress in ollama.pull():
+                yield f"data: {progress.model_dump_json()}\n\n"
+        except OllamaPullError as exc:
+            log.warning("Model pull failed", detail=str(exc))
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
+        except Exception as exc:  # noqa: BLE001 — surface any failure to the UI
+            log.error("Model pull failed unexpectedly", error=str(exc))
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Model pull failed'})}\n\n"
 
     return StreamingResponse(frames(), media_type="text/event-stream")
 

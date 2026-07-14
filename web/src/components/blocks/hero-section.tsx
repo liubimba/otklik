@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Confetti } from "@/components/ui/confetti";
 import { Laptop } from "@/components/ui/device";
 import { Magnetic } from "@/components/ui/magnetic";
+import { MascotStage } from "@/components/ui/mascot-stage";
 import { MascotShrug } from "@/components/ui/mascots";
 import { ParallaxShot } from "@/components/ui/parallax-shot";
 
@@ -84,10 +85,13 @@ export function HeroSection({
 
 					{/* Растерянный — он и есть проблема, которую решает продукт:
 					    вакансий много, писать письма некогда. */}
-					<MascotShrug
-						tone="accent1"
-						className="hidden w-32 self-end md:block lg:w-40"
-					/>
+					<MascotStage
+						shape="circle"
+						tone="accent2"
+						className="hidden w-36 self-end md:block lg:w-44"
+					>
+						<MascotShrug tone="accent1" />
+					</MascotStage>
 
 					<div className="flex flex-wrap gap-4">
 						{actions.map((action) => (

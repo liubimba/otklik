@@ -1,6 +1,7 @@
 import { InfoIcon } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { MascotStage } from "@/components/ui/mascot-stage";
 import { MascotBox } from "@/components/ui/mascots";
 import { PlainList } from "@/components/ui/plain-list";
 import { Reveal } from "@/components/ui/reveal";
@@ -15,7 +16,11 @@ export function PrivacySection() {
 				eyebrow={privacy.eyebrow}
 				title={privacy.title}
 				description={privacy.description}
-				mascot={<MascotBox tone="accent2" />}
+				mascot={
+					<MascotStage shape="circle" tone="accent1">
+						<MascotBox tone="accent2" />
+					</MascotStage>
+				}
 			/>
 
 			<PlainList items={[...privacy.cards, privacy.key]} />

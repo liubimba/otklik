@@ -3,6 +3,7 @@ import { AppleIcon, MonitorIcon, TerminalIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Confetti } from "@/components/ui/confetti";
 import { Magnetic } from "@/components/ui/magnetic";
+import { MascotStage } from "@/components/ui/mascot-stage";
 import { MascotPlane } from "@/components/ui/mascots";
 import { Reveal } from "@/components/ui/reveal";
 import { Scribble } from "@/components/ui/scribble";
@@ -61,7 +62,9 @@ export function CtaSection() {
 			<div className="flex flex-col items-center gap-10 text-center">
 				{/* Запускает отклик бумажным самолётиком — единственный маскот по центру,
 				    ровно там, где страница ломает левую ось и просит действия. */}
-				<MascotPlane tone="accent2" className="w-36 lg:w-44" />
+				<MascotStage shape="circle" tone="accent1" className="w-40 lg:w-48">
+					<MascotPlane tone="accent2" />
+				</MascotStage>
 
 				<h2
 					id="download-title"

@@ -1,5 +1,6 @@
 import { TriangleAlertIcon } from "lucide-react";
 
+import { MascotStage } from "@/components/ui/mascot-stage";
 import { MascotAngry } from "@/components/ui/mascots";
 import { PlainList } from "@/components/ui/plain-list";
 import { Reveal } from "@/components/ui/reveal";
@@ -14,7 +15,11 @@ export function RisksSection() {
 				eyebrow={risks.eyebrow}
 				title={risks.title}
 				description={risks.description}
-				mascot={<MascotAngry tone="danger" />}
+				mascot={
+					<MascotStage shape="slab" tone="accent1" tilt={-4}>
+						<MascotAngry tone="danger" />
+					</MascotStage>
+				}
 			/>
 
 			{/* Единственная сплошная плита на всю ширину окна. На пустой странице

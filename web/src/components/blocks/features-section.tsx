@@ -1,5 +1,6 @@
 import { LetterFlow } from "@/components/blocks/letter-flow";
 import { Confetti } from "@/components/ui/confetti";
+import { MascotStage } from "@/components/ui/mascot-stage";
 import { MascotReading } from "@/components/ui/mascots";
 import { PlainList } from "@/components/ui/plain-list";
 import { Section, SectionHeader } from "@/components/ui/section";
@@ -30,7 +31,11 @@ export function FeaturesSection() {
 				eyebrow={features.eyebrow}
 				title={features.title}
 				description={features.description}
-				mascot={<MascotReading tone="accent1" />}
+				mascot={
+					<MascotStage shape="slab" tone="accent2" tilt={-5}>
+						<MascotReading tone="accent1" />
+					</MascotStage>
+				}
 			/>
 
 			{/* Интерактив раскрывает заголовок секции: видно, что каждая фраза письма

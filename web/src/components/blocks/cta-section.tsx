@@ -77,7 +77,9 @@ export function CtaSection() {
 				</p>
 
 				<Reveal delay="delay-200">
-					<div className="flex flex-col items-center gap-6">
+					{/* gap-12, а не gap-6: рукописный овал вокруг оговорки выходит за её
+					    границы вверх, и на тесном отступе он налезал на кнопки. */}
+					<div className="flex flex-col items-center gap-12">
 						<div className="flex flex-wrap justify-center gap-3">
 							{PLATFORMS.map(({ label, href, Icon }, index) => (
 								<Magnetic key={label}>

@@ -32,6 +32,7 @@ export class SetupViewModel {
 	#letter = $state<string | null>(null);
 	#error = $state<string | null>(null);
 	#isPulling = $state(false);
+	#isConnectingCloud = $state(false);
 
 	get screen(): SetupScreen {
 		return this.#screen;
@@ -43,6 +44,11 @@ export class SetupViewModel {
 	 * чтобы не дать запустить вторую параллельную загрузку. */
 	get isPulling(): boolean {
 		return this.#isPulling;
+	}
+	/** Идёт ли сейчас запись облачного deployment'а — кнопка «Подключить
+	 * GigaChat» смотрит сюда, чтобы не отправить POST дважды подряд. */
+	get isConnectingCloud(): boolean {
+		return this.#isConnectingCloud;
 	}
 	get seconds(): number {
 		return this.#seconds;
@@ -135,6 +141,30 @@ export class SetupViewModel {
 			await this.#writeLocalDeployment();
 		} catch (error) {
 			this.#fail(error);
+		}
+	}
+
+	/**
+	 * Пресет облака (кнопка «Подключить GigaChat»): пишет deployment на
+	 * cloud_model с пустым ключом, так что дома в Настройках → AI пользователю
+	 * остаётся только вставить свой — без ручного ввода строки LiteLLM.
+	 * Возвращает false при провале, чтобы вызывающая сторона (разметка) не
+	 * уводила на /settings, если deployment на самом деле не записался.
+	 */
+	async connectCloud(): Promise<boolean> {
+		if (this.#state === null || this.#isConnectingCloud) return false;
+		this.#isConnectingCloud = true;
+		try {
+			await API.setup.deployment({
+				model: this.#state.cloud_model,
+				api_key: null,
+			});
+			return true;
+		} catch (error) {
+			this.#fail(error);
+			return false;
+		} finally {
+			this.#isConnectingCloud = false;
 		}
 	}
 

@@ -376,4 +376,61 @@ describe("SetupViewModel", () => {
 			});
 		});
 	});
+
+	describe("connectCloud (GigaChat preset)", () => {
+		it("writes the cloud deployment from state, with an empty key for the user to fill in", async () => {
+			// P0: the button used to be a bare goto("/settings") — the whole
+			// point of the preset is that the user never has to hand-type the
+			// LiteLLM model string themselves.
+			vi.mocked(API.setup.state).mockResolvedValue(
+				state({ hardware: { tier: "weak", ram_gb: 8, cores: 4 } }),
+			);
+			const vm = new SetupViewModel();
+			await vm.refresh();
+
+			const ok = await vm.connectCloud();
+
+			expect(ok).toBe(true);
+			expect(API.setup.deployment).toHaveBeenCalledOnce();
+			expect(API.setup.deployment).toHaveBeenCalledWith({
+				model: "gigachat/GigaChat-2",
+				api_key: null,
+			});
+		});
+
+		it("reads the model name from state instead of hardcoding it", async () => {
+			vi.mocked(API.setup.state).mockResolvedValue(
+				state({
+					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
+					cloud_model: "gigachat/GigaChat-2-Max",
+				}),
+			);
+			const vm = new SetupViewModel();
+			await vm.refresh();
+
+			await vm.connectCloud();
+
+			expect(API.setup.deployment).toHaveBeenCalledWith({
+				model: "gigachat/GigaChat-2-Max",
+				api_key: null,
+			});
+		});
+
+		it("surfaces a failure instead of silently sending the user to settings", async () => {
+			vi.mocked(API.setup.state).mockResolvedValue(
+				state({ hardware: { tier: "weak", ram_gb: 8, cores: 4 } }),
+			);
+			vi.mocked(API.setup.deployment).mockRejectedValue(
+				new Error("network unreachable"),
+			);
+			const vm = new SetupViewModel();
+			await vm.refresh();
+
+			const ok = await vm.connectCloud();
+
+			expect(ok).toBe(false);
+			expect(vm.screen).toBe("error");
+			expect(vm.errorMessage).toContain("network unreachable");
+		});
+	});
 });

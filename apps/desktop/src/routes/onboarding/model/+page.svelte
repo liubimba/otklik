@@ -16,10 +16,20 @@ import { onMount } from "svelte";
 import { SetupViewModel } from "./setup.viewmodel.svelte";
 
 const OLLAMA_DOWNLOAD_URL = "https://ollama.com/download";
+// Настройки — одностраничные, без табов: секция AI живёт под этим id, якорь
+// доводит фокус прямо до неё, а не до верха формы.
+const SETTINGS_AI_ANCHOR = "/settings#settings-ai";
 
 const vm = new SetupViewModel();
 
 onMount(() => vm.refresh());
+
+// Пресет облака пишет deployment сам — уводить на Настройки имеет смысл,
+// только если запись реально прошла, иначе пользователь тихо потеряет
+// причину провала (см. connectCloud()).
+async function connectCloudAndGoToSettings(): Promise<void> {
+	if (await vm.connectCloud()) await goto(SETTINGS_AI_ANCHOR);
+}
 
 // Проценты приходят дробными из стрима, а полоса и подпись читаются глазами —
 // округляем один раз здесь, чтобы цифра в тексте и ширина полосы не разъезжались.
@@ -92,7 +102,11 @@ const liveStatus = $derived.by(() => {
                 но не запирающий.
             -->
             <div class="space-y-2">
-                <Button class="w-full cursor-pointer" onclick={() => goto("/settings")}>
+                <Button
+                        class="w-full cursor-pointer"
+                        disabled={vm.isConnectingCloud}
+                        onclick={connectCloudAndGoToSettings}
+                >
                     {m.setup_weak_cloud()}
                 </Button>
                 <p class="text-muted-foreground text-xs">{m.setup_weak_cloud_note()}</p>
@@ -249,7 +263,11 @@ const liveStatus = $derived.by(() => {
                 >
                     {m.setup_slow_keep_local()}
                 </Button>
-                <Button class="cursor-pointer" onclick={() => goto("/settings")}>
+                <Button
+                        class="cursor-pointer"
+                        disabled={vm.isConnectingCloud}
+                        onclick={connectCloudAndGoToSettings}
+                >
                     {m.setup_weak_cloud()}
                 </Button>
             </div>

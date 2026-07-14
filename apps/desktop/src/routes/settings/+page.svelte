@@ -255,7 +255,7 @@ $effect(() => {
 
             <Separator/>
 
-            <section class="space-y-4">
+            <section id="settings-ai" class="space-y-4">
                 <div class="space-y-1">
                     <h2 class="text-lg font-medium">
                         {m.settings_section_ai()}

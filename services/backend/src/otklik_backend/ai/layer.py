@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator, Sequence
 from typing import cast
 
 from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.postprocess import LetterCleaner
 from litellm import (
     AllMessageValues,
     CustomStreamWrapper,
@@ -21,6 +22,7 @@ from otklik_backend.log import get_logger
 class AILayer:
     def __init__(self, deployments: list[LLMDeployment] = []) -> None:
         self._prompt_builder = PromptBuilder()
+        self._cleaner = LetterCleaner()
         self._log = get_logger(__name__)
         self.rebuild(deployments=deployments)
 
@@ -69,7 +71,7 @@ class AILayer:
                 response.choices[0].message.content,
             )
             return AICoverLetterResult(
-                text=response.choices[0].message.content,
+                text=self._cleaner.clean(response.choices[0].message.content or ""),
                 model_used=response.model,
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,

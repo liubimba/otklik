@@ -105,6 +105,26 @@ async def test_generate_cover_letter_makes_a_single_model_call(
     assert layer._router.acompletion.await_count == 1
 
 
+async def test_generate_cover_letter_cleans_the_signature(
+    make_ai_layer, vacancy_model: VacancyAPISchema
+) -> None:
+    layer: AILayer = make_ai_layer(
+        [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="test-key")]
+    )
+    body = (
+        "Здравствуйте! Меня заинтересовала ваша вакансия: за пять лет в закупках "
+        "я выстроил работу с поставщиками и снизил издержки на четверть. Готов "
+        "обсудить детали на встрече."
+    )
+    layer._router.acompletion.return_value = _fake_model_response(
+        content=f"{body}\n\nС уважением,\n[Ваше имя]"
+    )
+    result: AICoverLetterResult = await layer.generate_cover_letter(
+        vacancy_model=vacancy_model, resume="резюме", style="деловой"
+    )
+    assert result.text == body
+
+
 async def test_ai_rebuild_swaps_deployments_and_router(make_ai_layer) -> None:
     layer: AILayer = make_ai_layer(
         [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="x")]

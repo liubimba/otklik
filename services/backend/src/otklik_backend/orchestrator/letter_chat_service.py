@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from otklik_backend.ai.layer import AILayer
+from otklik_backend.ai.postprocess import LetterCleaner
 from otklik_backend.api.schemas import ProcessingState
 from otklik_backend.db.converters import vacancy_to_schema
 from otklik_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
@@ -145,6 +146,7 @@ class LetterChatService:
     ) -> None:
         self._session_maker = session_maker
         self._ai_layer = ai_layer
+        self._cleaner = LetterCleaner()
         self._log = get_logger(__name__)
 
     async def stream_turn(
@@ -210,7 +212,11 @@ class LetterChatService:
         #    unchanged letter while answering a question; that must not spawn a
         #    spurious version.
         reply = parser.reply.strip()
-        letter_text = parser.letter.strip()
+        # Чистим тут, а не по токенам стрима: чистка по кускам порезала бы
+        # текст на границе чанка (регулярка увидела бы половину строки).
+        # Пользователю в стрим летят сырые токены, а в базу и в результат —
+        # уже собранное и очищенное письмо.
+        letter_text = self._cleaner.clean(parser.letter) if parser.letter else ""
         letter = (
             letter_text
             if parser.has_letter

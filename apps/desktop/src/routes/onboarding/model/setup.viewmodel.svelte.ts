@@ -31,12 +31,18 @@ export class SetupViewModel {
 	#seconds = $state(0);
 	#letter = $state<string | null>(null);
 	#error = $state<string | null>(null);
+	#isPulling = $state(false);
 
 	get screen(): SetupScreen {
 		return this.#screen;
 	}
 	get percent(): number {
 		return this.#percent;
+	}
+	/** Идёт ли сейчас загрузка модели — кнопка «Установить модель» смотрит сюда,
+	 * чтобы не дать запустить вторую параллельную загрузку. */
+	get isPulling(): boolean {
+		return this.#isPulling;
 	}
 	get seconds(): number {
 		return this.#seconds;
@@ -70,8 +76,10 @@ export class SetupViewModel {
 
 	/** Загрузка модели + автоматический переход к замеру. */
 	async pullModel(): Promise<void> {
+		if (this.#isPulling) return; // вторая загрузка поверх первой не запускается
 		this.#screen = "pull";
 		this.#percent = 0;
+		this.#isPulling = true;
 		try {
 			for await (const progress of API.setup.pull()) {
 				this.#percent = progress.percent;
@@ -81,6 +89,8 @@ export class SetupViewModel {
 			// Провал стрима не имеет права оставить полосу прогресса висящей
 			// на последнем проценте — это отдельное явное состояние ошибки.
 			this.#fail(error);
+		} finally {
+			this.#isPulling = false;
 		}
 	}
 

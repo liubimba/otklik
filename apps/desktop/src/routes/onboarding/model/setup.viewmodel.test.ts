@@ -64,6 +64,11 @@ describe("SetupViewModel", () => {
 		expect(vm.screen).toBe("done");
 		expect(API.setup.benchmark).not.toHaveBeenCalled();
 		expect(API.setup.pull).not.toHaveBeenCalled();
+		// Разметка отличает «письмо только что написано» от «модель была
+		// настроена раньше» по наличию letter — без замера его не бывает,
+		// а seconds остаётся нулём инициализации, а не временем реального замера.
+		expect(vm.letter).toBeNull();
+		expect(vm.seconds).toBe(0);
 	});
 
 	it("sends a weak machine to the fork, without downloading anything", async () => {
@@ -134,6 +139,34 @@ describe("SetupViewModel", () => {
 			api_base: "http://localhost:11434",
 			api_key: null,
 		});
+	});
+
+	it("marks isPulling while the download is in flight, so a second click is a no-op", async () => {
+		// Пока не было кнопки, isPulling было некому проверять — теперь это
+		// единственный сигнал, которым разметка блокирует повторный клик.
+		vi.mocked(API.setup.state).mockResolvedValue(
+			state({ ollama: "model_missing" }),
+		);
+		vi.mocked(API.setup.pull).mockReturnValue(progress(25, 100));
+		vi.mocked(API.setup.benchmark).mockResolvedValue({
+			passed: true,
+			seconds: 6.1,
+			letter: "Здравствуйте!",
+		});
+		const vm = new SetupViewModel();
+		await vm.refresh();
+
+		expect(vm.isPulling).toBe(false);
+		const pulling = vm.pullModel();
+		// Код до первого await внутри pullModel() выполняется синхронно, поэтому
+		// флаг уже true сразу после вызова, без ожидания микротасков.
+		expect(vm.isPulling).toBe(true);
+		const secondCall = vm.pullModel();
+
+		await Promise.all([pulling, secondCall]);
+
+		expect(vm.isPulling).toBe(false);
+		expect(API.setup.pull).toHaveBeenCalledOnce();
 	});
 
 	it("shows the letter the machine wrote", async () => {

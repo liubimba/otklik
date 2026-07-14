@@ -164,6 +164,18 @@ const liveStatus = $derived.by(() => {
                         style="width: {percent}%"
                 ></div>
             </div>
+            <!--
+                Без этой кнопки экран не сдвинуть: vm.pullModel() больше никак не
+                вызвать. disabled завязан на isPulling — вторую загрузку поверх
+                идущей не запустить.
+            -->
+            <Button
+                    class="cursor-pointer"
+                    disabled={vm.isPulling}
+                    onclick={() => vm.pullModel()}
+            >
+                {m.setup_pull_button()}
+            </Button>
 
         {:else if vm.screen === "benchmark"}
             <div class="flex items-start gap-3">
@@ -179,7 +191,19 @@ const liveStatus = $derived.by(() => {
                 <CircleCheck class="text-primary size-5 shrink-0"/>
                 <div class="space-y-2">
                     <h1 class="text-lg font-semibold">{m.setup_done_title()}</h1>
-                    <p class="text-muted-foreground text-sm">{m.setup_done_body({ seconds })}</p>
+                    <!--
+                        Письмо есть только сразу после свежего замера — тогда и
+                        секунды настоящие. Если сюда попали с уже настроенным
+                        deployment'ом (повторный вход), letter пуст, а seconds
+                        всегда 0: показывать «за 0 секунд» — значит врать.
+                    -->
+                    <p class="text-muted-foreground text-sm">
+                        {#if vm.letter}
+                            {m.setup_done_body({ seconds })}
+                        {:else}
+                            {m.setup_done_already_configured()}
+                        {/if}
+                    </p>
                 </div>
             </div>
             <!--
@@ -212,13 +236,11 @@ const liveStatus = $derived.by(() => {
             </div>
             <!--
                 Медленно — это развилка, а не авария: обе ветки равноправны, поэтому
-                обе кнопки одного веса, ни одна не «правильная».
+                обе кнопки одного веса, ни одна не «правильная». Письмо здесь не
+                показываем: при таймауте бэкенд отменяет генерацию и всегда
+                возвращает letter=null (services/backend .../setup/benchmark.py) —
+                ветка с письмом была недостижима.
             -->
-            {#if vm.letter}
-                <p
-                        class="bg-muted/40 max-h-40 overflow-y-auto rounded-md border p-4 text-sm leading-relaxed whitespace-pre-wrap"
-                >{vm.letter}</p>
-            {/if}
             <div class="flex flex-wrap gap-2">
                 <Button
                         variant="outline"
@@ -247,28 +269,32 @@ const liveStatus = $derived.by(() => {
     </section>
 
     <!--
-        Пути отхода — вне карточки и на каждом экране без исключения: шаг модели
-        никогда не запирает пользователя в онбординге (P0-6).
+        Пути отхода — вне карточки и на каждом экране без исключения, кроме
+        "done": шаг модели никогда не запирает пользователя, пока модель ещё
+        не настроена (P0-6). На готовом экране бежать уже некуда — обе ссылки
+        вели бы туда же, куда и «Начать работу», и были бы просто шумом.
     -->
-    <footer class="space-y-3">
-        <Separator/>
-        <div class="flex flex-wrap items-center justify-between gap-2">
-            <Button
-                    variant="link"
-                    size="sm"
-                    class="text-muted-foreground cursor-pointer px-0"
-                    onclick={() => goto("/settings")}
-            >
-                {m.setup_own_key()}
-            </Button>
-            <Button
-                    variant="link"
-                    size="sm"
-                    class="text-muted-foreground cursor-pointer px-0"
-                    onclick={() => goto("/")}
-            >
-                {m.setup_later()}
-            </Button>
-        </div>
-    </footer>
+    {#if vm.screen !== "done"}
+        <footer class="space-y-3">
+            <Separator/>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <Button
+                        variant="link"
+                        size="sm"
+                        class="text-muted-foreground cursor-pointer px-0"
+                        onclick={() => goto("/settings")}
+                >
+                    {m.setup_own_key()}
+                </Button>
+                <Button
+                        variant="link"
+                        size="sm"
+                        class="text-muted-foreground cursor-pointer px-0"
+                        onclick={() => goto("/")}
+                >
+                    {m.setup_later()}
+                </Button>
+            </div>
+        </footer>
+    {/if}
 </div>

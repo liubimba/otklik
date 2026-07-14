@@ -14,6 +14,9 @@ from otklik_backend.orchestrator.letter_chat_service import LetterChatService
 from otklik_backend.orchestrator.search import SearchService
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from otklik_backend.setup.benchmark import BenchmarkRunner
+from otklik_backend.setup.hardware import HardwareProbe
+from otklik_backend.setup.ollama import OllamaGate
 from otklik_backend.sites.hh_ru.auth_flow import HHRUAuthFlow
 from otklik_backend.sites.hh_ru.writer import HHRUWriter
 
@@ -64,6 +67,20 @@ def get_state_service(request: HTTPConnection) -> StateTransitionService:
     return request.app.state.state_service  # type: ignore[no-any-return]
 
 
+# Три компонента без состояния и без внешних ручек — строим на месте, а не
+# тащим через BackendBuilder/app.state: класть в контекст приложения нечего.
+def get_hardware_probe() -> HardwareProbe:
+    return HardwareProbe()
+
+
+def get_ollama_gate() -> OllamaGate:
+    return OllamaGate()
+
+
+def get_benchmark_runner() -> BenchmarkRunner:
+    return BenchmarkRunner()
+
+
 BrowserDep = Annotated[BrowserCore, Depends(get_browser)]
 AuthFlowDep = Annotated[HHRUAuthFlow, Depends(get_auth_flow)]
 BroadcasterDep = Annotated[EventBroadcaster, Depends(get_broadcaster)]
@@ -78,3 +95,6 @@ AuthorizationServiceDep = Annotated[
     AuthorizationService, Depends(get_authorization_service)
 ]
 StateServiceDep = Annotated[StateTransitionService, Depends(get_state_service)]
+HardwareProbeDep = Annotated[HardwareProbe, Depends(get_hardware_probe)]
+OllamaGateDep = Annotated[OllamaGate, Depends(get_ollama_gate)]
+BenchmarkRunnerDep = Annotated[BenchmarkRunner, Depends(get_benchmark_runner)]

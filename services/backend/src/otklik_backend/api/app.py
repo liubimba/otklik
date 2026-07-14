@@ -12,6 +12,7 @@ from otklik_backend.api.routes import (
     auth,
     search,
     settings,
+    setup,
     system,
     vacancies,
     ws,
@@ -79,6 +80,7 @@ router.include_router(application.applications_router)
 router.include_router(auth.auth_router)
 router.include_router(search.search_router)
 router.include_router(settings.settings_router)
+router.include_router(setup.setup_router)
 router.include_router(system.system_router)
 
 app = FastAPI(title="Otklik Backend API", version="0.0.1", lifespan=lifespan)

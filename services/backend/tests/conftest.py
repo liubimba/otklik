@@ -6,9 +6,11 @@ from otklik_backend.api.app import app
 from otklik_backend.api.dependencies import (
     get_ai_layer,
     get_authorization_service,
+    get_benchmark_runner,
     get_broadcaster,
     get_browser,
     get_cover_letter_service,
+    get_ollama_gate,
     get_session,
     get_orchestrator,
     get_state_service,
@@ -44,6 +46,8 @@ from otklik_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from otklik_backend.ai.deployment import LLMDeployment
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.db.repositories.vacancies import VacancyRepository
+from otklik_backend.setup.benchmark import BenchmarkResult
+from otklik_backend.setup.ollama import OllamaState, PullProgress
 
 configure_logging()
 
@@ -117,6 +121,30 @@ class FakeSearchService:
         self._queue.clear()
 
 
+class FakeOllamaGate:
+    def __init__(self, state: OllamaState = OllamaState.READY) -> None:
+        self._state = state
+
+    async def state(self) -> OllamaState:
+        return self._state
+
+    async def pull(self) -> AsyncIterator[PullProgress]:
+        yield PullProgress(
+            status="downloading", completed_bytes=1, total_bytes=2, percent=50.0
+        )
+        yield PullProgress(status="success", percent=100.0, done=True)
+
+
+class FakeBenchmarkRunner:
+    def __init__(self, result: BenchmarkResult | None = None) -> None:
+        self._result = result or BenchmarkResult(
+            passed=True, seconds=6.1, letter="Здравствуйте! Это письмо."
+        )
+
+    async def run(self, deployment: LLMDeployment) -> BenchmarkResult:
+        return self._result
+
+
 class FakeWriter:
     def __init__(self, results: list[SubmissionResult] | None = None) -> None:
         self._results: list[SubmissionResult] = list(results) if results else []
@@ -186,6 +214,16 @@ def fake_search_service() -> FakeSearchService:
 
 
 @pytest.fixture
+def fake_ollama_gate() -> FakeOllamaGate:
+    return FakeOllamaGate()
+
+
+@pytest.fixture
+def fake_benchmark_runner() -> FakeBenchmarkRunner:
+    return FakeBenchmarkRunner()
+
+
+@pytest.fixture
 async def session_factory(
     tmp_path: Path,
 ) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
@@ -230,6 +268,8 @@ async def client(
     session_factory: async_sessionmaker[AsyncSession],
     fake_search_service: FakeSearchService,
     ai_layer_with_router: AILayer,
+    fake_ollama_gate: FakeOllamaGate,
+    fake_benchmark_runner: FakeBenchmarkRunner,
 ) -> TestClient:
     async def override_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
@@ -259,6 +299,8 @@ async def client(
     app.dependency_overrides[get_ai_layer] = lambda: ai_layer_with_router
     app.dependency_overrides[get_authorization_service] = lambda: authorization_service
     app.dependency_overrides[get_cover_letter_service] = lambda: cover_letter_service
+    app.dependency_overrides[get_ollama_gate] = lambda: fake_ollama_gate
+    app.dependency_overrides[get_benchmark_runner] = lambda: fake_benchmark_runner
 
     async with session_factory() as session:
         await VacancyRepository.create(

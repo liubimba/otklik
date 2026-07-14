@@ -1,0 +1,75 @@
+from collections.abc import AsyncIterator
+
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
+
+from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.api.dependencies import (
+    AILayerDep,
+    BenchmarkRunnerDep,
+    HardwareProbeDep,
+    OllamaGateDep,
+    SessionDep,
+)
+from otklik_backend.api.schemas import SettingsAPISchema, SetupStateAPISchema
+from otklik_backend.db.converters import settings_to_orm, settings_to_schema
+from otklik_backend.db.models import SettingsORM
+from otklik_backend.db.repositories.settings import SettingsRepository
+from otklik_backend.setup.benchmark import BenchmarkResult
+from otklik_backend.setup.constants import CLOUD_MODEL, LOCAL_MODEL, OLLAMA_HOST
+
+setup_router = APIRouter(prefix="/setup", tags=["setup"])
+
+
+@setup_router.get("/state")
+async def setup_state(
+    session: SessionDep, hardware: HardwareProbeDep, ollama: OllamaGateDep
+) -> SetupStateAPISchema:
+    settings: SettingsORM = await SettingsRepository.get(session=session)
+    return SetupStateAPISchema(
+        hardware=hardware.probe(),
+        ollama=await ollama.state(),
+        has_deployment=len(settings.llm_deployments) > 0,
+        local_model=LOCAL_MODEL,
+        cloud_model=CLOUD_MODEL,
+    )
+
+
+@setup_router.post("/pull")
+async def setup_pull(ollama: OllamaGateDep) -> StreamingResponse:
+    """Стримит прогресс загрузки модели кадрами SSE — тем же форматом, что и
+    чат письма, поэтому фронтенд читает его уже готовым парсером."""
+
+    async def frames() -> AsyncIterator[str]:
+        async for progress in ollama.pull():
+            yield f"data: {progress.model_dump_json()}\n\n"
+
+    return StreamingResponse(frames(), media_type="text/event-stream")
+
+
+@setup_router.post("/benchmark")
+async def setup_benchmark(runner: BenchmarkRunnerDep) -> BenchmarkResult:
+    return await runner.run(
+        deployment=LLMDeployment(model=LOCAL_MODEL, api_base=OLLAMA_HOST)
+    )
+
+
+@setup_router.post("/deployment")
+async def setup_deployment(
+    session: SessionDep, ai_layer: AILayerDep, deployment: LLMDeployment
+) -> SettingsAPISchema:
+    """Записывает deployment в настройки. Идемпотентно: повторное прохождение
+    шага не плодит дублей (сверка по LLMDeployment.id(), который хеширует
+    model+key+base)."""
+    settings: SettingsAPISchema = settings_to_schema(
+        orm=await SettingsRepository.get(session=session)
+    )
+    existing_ids = {item.id() for item in settings.llm.deployments}
+    if deployment.id() not in existing_ids:
+        settings.llm.deployments = [*settings.llm.deployments, deployment]
+        updated: SettingsORM = await SettingsRepository.update(
+            session=session, new_settings=settings_to_orm(settings)
+        )
+        ai_layer.rebuild(deployments=updated.llm_deployments)
+        return settings_to_schema(orm=updated)
+    return settings

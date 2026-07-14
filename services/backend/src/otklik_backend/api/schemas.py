@@ -9,6 +9,8 @@ from otklik_backend.ai.deployment import LLMDeployment
 # ProcessingState canonical location is core/state.py; re-exported here for
 # call-site compatibility until every import is migrated (removed in stage 3.2+).
 from otklik_backend.core.state import ProcessingState as ProcessingState
+from otklik_backend.setup.hardware import HardwareSpecs
+from otklik_backend.setup.ollama import OllamaState
 
 
 class WorkFormat(str, Enum):
@@ -268,3 +270,11 @@ class SearchSessionAPISchema(BaseModel):
 
 class ConfirmSearchAPISchema(BaseModel):
     url: str
+
+
+class SetupStateAPISchema(BaseModel):
+    hardware: HardwareSpecs
+    ollama: OllamaState
+    has_deployment: bool
+    local_model: str
+    cloud_model: str

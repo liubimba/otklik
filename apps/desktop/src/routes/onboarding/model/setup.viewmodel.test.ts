@@ -126,6 +126,8 @@ describe("SetupViewModel", () => {
 			passed: true,
 			seconds: 6.1,
 			letter: "Здравствуйте!",
+			failure_reason: null,
+			error: null,
 		});
 		const vm = new SetupViewModel();
 		await vm.refresh();
@@ -152,6 +154,8 @@ describe("SetupViewModel", () => {
 			passed: true,
 			seconds: 6.1,
 			letter: "Здравствуйте!",
+			failure_reason: null,
+			error: null,
 		});
 		const vm = new SetupViewModel();
 		await vm.refresh();
@@ -175,6 +179,8 @@ describe("SetupViewModel", () => {
 			passed: true,
 			seconds: 6.1,
 			letter: "Здравствуйте! Меня заинтересовала вакансия.",
+			failure_reason: null,
+			error: null,
 		});
 		const vm = new SetupViewModel();
 		await vm.refresh();
@@ -192,6 +198,8 @@ describe("SetupViewModel", () => {
 			passed: false,
 			seconds: 45,
 			letter: null,
+			failure_reason: "deadline",
+			error: null,
 		});
 		const vm = new SetupViewModel();
 		await vm.refresh();
@@ -208,6 +216,8 @@ describe("SetupViewModel", () => {
 			passed: false,
 			seconds: 45,
 			letter: null,
+			failure_reason: "deadline",
+			error: null,
 		});
 		const vm = new SetupViewModel();
 		await vm.refresh();
@@ -217,6 +227,48 @@ describe("SetupViewModel", () => {
 
 		expect(API.setup.deployment).toHaveBeenCalledOnce();
 		expect(vm.screen).toBe("done");
+	});
+
+	it("routes a model error to the error screen, not the 'too slow' fork", async () => {
+		// P0: a model that never answered (crash/OOM/refused connection) must
+		// not be offered as "slow but keepable" — the user would pick "keep
+		// local" on a deployment that has never once produced a letter.
+		vi.mocked(API.setup.state).mockResolvedValue(state());
+		vi.mocked(API.setup.benchmark).mockResolvedValue({
+			passed: false,
+			seconds: 0.3,
+			letter: null,
+			failure_reason: "model_error",
+			error: "connection refused",
+		});
+		const vm = new SetupViewModel();
+		await vm.refresh();
+
+		await vm.runBenchmark();
+
+		expect(vm.screen).toBe("error");
+		expect(vm.errorMessage).toContain("connection refused");
+		expect(API.setup.deployment).not.toHaveBeenCalled();
+	});
+
+	it("never gets a chance to write a deployment for a model that never answered", async () => {
+		// keepLocal() is only reachable from the "too-slow" screen; a
+		// model_error benchmark must never land there in the first place.
+		vi.mocked(API.setup.state).mockResolvedValue(state());
+		vi.mocked(API.setup.benchmark).mockResolvedValue({
+			passed: false,
+			seconds: 0.1,
+			letter: null,
+			failure_reason: "model_error",
+			error: "model 'qwen2.5:7b' not found, try pulling it first",
+		});
+		const vm = new SetupViewModel();
+		await vm.refresh();
+
+		await vm.runBenchmark();
+
+		expect(vm.screen).not.toBe("too-slow");
+		expect(vm.screen).toBe("error");
 	});
 
 	it("surfaces a pull failure instead of hanging on the progress bar", async () => {
@@ -306,6 +358,8 @@ describe("SetupViewModel", () => {
 				passed: true,
 				seconds: 5.2,
 				letter: "Здравствуйте, друзья!",
+				failure_reason: null,
+				error: null,
 			});
 			const vm = new SetupViewModel();
 			await vm.refresh();

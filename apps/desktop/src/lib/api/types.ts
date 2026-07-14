@@ -317,8 +317,19 @@ export type PullProgress = {
 	done: boolean;
 };
 
+// Почему passed=false — см. BenchmarkFailureReason на бэкенде
+// (services/backend/.../setup/benchmark.py). DEADLINE: модель ответила, но не
+// уложилась в дедлайн — честная развилка «остаться на локальной / уйти в
+// облако». MODEL_ERROR: модель не ответила вовсе — это не про скорость,
+// показывать «медленно» здесь нельзя.
+export type BenchmarkFailureReason = "deadline" | "model_error";
+
 export type BenchmarkResult = {
 	passed: boolean;
 	seconds: number;
 	letter: string | null;
+	// null когда passed=true. Иначе — "deadline" или "model_error".
+	failure_reason: BenchmarkFailureReason | null;
+	// Текст исключения — только при failure_reason="model_error".
+	error: string | null;
 };

@@ -101,6 +101,14 @@ export class SetupViewModel {
 			this.#seconds = result.seconds;
 			this.#letter = result.letter;
 			if (!result.passed) {
+				if (result.failure_reason === "model_error") {
+					// Модель не ответила вовсе — это не про скорость. Показать
+					// «медленно» здесь нельзя: пользователь нажмёт «остаться на
+					// локальной» и мы запишем deployment, который ни разу не
+					// сработал. Это настоящая ошибка — экран error, не развилка.
+					this.#fail(result.error ?? "model_error");
+					return;
+				}
 				// Провал по времени — это НЕ ошибка, а развилка с выбором:
 				// deployment не пишем, пока пользователь не решит сам.
 				this.#screen = "too-slow";

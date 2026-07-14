@@ -4,6 +4,7 @@ from otklik_backend.api.schemas import (
     ApplicationDetailAPISchema,
     CoverLetterAPISchema,
     CoverLetterRequestAPISchema,
+    ErrorDomain,
     ProcessingState,
     SubmitApplicationRequestAPISchema,
 )
@@ -123,6 +124,87 @@ async def test_save_works_in_error_state(client, session_factory):
     assert after.status == ProcessingState.ERROR
     assert after.latest_letter is not None
     assert after.latest_letter.text == "Repaired draft"
+
+
+async def test_fail_transition_tags_error_domain_as_model(client, session_factory):
+    """LetterPendingWorker fails an application via ApplicationEvent.FAIL when
+    the LLM call raises. GET /application must report error_domain=MODEL so
+    the frontend knows this `reason` is safe to run through
+    explainProviderError()."""
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.FAIL,
+            error_message="connection refused",
+        )
+
+    detail = ApplicationDetailAPISchema.model_validate(
+        client.get("/api/v1/vacancies/1/application").json()
+    )
+    assert detail.status == ProcessingState.ERROR
+    assert detail.reason == "connection refused"
+    assert detail.error_domain == ErrorDomain.MODEL
+
+
+async def test_submission_failed_transition_tags_error_domain_as_submission(
+    client, session_factory
+):
+    """CRITICAL regression (code review of Task 12): LetterSendingWorker
+    fails an application via ApplicationEvent.SUBMISSION_FAILED on an hh.ru
+    submission problem (e.g. HHRUWriter's "verification timeout" after the
+    success-phrase poll times out). GET /application must report
+    error_domain=SUBMISSION — never MODEL — so the letter-review-sheet
+    viewmodel shows the raw hh.ru reason instead of explaining it as a dead
+    LLM (`explainProviderError` is gated on error_domain === "model")."""
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        # SUBMISSION_FAILED only fires from LETTER_SENDING.
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.SUBMIT,
+        )
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.SUBMISSION_FAILED,
+            error_message="verification timeout",
+        )
+
+    detail = ApplicationDetailAPISchema.model_validate(
+        client.get("/api/v1/vacancies/1/application").json()
+    )
+    assert detail.status == ProcessingState.ERROR
+    assert detail.reason == "verification timeout"
+    assert detail.error_domain == ErrorDomain.SUBMISSION
+
+
+async def test_error_domain_clears_when_recovering_out_of_error(
+    client, session_factory
+):
+    """error_domain must not linger once the application leaves ERROR —
+    otherwise a later, unrelated failure could inherit a stale domain."""
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.FAIL,
+            error_message="connection refused",
+        )
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.LETTER_GENERATED,
+        )
+
+    detail = ApplicationDetailAPISchema.model_validate(
+        client.get("/api/v1/vacancies/1/application").json()
+    )
+    assert detail.status == ProcessingState.LETTER_READY
+    assert detail.error_domain is None
 
 
 async def test_submit_transitions_and_atomically_saves_text(client, session_factory):

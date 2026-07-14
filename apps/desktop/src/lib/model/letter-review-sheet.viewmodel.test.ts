@@ -43,6 +43,7 @@ function detail(overrides: Partial<ApplicationDetail> = {}): ApplicationDetail {
 		retry_count: 0,
 		status: "letter_ready",
 		reason: null,
+		error_domain: null,
 		created_at: "2026-07-01T10:00:00Z",
 		updated_at: "2026-07-01T10:00:00Z",
 		latest_letter: null,
@@ -290,11 +291,17 @@ describe("Review — derived state from ApplicationQuery", () => {
 	// the cost of a letter — +59s on a local model), so the raw provider
 	// error now reaches the UI as `reason`. A dead Ollama, a rejected key or
 	// a slow local model must read as a human sentence with a next step, not
-	// as "connection refused".
+	// as "connection refused". Translation is gated on error_domain === "model"
+	// (see the CRITICAL-finding fixture below) — these fixtures set it
+	// explicitly since that's what a real LLM failure carries.
 	describe("error explains provider failures in plain language", () => {
 		it("explains a dead local model instead of showing the raw provider error", () => {
 			const vm = makeVM({
-				data: detail({ status: "error", reason: "connection refused" }),
+				data: detail({
+					status: "error",
+					reason: "connection refused",
+					error_domain: "model",
+				}),
 				isPending: false,
 				isError: false,
 			});
@@ -303,7 +310,11 @@ describe("Review — derived state from ApplicationQuery", () => {
 
 		it("explains ECONNREFUSED the same way", () => {
 			const vm = makeVM({
-				data: detail({ status: "error", reason: "ECONNREFUSED" }),
+				data: detail({
+					status: "error",
+					reason: "ECONNREFUSED",
+					error_domain: "model",
+				}),
 				isPending: false,
 				isError: false,
 			});
@@ -312,7 +323,11 @@ describe("Review — derived state from ApplicationQuery", () => {
 
 		it("explains a rejected api key", () => {
 			const vm = makeVM({
-				data: detail({ status: "error", reason: "401 invalid api key" }),
+				data: detail({
+					status: "error",
+					reason: "401 invalid api key",
+					error_domain: "model",
+				}),
 				isPending: false,
 				isError: false,
 			});
@@ -321,7 +336,11 @@ describe("Review — derived state from ApplicationQuery", () => {
 
 		it("explains a timeout", () => {
 			const vm = makeVM({
-				data: detail({ status: "error", reason: "Request timed out" }),
+				data: detail({
+					status: "error",
+					reason: "Request timed out",
+					error_domain: "model",
+				}),
 				isPending: false,
 				isError: false,
 			});
@@ -330,7 +349,11 @@ describe("Review — derived state from ApplicationQuery", () => {
 
 		it("passes an unrecognized error through verbatim — no false confidence behind a generic phrase", () => {
 			const vm = makeVM({
-				data: detail({ status: "error", reason: "database is locked" }),
+				data: detail({
+					status: "error",
+					reason: "database is locked",
+					error_domain: "model",
+				}),
 				isPending: false,
 				isError: false,
 			});
@@ -344,6 +367,75 @@ describe("Review — derived state from ApplicationQuery", () => {
 				isError: false,
 			});
 			expect(vm.review.error).toBeFalsy();
+		});
+	});
+
+	// CRITICAL regression (code review of Task 12): `reason` is shared by two
+	// domains — LLM generation failures (LetterPendingWorker → FAIL) and
+	// hh.ru submission failures (LetterSendingWorker → SUBMISSION_FAILED,
+	// e.g. HHRUWriter's "verification timeout" after a Playwright poll times
+	// out waiting for the success phrase). Task 12 ran every `reason`
+	// through explainProviderError() unconditionally, so a user whose
+	// response to hh.ru simply failed to verify saw "Модель не успела
+	// ответить... попробуйте облачный ключ" — a diagnosis for a subsystem
+	// that was never involved. error_domain (stamped by the backend at the
+	// transition, not guessed from text) must gate the translation.
+	describe("error — hh.ru submission failures are never explained as model failures", () => {
+		it("shows a hh.ru verification-timeout reason verbatim, not the model-timeout hint", () => {
+			const vm = makeVM({
+				data: detail({
+					status: "error",
+					reason: "verification timeout",
+					error_domain: "submission",
+				}),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toBe("verification timeout");
+			expect(vm.review.error).not.toContain("Модель");
+			expect(vm.review.error).not.toContain("облачный ключ");
+		});
+
+		it("shows a hh.ru reason verbatim even when its text overlaps a model-error pattern", () => {
+			// Playwright's own exception text for the same failure often reads
+			// "Timeout 30000ms exceeded" — which DOES match the /timeout/i hint.
+			// error_domain, not the text, must be what decides.
+			const vm = makeVM({
+				data: detail({
+					status: "error",
+					reason: "Timeout 30000ms exceeded",
+					error_domain: "submission",
+				}),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toBe("Timeout 30000ms exceeded");
+		});
+
+		it("shows the not-authorized submission reason verbatim", () => {
+			const vm = makeVM({
+				data: detail({
+					status: "error",
+					reason: "not authorized",
+					error_domain: "submission",
+				}),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toBe("not authorized");
+		});
+
+		it("still translates a real model reason when error_domain is absent from an older cached payload", () => {
+			// Defensive: only "model" opts in. Anything else (including an
+			// unset/undefined domain from a stale cache shape) stays raw rather
+			// than risk mislabeling — showing the true error text is always
+			// safer than a confident wrong diagnosis.
+			const vm = makeVM({
+				data: detail({ status: "error", reason: "connection refused" }),
+				isPending: false,
+				isError: false,
+			});
+			expect(vm.review.error).toBe("connection refused");
 		});
 	});
 

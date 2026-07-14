@@ -28,6 +28,14 @@ export type ProcessingState =
 	| "error"
 	| "skipped";
 
+// Which subsystem produced ApplicationDetail/ApplicationData.reason — set by
+// the backend at the transition that landed the application in "error"
+// (FAIL vs SUBMISSION_FAILED), never inferred from the reason text on this
+// side. null outside "error". Gates explainProviderError() in
+// letter-review-sheet.viewmodel.svelte.ts: only "model" reasons go through
+// it, so an hh.ru submission failure is never explained as a dead LLM.
+export type ErrorDomain = "model" | "submission";
+
 export type SearchStatus =
 	| "pending"
 	| "running"
@@ -104,6 +112,7 @@ export type ApplicationData = {
 	application_id: number;
 	status: ProcessingState;
 	reason: string | null;
+	error_domain: ErrorDomain | null;
 };
 
 export type ApplicationDetail = {
@@ -112,6 +121,7 @@ export type ApplicationDetail = {
 	retry_count: number;
 	status: ProcessingState;
 	reason: string | null;
+	error_domain: ErrorDomain | null;
 	created_at: string;
 	updated_at: string | null;
 	latest_letter: CoverLetter | null;

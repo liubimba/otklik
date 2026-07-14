@@ -43,6 +43,7 @@ class StateTransitionService:
                     reason=(
                         reason if reason is not None else application.error_message
                     ),
+                    error_domain=application.error_domain,
                 )
             )
         )

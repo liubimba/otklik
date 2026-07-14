@@ -6,7 +6,7 @@ from otklik_backend.api.schemas import (
     AuthStatusAPISchema,
     VacancyAPISchema,
 )
-from otklik_backend.core.state import ProcessingState
+from otklik_backend.core.state import ErrorDomain, ProcessingState
 
 
 class ApplicationData(BaseModel):
@@ -14,6 +14,8 @@ class ApplicationData(BaseModel):
     application_id: int
     status: ProcessingState
     reason: str | None = None
+    # See core.state.ErrorDomain — None outside ERROR.
+    error_domain: ErrorDomain | None = None
 
 
 class ApplicationWSEvent(BaseModel):

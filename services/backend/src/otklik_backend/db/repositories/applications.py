@@ -7,6 +7,7 @@ from otklik_backend.api.schemas import ProcessingState
 from otklik_backend.db.models import ApplicationORM, search_vacancies_table
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.state_machine import (
+    ERROR_DOMAIN_BY_EVENT,
     ApplicationEvent,
     ProcessingStateMachine,
 )
@@ -74,6 +75,11 @@ class ApplicationRepository:
         state_machine.send(to_state.value)
         application.status = ProcessingState(state_machine.current_state_value)
         application.error_message = error_message
+        # Domain follows the event mechanically — FAIL is always an LLM
+        # failure, SUBMISSION_FAILED is always an hh.ru failure. Every other
+        # event clears it, matching error_message's own reset-on-transition
+        # behaviour above.
+        application.error_domain = ERROR_DOMAIN_BY_EVENT.get(to_state)
         await session.commit()
         logger.info(
             "Transited application state",

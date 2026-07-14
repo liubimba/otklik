@@ -8,8 +8,9 @@ edits (adding/removing a transition arc) at the source.
 import pytest
 from statemachine.exceptions import TransitionNotAllowed
 
-from otklik_backend.api.schemas import ProcessingState
+from otklik_backend.api.schemas import ErrorDomain, ProcessingState
 from otklik_backend.orchestrator.state_machine import (
+    ERROR_DOMAIN_BY_EVENT,
     ApplicationEvent,
     ProcessingStateMachine,
 )
@@ -133,3 +134,16 @@ def test_letter_generated_forbidden_from_terminal_or_pre_pending_states(
     sm = _at(state)
     with pytest.raises(TransitionNotAllowed):
         sm.send(ApplicationEvent.LETTER_GENERATED.value)
+
+
+def test_error_domain_mapping_covers_exactly_the_two_failure_events() -> None:
+    """FAIL (LLM generation failed) and SUBMISSION_FAILED (hh.ru submission
+    failed) are the only two events that carry a `reason` into ERROR.
+    ApplicationRepository.transition stamps `error_domain` from this mapping
+    so the frontend never has to guess the domain from the reason text —
+    a hh.ru "verification timeout" must never be explained to the user as a
+    dead LLM (CRITICAL regression from the Task 12 review)."""
+    assert ERROR_DOMAIN_BY_EVENT == {
+        ApplicationEvent.FAIL: ErrorDomain.MODEL,
+        ApplicationEvent.SUBMISSION_FAILED: ErrorDomain.SUBMISSION,
+    }

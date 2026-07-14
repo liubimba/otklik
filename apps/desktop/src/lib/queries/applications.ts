@@ -55,8 +55,8 @@ const LETTER_CHANGING_STATES = new Set<ProcessingState>([
 /**
  * Handle a WS application_event.
  *
- * The event carries only `status` and `reason` — never letter body or
- * version counts. Behaviour depends on the status:
+ * The event carries only `status`, `reason` and `error_domain` — never
+ * letter body or version counts. Behaviour depends on the status:
  *
  * 1. **Cache empty** → invalidate applicationQueryKey. The next observer
  *    will refetch the authoritative state from `/application`. This is
@@ -64,8 +64,8 @@ const LETTER_CHANGING_STATES = new Set<ProcessingState>([
  *    created in the DB (initial GET 404'd).
  *
  * 2. **Cache populated + intermediate status** (letter_pending,
- *    letter_sending) → merge status/reason only. No refetch: those
- *    transitions don't change letter body or history on the backend.
+ *    letter_sending) → merge status/reason/error_domain only. No refetch:
+ *    those transitions don't change letter body or history on the backend.
  *
  * 3. **Cache populated + letter-changing status** (letter_ready,
  *    letter_sent, error, skipped) → merge for immediate UI update, then
@@ -86,6 +86,7 @@ export function applyApplicationEvent(
 			...prev,
 			status: event.data.status,
 			reason: event.data.reason,
+			error_domain: event.data.error_domain,
 		};
 		queryClient.setQueryData(key, next);
 		if (isLetterChanging) {

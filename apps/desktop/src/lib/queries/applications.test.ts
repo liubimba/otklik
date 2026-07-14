@@ -72,6 +72,7 @@ const baseDetail: ApplicationDetail = {
 	retry_count: 0,
 	status: "letter_ready",
 	reason: null,
+	error_domain: null,
 	created_at: "2026-07-01T10:00:00Z",
 	updated_at: "2026-07-01T10:00:05Z",
 	latest_letter: {
@@ -86,6 +87,7 @@ function eventFor(
 	vacancy_id: number,
 	status: ApplicationDetail["status"],
 	reason: string | null = null,
+	error_domain: ApplicationDetail["error_domain"] = null,
 ): ApplicationEvent {
 	return {
 		type: "application_event",
@@ -94,6 +96,7 @@ function eventFor(
 			application_id: 100,
 			status,
 			reason,
+			error_domain,
 		},
 	};
 }
@@ -115,6 +118,23 @@ describe("applyApplicationEvent", () => {
 		// Sanity: latest_letter and letters_count survive the merge.
 		expect(updater.result?.latest_letter).toEqual(baseDetail.latest_letter);
 		expect(updater.result?.letters_count).toBe(3);
+	});
+
+	// error_domain rides alongside reason so the viewmodel can tell an LLM
+	// failure (FAIL) from an hh.ru submission failure (SUBMISSION_FAILED)
+	// without guessing from the reason text — see
+	// letter-review-sheet.viewmodel.svelte.ts.
+	it("merges error_domain alongside reason", () => {
+		const { client, updater, seed } = makeFakeQueryClient();
+		seed(baseDetail);
+
+		applyApplicationEvent(
+			client,
+			eventFor(1, "error", "verification timeout", "submission"),
+		);
+
+		expect(updater.result?.reason).toBe("verification timeout");
+		expect(updater.result?.error_domain).toBe("submission");
 	});
 
 	it("also invalidates letter body + history so latest_letter and versions refresh", () => {

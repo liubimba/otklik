@@ -69,12 +69,22 @@ class Review {
 		this.isLoading = $derived(this.applicationStatus.isPending);
 
 		this.isError = $derived(this.applicationStatus.isError);
-		// `reason` is the raw provider error persisted by the backend (see
-		// provider-error.ts) — translate it into a human sentence before it
-		// hits the banner in letter-review-sheet.svelte.
+		// `reason` is shared by two unrelated failure domains: an LLM
+		// provider error (explainProviderError's target, see provider-error.ts)
+		// and an hh.ru submission failure (e.g. "verification timeout" from
+		// HHRUWriter, which reads just as plausibly as a slow model). Only
+		// translate when the backend says the reason actually came from the
+		// model — `error_domain` is stamped at the transition that produced
+		// `reason` (ApplicationEvent.FAIL vs SUBMISSION_FAILED in
+		// state_machine.py), not guessed from the text here. Otherwise a
+		// failed hh.ru response would be shown to the user as "the model
+		// didn't respond in time" — wrong subsystem entirely.
 		this.error = $derived.by(() => {
 			const reason = this.applicationStatus.data?.reason;
-			return reason ? explainProviderError(reason) : reason;
+			if (!reason) return reason;
+			return this.applicationStatus.data?.error_domain === "model"
+				? explainProviderError(reason)
+				: reason;
 		});
 
 		this.isGenerating = $derived(this.status === "letter_pending");

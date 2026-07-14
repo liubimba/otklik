@@ -8,6 +8,7 @@ from otklik_backend.ai.deployment import LLMDeployment
 
 # ProcessingState canonical location is core/state.py; re-exported here for
 # call-site compatibility until every import is migrated (removed in stage 3.2+).
+from otklik_backend.core.state import ErrorDomain as ErrorDomain
 from otklik_backend.core.state import ProcessingState as ProcessingState
 from otklik_backend.setup.hardware import HardwareSpecs
 from otklik_backend.setup.ollama import OllamaState
@@ -165,6 +166,10 @@ class ApplicationDetailAPISchema(BaseModel):
     retry_count: int
     status: ProcessingState
     reason: Optional[str] = None
+    # Which subsystem produced `reason` — set by the backend at the
+    # transition (FAIL vs SUBMISSION_FAILED), not inferred from the text.
+    # None outside ERROR. See core.state.ErrorDomain.
+    error_domain: Optional[ErrorDomain] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     latest_letter: Optional[CoverLetterAPISchema] = None

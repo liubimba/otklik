@@ -16,7 +16,11 @@ from datetime import datetime
 from typing import Any
 
 from otklik_backend.db.base import Base
-from otklik_backend.api.schemas import ProcessingState, SearchStatusAPISchema
+from otklik_backend.api.schemas import (
+    ErrorDomain,
+    ProcessingState,
+    SearchStatusAPISchema,
+)
 from otklik_backend.ai.deployment import LLMDeployment
 
 
@@ -131,6 +135,12 @@ class ApplicationORM(Base):
     status: Mapped[ProcessingState] = mapped_column(Enum(ProcessingState), index=True)
     retry_count: Mapped[int] = mapped_column(default=0, server_default="0")
     error_message: Mapped[str | None]
+    # Which subsystem produced error_message — set alongside it in
+    # ApplicationRepository.transition, derived from the triggering event
+    # (FAIL vs SUBMISSION_FAILED), never from the message text.
+    error_domain: Mapped[ErrorDomain | None] = mapped_column(
+        Enum(ErrorDomain), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, default=None, onupdate=datetime.now

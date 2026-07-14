@@ -94,6 +94,7 @@ async def _build_detail(
         retry_count=application.retry_count,
         status=application.status,
         reason=application.error_message,
+        error_domain=application.error_domain,
         created_at=application.created_at,
         updated_at=application.updated_at,
         latest_letter=CoverLetterAPISchema(

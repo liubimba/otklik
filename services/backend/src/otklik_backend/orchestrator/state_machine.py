@@ -1,6 +1,6 @@
 from statemachine import StateMachine
 from statemachine.states import States
-from otklik_backend.api.schemas import ProcessingState
+from otklik_backend.api.schemas import ErrorDomain, ProcessingState
 from enum import Enum
 
 
@@ -19,6 +19,19 @@ class ApplicationEvent(str, Enum):
     # Distinct from LETTER_GENERATED (synchronous "letter arrived") and
     # RETRY (legacy ERROR-only arc kept for the /retry endpoint).
     REGENERATE = "regenerate"
+
+
+# The only two events that land an Application in ERROR with a `reason`.
+# ApplicationRepository.transition consults this to stamp `error_domain`
+# straight from the event that triggered the failure — the domain is known
+# for certain at the source, so the frontend never has to guess it from the
+# reason text (a hh.ru "verification timeout" and an LLM "timeout" both
+# contain the word "timeout", so text sniffing on the frontend would
+# misattribute one as the other).
+ERROR_DOMAIN_BY_EVENT: dict[ApplicationEvent, ErrorDomain] = {
+    ApplicationEvent.FAIL: ErrorDomain.MODEL,
+    ApplicationEvent.SUBMISSION_FAILED: ErrorDomain.SUBMISSION,
+}
 
 
 class ProcessingStateMachine(StateMachine):

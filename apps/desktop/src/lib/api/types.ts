@@ -271,3 +271,44 @@ export type AICoverLetterResponse = {
 	was_fallback: boolean;
 	cost_usd: number | null;
 };
+
+// Онбординг «локальная модель»: состояние Ollama на машине пользователя.
+// "model_missing" — Ollama установлена и запущена, но тег модели ещё не
+// стянут — отличается от "not_running", где не запущен сам демон.
+export type OllamaState =
+	| "not_installed"
+	| "not_running"
+	| "model_missing"
+	| "ready";
+
+// "weak" не блокирует установку — просто ведёт мимо загрузки модели прямо к
+// облачному деплойменту, минуя замер.
+export type HardwareTier = "capable" | "weak";
+
+export type HardwareSpecs = {
+	ram_gb: number;
+	cores: number;
+	tier: HardwareTier;
+};
+
+export type SetupState = {
+	hardware: HardwareSpecs;
+	ollama: OllamaState;
+	has_deployment: boolean;
+	local_model: string;
+	cloud_model: string;
+};
+
+export type PullProgress = {
+	status: string;
+	completed_bytes: number;
+	total_bytes: number;
+	percent: number;
+	done: boolean;
+};
+
+export type BenchmarkResult = {
+	passed: boolean;
+	seconds: number;
+	letter: string | null;
+};

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PullProgress, SetupState } from "./types";
 
 // $lib/log pulls in @tauri-apps/plugin-log, which calls window.__TAURI_INTERNALS__
 // on every log line. In Node/jsdom that throws unhandled rejections and pollutes
@@ -69,6 +70,38 @@ function respondWithSequence(...responses: Response[]): void {
 	for (const response of responses) {
 		respondWith(response);
 	}
+}
+
+// Тонкая обёртка над respondWith(jsonResponse(...)) — читается на месте
+// вызова как «следующий fetch отдаст этот JSON», без промежуточного имени.
+function mockFetchJson(body: unknown, status = 200): void {
+	respondWith(jsonResponse(body, status));
+}
+
+// Подделывает res.body.getReader() без реального ReadableStream: клиенту
+// достаточно объекта с методом read(), возвращающего один чанк со всеми
+// кадрами `data: …\n\n` разом — streamSSE сам режет буфер на кадры, так что
+// многокадровый чанк для него не отличим от нескольких мелких.
+function mockFetchSSE(lines: string[]): void {
+	const encoder = new TextEncoder();
+	const chunk = encoder.encode(`${lines.join("\n\n")}\n\n`);
+	let sent = false;
+	const reader = {
+		read: async () => {
+			if (sent) return { done: true, value: undefined };
+			sent = true;
+			return { done: false, value: chunk };
+		},
+	};
+	const response = {
+		ok: true,
+		status: 200,
+		body: { getReader: () => reader },
+	} as unknown as Response;
+	fetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
+		calls.push({ url, init });
+		return response;
+	});
 }
 
 /**
@@ -411,5 +444,67 @@ describe("Vacancies + settings + filter endpoints", () => {
 			max_pages: undefined,
 			max_vacancies: undefined,
 		});
+	});
+});
+
+describe("API.setup", () => {
+	it("reads the setup state", async () => {
+		const state: SetupState = {
+			hardware: { tier: "capable", ram_gb: 32, cores: 16 },
+			ollama: "ready",
+			has_deployment: false,
+			local_model: "ollama_chat/qwen2.5:7b",
+			cloud_model: "gigachat/GigaChat-2",
+		};
+		mockFetchJson(state);
+
+		await expect(API.setup.state()).resolves.toEqual(state);
+	});
+
+	it("yields pull progress frames from the SSE stream", async () => {
+		mockFetchSSE([
+			'data: {"status":"downloading","completed_bytes":1,"total_bytes":2,"percent":50,"done":false}',
+			'data: {"status":"success","completed_bytes":2,"total_bytes":2,"percent":100,"done":true}',
+		]);
+
+		const frames: PullProgress[] = [];
+		for await (const frame of API.setup.pull()) frames.push(frame);
+
+		expect(frames.map((f) => f.percent)).toEqual([50, 100]);
+		expect(frames.at(-1)?.done).toBe(true);
+	});
+
+	it("throws when the stream carries an in-band failure", async () => {
+		// Бэкенд не может отдать HTTP-ошибку посреди стрима: ответ уже ушёл
+		// со статусом 200. Поэтому провал загрузки приезжает кадром
+		// {"type":"error","detail":"…"} — если его не распознать, полоса
+		// прогресса зависнет навсегда.
+		mockFetchSSE([
+			'data: {"status":"downloading","completed_bytes":1,"total_bytes":2,"percent":50,"done":false}',
+			'data: {"type":"error","detail":"no space left on device"}',
+		]);
+
+		const seen: PullProgress[] = [];
+		await expect(async () => {
+			for await (const frame of API.setup.pull()) seen.push(frame);
+		}).rejects.toThrow(/no space left on device/);
+		expect(seen).toHaveLength(1);
+	});
+
+	it("posts the deployment", async () => {
+		mockFetchJson({
+			llm: { deployments: [{ model: "ollama_chat/qwen2.5:7b" }] },
+		});
+
+		await API.setup.deployment({
+			model: "ollama_chat/qwen2.5:7b",
+			api_base: "http://localhost:11434",
+			api_key: null,
+		});
+
+		expect(fetch).toHaveBeenCalledWith(
+			expect.stringContaining("/api/v1/setup/deployment"),
+			expect.objectContaining({ method: "POST" }),
+		);
 	});
 });

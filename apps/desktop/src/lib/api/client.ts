@@ -6,16 +6,20 @@ import type {
 	ApplicationDetail,
 	ApplicationsSummary,
 	AuthStatus,
+	BenchmarkResult,
 	ChatMessage,
 	ChatStreamEvent,
 	CoverLetter,
 	FilterSessionConfirm,
+	LLMDeployment,
 	NewFilterSession,
 	OrchestratorStatus,
+	PullProgress,
 	RateLimitsBudget,
 	SearchData,
 	SearchHistory,
 	Settings,
+	SetupState,
 	SummaryScope,
 	Vacancy,
 	VacancyListPage,
@@ -123,23 +127,21 @@ async function apiNullable204<T>(
 }
 
 /**
- * Consume the SSE stream from POST .../application/chat, yielding parsed
- * events. Reads `response.body` incrementally and splits on the `\n\n` SSE
- * frame boundary, buffering partial frames across reads.
+ * Общий читатель SSE: кадры `data: …\n\n`, буферизуя частичные кадры между
+ * чтениями. Вынесен отдельно от streamChat, потому что теперь у формата два
+ * потребителя — чат письма и загрузка локальной модели — и разбор кадров не
+ * стоит держать в двух копиях.
  */
-async function* streamChat(
-	vacancyId: number,
-	message: string,
-): AsyncGenerator<ChatStreamEvent> {
-	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/vacancies/${vacancyId}/application/chat`;
-	logger.info(`Opening chat stream to "${url}"`);
+async function* streamSSE<T>(
+	url: string,
+	init: RequestInit,
+): AsyncGenerator<T> {
 	const res = await fetch(url, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ message }),
+		...init,
+		headers: { "Content-Type": "application/json", ...init.headers },
 	});
 	if (!res.ok || res.body === null) {
-		throw new APIError(res.status, "Failed to open chat stream");
+		throw new APIError(res.status, "Failed to open stream");
 	}
 	const reader = res.body.getReader();
 	const decoder = new TextDecoder();
@@ -157,10 +159,47 @@ async function* streamChat(
 				.find((line) => line.startsWith("data:"));
 			if (dataLine) {
 				const payload = dataLine.slice(5).trim();
-				if (payload) yield JSON.parse(payload) as ChatStreamEvent;
+				if (payload) yield JSON.parse(payload) as T;
 			}
 			boundary = buffer.indexOf("\n\n");
 		}
+	}
+}
+
+/**
+ * Consume the SSE stream from POST .../application/chat, yielding parsed
+ * events.
+ */
+async function* streamChat(
+	vacancyId: number,
+	message: string,
+): AsyncGenerator<ChatStreamEvent> {
+	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/vacancies/${vacancyId}/application/chat`;
+	logger.info(`Opening chat stream to "${url}"`);
+	yield* streamSSE<ChatStreamEvent>(url, {
+		method: "POST",
+		body: JSON.stringify({ message }),
+	});
+}
+
+// Кадр прогресса загрузки плюс, возможно, кадр провала — см. streamPull.
+type PullFrame = PullProgress | { type: "error"; detail: string };
+
+/**
+ * Загрузка модели: кадры прогресса плюс, возможно, кадр провала.
+ *
+ * Бэкенд не может отдать HTTP-ошибку посреди стрима — ответ уже ушёл со
+ * статусом 200, — поэтому провал (нет места, нет сети) приезжает кадром
+ * `{"type":"error"}`. Не распознать его значит навсегда подвесить полосу
+ * прогресса на последнем проценте.
+ */
+async function* streamPull(): AsyncGenerator<PullProgress> {
+	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/setup/pull`;
+	for await (const frame of streamSSE<PullFrame>(url, { method: "POST" })) {
+		if ("type" in frame && frame.type === "error") {
+			throw new APIError(500, frame.detail);
+		}
+		yield frame as PullProgress;
 	}
 }
 
@@ -276,5 +315,16 @@ export const API = {
 			resume: () =>
 				api<APIResponse>("system/orchestrator/resume", { method: "POST" }),
 		},
+	},
+	setup: {
+		state: () => api<SetupState>("setup/state"),
+		pull: () => streamPull(),
+		benchmark: () =>
+			api<BenchmarkResult>("setup/benchmark", { method: "POST" }),
+		deployment: (body: LLMDeployment) =>
+			api<Settings>("setup/deployment", {
+				method: "POST",
+				body: JSON.stringify(body),
+			}),
 	},
 } as const;

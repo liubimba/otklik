@@ -201,4 +201,92 @@ describe("SetupViewModel", () => {
 		expect(vm.screen).toBe("error");
 		expect(vm.errorMessage).toContain("no space left on device");
 	});
+
+	describe("useLocalAnyway (weak hardware escape hatch)", () => {
+		it("takes weak hardware to ollama-missing screen, ignoring hardware check", async () => {
+			// Слабое железо, но Ollama не установлена: пользователь видит инструкцию
+			// установки, а не "ваша машина слишком слабая".
+			vi.mocked(API.setup.state).mockResolvedValue(
+				state({
+					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
+					ollama: "not_installed",
+				}),
+			);
+			const vm = new SetupViewModel();
+			await vm.refresh();
+
+			await vm.useLocalAnyway();
+
+			expect(vm.screen).toBe("ollama-missing");
+			expect(API.setup.pull).not.toHaveBeenCalled();
+			expect(API.setup.benchmark).not.toHaveBeenCalled();
+		});
+
+		it("takes weak hardware to pull screen when model is missing, without auto-starting download", async () => {
+			// Слабое железо, модель отсутствует: экран загрузки, но сама загрузка
+			// НЕ стартует автоматически (пользователь запускает кнопкой).
+			vi.mocked(API.setup.state).mockResolvedValue(
+				state({
+					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
+					ollama: "model_missing",
+				}),
+			);
+			const vm = new SetupViewModel();
+			await vm.refresh();
+
+			await vm.useLocalAnyway();
+
+			expect(vm.screen).toBe("pull");
+			expect(vm.percent).toBe(0);
+			expect(API.setup.pull).not.toHaveBeenCalled();
+			expect(API.setup.benchmark).not.toHaveBeenCalled();
+		});
+
+		it("takes weak hardware to ollama-stopped screen when service is down", async () => {
+			// Слабое железо, Ollama установлена но не запущена: инструкция запуска.
+			vi.mocked(API.setup.state).mockResolvedValue(
+				state({
+					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
+					ollama: "not_running",
+				}),
+			);
+			const vm = new SetupViewModel();
+			await vm.refresh();
+
+			await vm.useLocalAnyway();
+
+			expect(vm.screen).toBe("ollama-stopped");
+			expect(API.setup.pull).not.toHaveBeenCalled();
+			expect(API.setup.benchmark).not.toHaveBeenCalled();
+		});
+
+		it("auto-starts benchmark on weak hardware when model is ready, writing deployment on pass", async () => {
+			// Слабое железо, модель готова: сразу замер, и если прошел — deployment,
+			// пользователь попадает на "Готово".
+			vi.mocked(API.setup.state).mockResolvedValue(
+				state({
+					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
+					ollama: "ready",
+				}),
+			);
+			vi.mocked(API.setup.benchmark).mockResolvedValue({
+				passed: true,
+				seconds: 5.2,
+				letter: "Здравствуйте, друзья!",
+			});
+			const vm = new SetupViewModel();
+			await vm.refresh();
+
+			await vm.useLocalAnyway();
+
+			expect(vm.screen).toBe("done");
+			expect(vm.seconds).toBe(5.2);
+			expect(API.setup.deployment).toHaveBeenCalledOnce();
+			expect(API.setup.deployment).toHaveBeenCalledWith({
+				model: "ollama_chat/qwen2.5:7b",
+				api_base: "http://localhost:11434",
+				api_key: null,
+			});
+		});
+	});
 });

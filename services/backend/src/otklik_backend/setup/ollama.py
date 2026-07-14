@@ -1,13 +1,31 @@
+import json
 import shutil
+from collections.abc import AsyncIterator
 from enum import Enum
 from typing import Any
 
 import httpx
+from pydantic import BaseModel
 
 from otklik_backend.log import get_logger
 from otklik_backend.setup.constants import LOCAL_MODEL_TAG, OLLAMA_HOST
 
 TAGS_TIMEOUT_SEC = 2.0
+# Загрузка 4.7 ГБ на медленном канале идёт долго — таймаут ставим на паузу
+# между кусками стрима, а не на всю операцию.
+PULL_TIMEOUT_SEC = 60.0
+
+
+class OllamaPullError(Exception):
+    """Ollama сообщила об ошибке загрузки (нет места, нет сети, нет модели)."""
+
+
+class PullProgress(BaseModel):
+    status: str
+    completed_bytes: int = 0
+    total_bytes: int = 0
+    percent: float = 0.0
+    done: bool = False
 
 
 class OllamaState(str, Enum):
@@ -73,3 +91,41 @@ class OllamaGate:
                 "Ollama response has unexpected format on %s: %s", self._host, error
             )
             return None
+
+    async def pull(self) -> AsyncIterator[PullProgress]:
+        """Тянет модель, отдавая реальный прогресс из NDJSON-стрима Ollama.
+
+        Ollama шлёт по строке JSON на событие: сначала манифест (без байтов),
+        затем `downloading` с `completed`/`total`, в конце `success`. Мы не
+        придумываем проценты — считаем их из этих двух чисел, поэтому полоса
+        не «висит на нуле».
+        """
+        async with httpx.AsyncClient(timeout=PULL_TIMEOUT_SEC) as client:
+            async with client.stream(
+                "POST",
+                f"{self._host}/api/pull",
+                json={"model": self._model_tag, "stream": True},
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    event: dict[str, Any] = json.loads(line)
+                    if "error" in event:
+                        raise OllamaPullError(str(event["error"]))
+                    yield self._to_progress(event)
+
+    @staticmethod
+    def _to_progress(event: dict[str, Any]) -> PullProgress:
+        status = str(event.get("status", ""))
+        completed = int(event.get("completed", 0))
+        total = int(event.get("total", 0))
+        done = status == "success"
+        percent = 100.0 if done else (completed / total * 100 if total else 0.0)
+        return PullProgress(
+            status=status,
+            completed_bytes=completed,
+            total_bytes=total,
+            percent=round(percent, 1),
+            done=done,
+        )

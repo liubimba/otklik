@@ -1,8 +1,14 @@
 from unittest.mock import AsyncMock, patch
 
 import httpx
+import pytest
 
-from otklik_backend.setup.ollama import OllamaGate, OllamaState
+from otklik_backend.setup.ollama import (
+    OllamaGate,
+    OllamaState,
+    OllamaPullError,
+    PullProgress,  # noqa: F401 — type imported for completeness
+)
 
 
 def _gate() -> OllamaGate:
@@ -112,3 +118,56 @@ async def test_empty_models_list_means_model_missing() -> None:
     # Пустой список — это не молчащий сервер, это работающий сервер без моделей
     state = await _state_with(binary=True, tags_response=_tags())
     assert state == OllamaState.MODEL_MISSING
+
+
+class _FakeStream:
+    """Подделка httpx-стрима: отдаёт заранее заданные строки NDJSON."""
+
+    def __init__(self, lines: list[str]) -> None:
+        self._lines = lines
+
+    async def __aenter__(self) -> "_FakeStream":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    def raise_for_status(self) -> None:
+        return None
+
+    async def aiter_lines(self):
+        for line in self._lines:
+            yield line
+
+
+async def _pull_with(lines: list[str]):
+    with patch("otklik_backend.setup.ollama.httpx.AsyncClient") as client_cls:
+        client = client_cls.return_value.__aenter__.return_value
+        client.stream = lambda *a, **kw: _FakeStream(lines)
+        return [progress async for progress in _gate().pull()]
+
+
+async def test_pull_reports_real_percentages() -> None:
+    events = await _pull_with(
+        [
+            '{"status":"pulling manifest"}',
+            '{"status":"downloading","completed":1000,"total":4000}',
+            '{"status":"downloading","completed":4000,"total":4000}',
+            '{"status":"success"}',
+        ]
+    )
+    assert [round(e.percent) for e in events] == [0, 25, 100, 100]
+    assert events[-1].done is True
+    assert events[1].completed_bytes == 1000
+    assert events[1].total_bytes == 4000
+
+
+async def test_pull_skips_blank_lines() -> None:
+    events = await _pull_with(['{"status":"success"}', "", "   "])
+    assert len(events) == 1
+
+
+async def test_pull_raises_on_server_error() -> None:
+    events_source = '{"error":"no space left on device"}'
+    with pytest.raises(OllamaPullError, match="no space left on device"):
+        await _pull_with([events_source])

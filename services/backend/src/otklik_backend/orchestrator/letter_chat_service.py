@@ -4,7 +4,6 @@ from collections.abc import AsyncIterator
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from otklik_backend.ai.layer import AILayer
-from otklik_backend.ai.postprocess import LetterCleaner
 from otklik_backend.api.schemas import ProcessingState
 from otklik_backend.db.converters import vacancy_to_schema
 from otklik_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
@@ -146,7 +145,6 @@ class LetterChatService:
     ) -> None:
         self._session_maker = session_maker
         self._ai_layer = ai_layer
-        self._cleaner = LetterCleaner()
         self._log = get_logger(__name__)
 
     async def stream_turn(
@@ -212,18 +210,20 @@ class LetterChatService:
         #    unchanged letter while answering a question; that must not spawn a
         #    spurious version.
         reply = parser.reply.strip()
-        # Чистим тут, а не по токенам стрима: чистка по кускам порезала бы
-        # текст на границе чанка (регулярка увидела бы половину строки).
-        # Пользователю в стрим летят сырые токены, а в базу и в результат —
-        # уже собранное и очищенное письмо.
-        # .strip() тут, а не в LetterCleaner: предохранитель чистильщика
-        # осознанно возвращает исходный текст как есть при коротких письмах
-        # (см. test_returns_original_when_cleaning_would_gut_the_letter), а
-        # нестрипнутый хвост из этой ветки иначе даёт ложное "письмо
-        # изменилось" при сравнении с current_letter.strip() ниже.
-        letter_text = (
-            self._cleaner.clean(parser.letter).strip() if parser.letter else ""
-        )
+        # Никакой автоматической чистки: в чате текстом управляет человек и
+        # сам видит результат. LetterCleaner здесь воевал с пользователем —
+        # он мог явно попросить подпись («добавь: С уважением, Иван Петров»),
+        # модель её дописывала, а чистильщик тут же срезала, так что письмо
+        # совпадало со старой версией и новая не создавалась (баг: чат
+        # отвечает «добавил подпись», письмо не меняется, повтор бесполезен).
+        # Чистка остаётся только на пути первой генерации
+        # (AILayer.generate_cover_letter), где письмо пишет модель без
+        # участия человека — там воевать не с кем.
+        # .strip() тем не менее нужен: без него хвостовой перевод строки в
+        # эхо-повторе письма ломает сравнение с current_letter.strip() ниже
+        # и рождает пустую версию
+        # (см. test_echoed_letter_with_trailing_newline_does_not_create_a_version).
+        letter_text = parser.letter.strip() if parser.letter else ""
         letter = (
             letter_text
             if parser.has_letter

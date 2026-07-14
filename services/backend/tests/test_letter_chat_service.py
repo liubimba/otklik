@@ -12,12 +12,10 @@ lives in its own field and cannot leak into the reply. These tests feed the
 service that structured stream and assert the revision is applied.
 """
 
-import json
 from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from otklik_backend.ai.health import AILayerHealthStatus
 from otklik_backend.api.schemas import ProcessingState
 from otklik_backend.db.models import ApplicationORM, VacancyORM
 from otklik_backend.db.repositories.chat_messages import ChatMessageRepository
@@ -28,31 +26,12 @@ REVISED_LETTER = (
     "Уважаемый работодатель, вот значительно расширенное письмо с деталями."
 )
 
-# Long enough that LetterCleaner actually cleans it instead of tripping its
-# gut-guard (MIN_LETTER_CHARS) and returning the input untouched — the other
-# fixtures in this file are all short letters, which never exercises the
-# cleaner's real cleaning path, only its fallback.
-LONG_LETTER_BODY = (
-    "Уважаемый работодатель, хочу присоединиться к вашей команде и принести "
-    "пользу проекту. Мой опыт разработки бэкенда и внимание к деталям помогут "
-    "закрыть эту вакансию быстро и качественно."
-)
-LONG_LETTER_WITH_SIGNATURE = LONG_LETTER_BODY + "\nС уважением,\n[Ваше имя]"
-
 
 class _FakeAILayer:
     """Emits a fixed sequence of streamed content chunks."""
 
-    def __init__(self, chunks: list[str], healthy: bool = True) -> None:
+    def __init__(self, chunks: list[str]) -> None:
         self._chunks = chunks
-        self._healthy = healthy
-
-    async def get_health_status(self) -> AILayerHealthStatus:
-        return (
-            AILayerHealthStatus.HEALTHY
-            if self._healthy
-            else AILayerHealthStatus.UNHEALTHY
-        )
 
     async def stream_letter_chat(self, **_: object) -> AsyncIterator[str]:
         for chunk in self._chunks:
@@ -226,25 +205,35 @@ async def test_question_produces_reply_only_no_version(
         assert latest is not None and latest.version == 1  # unchanged
 
 
-async def test_signature_and_placeholder_are_stripped_from_saved_letter(
+async def test_signature_the_user_asked_for_is_preserved(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    # LetterCleaner is wired into the chat path, but every other fixture here
-    # is short enough to hit its gut-guard and skip cleaning entirely. Use a
-    # long revision so the signature and `[Ваше имя]` placeholder are actually
-    # cut — proving the cleaner runs, not just that it's a no-op.
+    # Regression: LetterCleaner used to run on the chat path too, so a
+    # signature the user explicitly asked for ("добавь подпись: С уважением,
+    # Иван Петров") got written by the model and immediately cut back out by
+    # the cleaner — the saved letter matched the old one, no new version was
+    # created, and the reply claimed "added the signature" over an unchanged
+    # letter with no way to escape the loop. Chat is a human-in-the-loop
+    # surface — the user drives the text and sees the result, so nothing
+    # auto-cleans it. Cleaning stays on the unattended first-generation path
+    # only (AILayer.generate_cover_letter).
     await _seed_letter_ready(session_factory)
 
+    signature = "С уважением, Иван Петров"
+    signed_letter = REVISED_LETTER + "\n" + signature
     payload = (
-        '{"reply": "Убрал подпись, как договорились.", "letter": '
-        f"{json.dumps(LONG_LETTER_WITH_SIGNATURE)}}}"
+        '{"reply": "Добавил подпись.", "letter": "'
+        + REVISED_LETTER
+        + "\\n"
+        + signature
+        + '"}'
     )
-    chunks = [payload[i : i + 11] for i in range(0, len(payload), 11)]
+    chunks = [payload[i : i + 9] for i in range(0, len(payload), 9)]
 
-    events = await _run(session_factory, chunks, message="Убери подпись.")
+    events = await _run(session_factory, chunks, message=f"Добавь подпись: {signature}")
 
     done = next(e for e in events if e["type"] == "done")
-    assert done["version"] is not None
+    assert done["version"] is not None, "signed letter differs — must create a version"
 
     async with session_factory() as session:
         latest = await CoverLetterRepository.get_latest_by_application_id(
@@ -252,20 +241,18 @@ async def test_signature_and_placeholder_are_stripped_from_saved_letter(
         )
         assert latest is not None
         assert latest.version == 2
-        assert latest.text == LONG_LETTER_BODY
-        assert "С уважением" not in latest.text
-        assert "[" not in latest.text and "]" not in latest.text
+        assert latest.text == signed_letter
+        assert signature in latest.text
 
 
 async def test_echoed_letter_with_trailing_newline_does_not_create_a_version(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    # Regression: the letter/reply channel is cleaned with
-    # `self._cleaner.clean(...)`, whose gut-guard returns the input verbatim
-    # (unstripped) for short letters — which is every letter in this test
-    # file. If the caller doesn't strip that result before comparing it to
-    # `current_letter.strip()`, a trailing newline the model echoes back
-    # looks like a real edit and spawns a spurious version.
+    # Regression: without the caller's own .strip() on the parsed letter, a
+    # trailing newline the model echoes back would look different from
+    # `current_letter.strip()` below and spawn a spurious version — chat has
+    # no cleaner to normalise it away (see
+    # test_signature_the_user_asked_for_is_preserved).
     await _seed_letter_ready(session_factory)
     payload = '{"reply": "Ничего не меняю.", "letter": "Старое письмо\\n"}'
     chunks = [payload[i : i + 6] for i in range(0, len(payload), 6)]

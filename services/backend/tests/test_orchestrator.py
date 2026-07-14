@@ -235,6 +235,17 @@ async def test_consume_failed_transitions_to_error(
         assert len(submissions) == 1
         assert submissions[0].data.status is ProcessingState.ERROR
         assert submissions[0].data.reason == "boom"
+
+        # Regression: _fail() passed reason= (live WS event only) but not
+        # error_message= (persisted column), so the banner text survived
+        # exactly until the next refetch and then read back as null. The
+        # reason must also be readable from the DB, not just the socket.
+        async with session_factory() as s:
+            app = await ApplicationRepository.get_by_id(
+                session=s, application_id=app_id
+            )
+            assert app is not None
+            assert app.error_message == "boom"
     finally:
         await stop_consumer(task)
 

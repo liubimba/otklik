@@ -265,10 +265,16 @@ class LetterSendingWorker(Worker):
         reason: str,
     ) -> None:
         try:
+            # error_message персистится в БД (ApplicationRepository.transition),
+            # reason уходит только в сиюминутный WS-эвент. Без error_message
+            # причина отправки живёт лишь до ближайшего рефетча: баннер
+            # показывает текст по сокету, а после перезагрузки читает пустую
+            # error_message из базы.
             await self._state_service.transition(
                 session=session,
                 application_id=application_id,
                 event=ApplicationEvent.SUBMISSION_FAILED,
+                error_message=reason,
                 reason=reason,
             )
         except ApplicationNotFoundError:

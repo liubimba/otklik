@@ -98,6 +98,27 @@ def test_setup_deployment_is_idempotent(client):
     assert len(settings.llm.deployments) == 1  # дубля нет
 
 
+def test_setup_state_ignores_cloud_deployment_without_key(client):
+    """Пресет GigaChat пишется с пустым ключом (см. connectCloud на
+    фронтенде) — им нельзя пользоваться, пока ключ не вставлен в
+    настройках, поэтому мастер не должен считать шаг пройденным."""
+    client.post(
+        "/api/v1/setup/deployment",
+        json=LLMDeployment(model="gigachat/GigaChat-2").model_dump(),
+    )
+    state = client.get("/api/v1/setup/state").json()
+    assert state["has_deployment"] is False
+
+
+def test_setup_state_reports_cloud_deployment_with_key(client):
+    client.post(
+        "/api/v1/setup/deployment",
+        json=LLMDeployment(model="gigachat/GigaChat-2", api_key="secret").model_dump(),
+    )
+    state = client.get("/api/v1/setup/state").json()
+    assert state["has_deployment"] is True
+
+
 def test_setup_deployment_appends_a_different_model(client):
     client.post(
         "/api/v1/setup/deployment",

@@ -34,7 +34,7 @@ async def setup_state(
     return SetupStateAPISchema(
         hardware=hardware.probe(),
         ollama=await ollama.state(),
-        has_deployment=len(settings.llm_deployments) > 0,
+        has_deployment=any(item.is_usable() for item in settings.llm_deployments),
         local_model=LOCAL_MODEL,
         cloud_model=CLOUD_MODEL,
     )

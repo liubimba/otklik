@@ -68,6 +68,12 @@ class OllamaGate:
             OllamaState.READY if self._model_tag in tags else OllamaState.MODEL_MISSING
         )
 
+    async def list_models(self) -> list[str]:
+        """Теги всех установленных моделей. Пустой список — если сервер не
+        отвечает или ответил мусором: экран выбора сам покажет «ничего не
+        установлено», а не упадёт."""
+        return await self._list_tags() or []
+
     async def _list_tags(self) -> list[str] | None:
         """Теги установленных моделей, либо None, если сервер не отвечает."""
         try:

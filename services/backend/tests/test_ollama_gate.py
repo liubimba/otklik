@@ -229,3 +229,33 @@ async def test_pull_raises_on_null_total() -> None:
     """null в поле total должна выбросить OllamaPullError."""
     with pytest.raises(OllamaPullError, match="Invalid response format"):
         await _pull_with(['{"status":"downloading","completed":1000,"total":null}'])
+
+
+async def _list_models_with(tags_response: httpx.Response | Exception) -> list[str]:
+    with patch("otklik_backend.setup.ollama.httpx.AsyncClient") as client_cls:
+        client = client_cls.return_value.__aenter__.return_value
+        if isinstance(tags_response, Exception):
+            client.get = AsyncMock(side_effect=tags_response)
+        else:
+            client.get = AsyncMock(return_value=tags_response)
+        return await _gate().list_models()
+
+
+async def test_list_models_returns_installed_tags() -> None:
+    models = await _list_models_with(_tags("qwen2.5:7b", "llama3:8b"))
+    assert models == ["qwen2.5:7b", "llama3:8b"]
+
+
+async def test_list_models_is_empty_when_server_silent() -> None:
+    models = await _list_models_with(httpx.ConnectError("refused"))
+    assert models == []
+
+
+async def test_list_models_is_empty_on_malformed_payload() -> None:
+    bad = httpx.Response(
+        200,
+        json={"models": None},
+        request=httpx.Request("GET", "http://localhost:11434/api/tags"),
+    )
+    models = await _list_models_with(bad)
+    assert models == []

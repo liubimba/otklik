@@ -126,6 +126,59 @@ describe("LocalFlow", () => {
 		);
 	});
 
+	it("routes a model error to the error screen, not the 'too slow' fork", async () => {
+		// P0: a model that never answered (crash/OOM/refused connection) must
+		// not be offered as "slow but keepable" — the user would pick "keep
+		// local" on a deployment that has never once produced a letter.
+		vi.mocked(API.setup.local).mockResolvedValue(local());
+		vi.mocked(API.setup.trial).mockResolvedValue({
+			passed: false,
+			seconds: 0.3,
+			letter: null,
+			failure_reason: "model_error",
+			error: "connection refused",
+		});
+		const flow = new LocalFlow(() => {});
+		await flow.refresh();
+		await flow.selectInstalled("qwen2.5:7b");
+		expect(flow.screen).toBe("error");
+		expect(flow.errorMessage).toContain("connection refused");
+		expect(API.setup.deployment).not.toHaveBeenCalled();
+	});
+
+	it("never gets a chance to write a deployment for a model that never answered", async () => {
+		// selectInstalled()/installRecommended() must never land on "too-slow"
+		// for a model_error — only a real deadline failure is a keepable fork.
+		vi.mocked(API.setup.local).mockResolvedValue(local());
+		vi.mocked(API.setup.trial).mockResolvedValue({
+			passed: false,
+			seconds: 0.1,
+			letter: null,
+			failure_reason: "model_error",
+			error: "model 'qwen2.5:7b' not found, try pulling it first",
+		});
+		const flow = new LocalFlow(() => {});
+		await flow.refresh();
+		await flow.selectInstalled("qwen2.5:7b");
+		expect(flow.screen).not.toBe("too-slow");
+		expect(flow.screen).toBe("error");
+	});
+
+	it("surfaces a pull failure instead of hanging on the progress bar", async () => {
+		vi.mocked(API.setup.local).mockResolvedValue(
+			local({ installed_models: [], recommended_installed: false }),
+		);
+		vi.mocked(API.setup.pull).mockImplementation(() => {
+			throw new Error("no space left on device");
+		});
+		const flow = new LocalFlow(() => {});
+		await flow.refresh();
+		await flow.installRecommended();
+		expect(flow.screen).toBe("error");
+		expect(flow.errorMessage).toContain("no space left on device");
+		expect(API.setup.deployment).not.toHaveBeenCalled();
+	});
+
 	it("maps ollama states to their screens", async () => {
 		for (const [state, screen] of [
 			["not_installed", "ollama-missing"],

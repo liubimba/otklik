@@ -92,8 +92,6 @@ const liveStatus = $derived.by(() => {
 				return m.setup_pull_progress({ percent });
 			case "benchmark":
 				return m.setup_benchmark_title();
-			case "done":
-				return m.setup_done_title();
 			case "too-slow":
 				return m.setup_slow_title();
 			case "error":
@@ -153,6 +151,8 @@ const liveStatus = $derived.by(() => {
                     <p class="text-muted-foreground text-sm">
                         {#if vm.path === "local" && letter}
                             {m.setup_done_body({ seconds })}
+                        {:else if vm.path === "cloud" && cloudDone}
+                            {m.setup_cloud_done_body({ seconds: Math.round(vm.cloud.seconds) })}
                         {:else}
                             {m.setup_done_already_configured()}
                         {/if}

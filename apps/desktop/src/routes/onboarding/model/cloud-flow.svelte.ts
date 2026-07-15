@@ -19,9 +19,9 @@ export class CloudFlow {
 	#query = $state("");
 	#selected = $state<CloudModelOption | null>(null);
 	#letter = $state<string | null>(null);
+	#seconds = $state(0);
 	#error = $state<string | null>(null);
 	#isSubmitting = $state(false);
-	#lastKey: string | null = null;
 	#onDeploymentSaved: (settings: Settings) => void;
 
 	constructor(onDeploymentSaved: (settings: Settings) => void) {
@@ -42,6 +42,9 @@ export class CloudFlow {
 	}
 	get letter(): string | null {
 		return this.#letter;
+	}
+	get seconds(): number {
+		return this.#seconds;
 	}
 	get errorMessage(): string | null {
 		return this.#error;
@@ -99,7 +102,6 @@ export class CloudFlow {
 		if (this.#selected === null) return false;
 		if (this.#isSubmitting) return false; // второй сабмит поверх первого не запускается
 		this.#isSubmitting = true;
-		this.#lastKey = key;
 		this.#screen = "trial";
 		this.#error = null;
 		try {
@@ -114,6 +116,7 @@ export class CloudFlow {
 				return false;
 			}
 			this.#letter = result.letter;
+			this.#seconds = result.seconds;
 			const saved = await API.setup.deployment(deployment);
 			this.#onDeploymentSaved(saved);
 			return true;
@@ -124,11 +127,6 @@ export class CloudFlow {
 		} finally {
 			this.#isSubmitting = false;
 		}
-	}
-
-	/** Повтор submitKey с тем же ключом — кнопка «Попробовать снова». */
-	async retry(): Promise<boolean> {
-		return this.#lastKey !== null ? this.submitKey(this.#lastKey) : false;
 	}
 
 	#fail(error: unknown): void {

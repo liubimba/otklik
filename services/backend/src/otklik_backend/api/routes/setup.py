@@ -97,21 +97,22 @@ async def setup_trial(
 async def setup_deployment(
     session: SessionDep, ai_layer: AILayerDep, deployment: LLMDeployment
 ) -> SettingsAPISchema:
-    """Записывает deployment в настройки. Идемпотентно: повторное прохождение
-    шага не плодит дублей (сверка по LLMDeployment.id(), который хеширует
-    model+key+base)."""
+    """Пишет deployment в настройки, делая его основным (index 0). Прежние
+    остаются фолбэками. Идемпотентно и по «продвижению»: повторный выбор той же
+    модели поднимает её в основные без дубля (сверка по LLMDeployment.id())."""
     settings: SettingsAPISchema = settings_to_schema(
         orm=await SettingsRepository.get(session=session)
     )
-    existing_ids = {item.id() for item in settings.llm.deployments}
-    if deployment.id() not in existing_ids:
-        settings.llm.deployments = [*settings.llm.deployments, deployment]
-        updated: SettingsORM = await SettingsRepository.update(
-            session=session, new_settings=settings_to_orm(settings)
-        )
-        ai_layer.rebuild(deployments=updated.llm_deployments)
-        return settings_to_schema(orm=updated)
-    return settings
+    rest = [d for d in settings.llm.deployments if d.id() != deployment.id()]
+    new_list = [deployment, *rest]
+    if [d.id() for d in new_list] == [d.id() for d in settings.llm.deployments]:
+        return settings  # уже основной и единственный такой — ничего не меняем
+    settings.llm.deployments = new_list
+    updated: SettingsORM = await SettingsRepository.update(
+        session=session, new_settings=settings_to_orm(settings)
+    )
+    ai_layer.rebuild(deployments=updated.llm_deployments)
+    return settings_to_schema(orm=updated)
 
 
 @setup_router.get("/cloud-models")

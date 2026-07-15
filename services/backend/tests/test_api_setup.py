@@ -148,6 +148,37 @@ def test_setup_deployment_appends_a_different_model(client):
     assert len(settings.llm.deployments) == 2
 
 
+def test_setup_deployment_makes_the_new_one_primary(client):
+    first = client.post(
+        "/api/v1/setup/deployment",
+        json={"model": "gigachat/GigaChat-2", "api_key": "k1"},
+    )
+    assert first.status_code == 200
+    second = client.post(
+        "/api/v1/setup/deployment",
+        json={"model": "ollama_chat/qwen2.5:7b", "api_base": "http://h"},
+    )
+    assert second.status_code == 200
+    deployments = second.json()["llm"]["deployments"]
+    # новый (локальный) — первым, прежний (облачный) — фолбэком
+    assert deployments[0]["model"] == "ollama_chat/qwen2.5:7b"
+    assert deployments[1]["model"] == "gigachat/GigaChat-2"
+
+
+def test_setup_deployment_is_idempotent_and_promotes(client):
+    payload = {"model": "gigachat/GigaChat-2", "api_key": "k1"}
+    client.post("/api/v1/setup/deployment", json=payload)
+    client.post(
+        "/api/v1/setup/deployment",
+        json={"model": "openai/gpt-4o", "api_key": "k2"},
+    )
+    # повторно шлём первый — он должен всплыть в основные, без дубля
+    again = client.post("/api/v1/setup/deployment", json=payload)
+    deployments = again.json()["llm"]["deployments"]
+    models = [d["model"] for d in deployments]
+    assert models == ["gigachat/GigaChat-2", "openai/gpt-4o"]
+
+
 def test_setup_cloud_models_lists_direct_providers(client):
     response = client.get("/api/v1/setup/cloud-models")
     assert response.status_code == 200

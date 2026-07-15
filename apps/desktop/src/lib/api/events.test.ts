@@ -272,6 +272,54 @@ describe("EventsWebSocket — open hook", () => {
 	});
 });
 
+describe("EventsWebSocket — disconnect hook", () => {
+	function withDisconnect(onDisconnect: () => void, options = {}) {
+		return new EventsWebSocket(
+			() => {},
+			undefined,
+			undefined,
+			options,
+			undefined,
+			onDisconnect,
+		);
+	}
+
+	it("fires onDisconnect when an established socket drops unexpectedly", () => {
+		const onDisconnect = vi.fn();
+		const ws = withDisconnect(onDisconnect, { initialDelay: 100 });
+		ws.connect();
+		FakeWebSocket.last().fireOpen();
+		FakeWebSocket.last().fireClose(1006, false); // abnormal drop → backend gone
+		expect(onDisconnect).toHaveBeenCalledTimes(1);
+	});
+
+	it("does NOT fire onDisconnect on an intentional close() — that's onClose's job", () => {
+		const onDisconnect = vi.fn();
+		const ws = withDisconnect(onDisconnect);
+		ws.connect();
+		FakeWebSocket.last().fireOpen();
+		ws.close();
+		FakeWebSocket.last().fireClose();
+		expect(onDisconnect).not.toHaveBeenCalled();
+	});
+
+	it("fires onDisconnect when the socket cannot even be opened", () => {
+		vi.stubGlobal(
+			"WebSocket",
+			class {
+				constructor() {
+					throw new SyntaxError("bad url");
+				}
+			},
+		);
+		const onDisconnect = vi.fn();
+		const ws = withDisconnect(onDisconnect);
+		ws.connect();
+		expect(onDisconnect).toHaveBeenCalledTimes(1);
+		ws.close();
+	});
+});
+
 describe("EventsWebSocket — error hook", () => {
 	it("propagates onerror to the caller-supplied handler", () => {
 		const onError = vi.fn();

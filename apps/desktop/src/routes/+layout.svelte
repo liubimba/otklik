@@ -1,23 +1,19 @@
 <script lang="ts">
+import { createEventSync } from "$lib/api/event-sync";
 import { EventsWebSocket } from "$lib/api/events";
-import type { ServerEvent } from "$lib/api/types";
 import AppSidebar from "$lib/components/app-sidebar.svelte";
+import ConnectionBanner from "$lib/components/connection-banner.svelte";
 import DottedBackground from "$lib/components/dotted-background.svelte";
 import { Toaster } from "$lib/components/ui/sonner";
 import WindowResizeHandles from "$lib/components/window-resize-handles.svelte";
 import WindowTitlebar from "$lib/components/window-titlebar.svelte";
-import {
-	QueryClient,
-	QueryClientProvider,
-	notifyManager,
-} from "@tanstack/svelte-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
 import { ModeWatcher, mode } from "mode-watcher";
 import { onMount } from "svelte";
 import type { LayoutProps } from "./$types";
 import "../app.css";
 import LetterReviewSheet from "$lib/components/letter-review-sheet.svelte";
 import UpdateDialog from "$lib/components/update-dialog.svelte";
-import { query } from "$lib/queries";
 import { updater } from "$lib/stores/updater.svelte";
 
 const { children }: LayoutProps = $props();
@@ -44,70 +40,24 @@ const queryClient = new QueryClient({
 	},
 });
 
-// Какой поиск сейчас «последний». Нужен, чтобы отличить старт нового поиска от
-// тиков прогресса текущего — см. ветку search_event ниже.
-let lastSearchId: string | null = null;
-
 onMount(() => {
 	// Silent update check on launch. It never throws (no feed yet, offline, …);
 	// if an update is found, <UpdateDialog/> pops up on its own via the store.
 	void updater.check();
 
+	// Вся синхронизация кэша с WS-потоком — в createEventSync (тестируется без
+	// монтирования). onConnect помечает связь живой и ресинхронизирует auth +
+	// сводку (в т.ч. чинит «вечный скелетон» профиля, если бэкенд поднялся
+	// позже приложения); onDisconnect помечает связь оборванной → баннер и
+	// приглушённые баджи.
+	const sync = createEventSync(queryClient);
 	const listener = new EventsWebSocket(
-		(event: ServerEvent) => {
-			// A single WS event can trigger multiple cache mutations
-			// (setQueryData + invalidateQueries). Without batching,
-			// subscribers re-render once per mutation. `notifyManager.batch`
-			// collapses them into one notification per event, keeping the
-			// vacancy list / letter sheet from thrashing during an
-			// auto-submit storm.
-			notifyManager.batch(() => {
-				switch (event.type) {
-					case "vacancy_new":
-						query.vacancies.apply(queryClient, event);
-						query.all_vacancies.invalidate(queryClient);
-						// PARSED never counts toward the "needs attention" summary,
-						// and the transition that later does is its own
-						// application_event, which already invalidates below. Firing
-						// here too would mean one wasted GET per parsed vacancy.
-						break;
-					case "search_event":
-						query.search.vacancies.apply(queryClient, event);
-						query.search.history.apply(queryClient, event);
-						// «Очередь вакансий» и её счётчик смотрят на ПОСЛЕДНИЙ поиск.
-						// Стартовал новый — область счёта сменилась, хотя ни одна
-						// заявка не двигалась. Сбрасываем сводку только на смене
-						// идентификатора: search_event летит и на каждый тик
-						// прогресса парсинга, и дёргать COUNT на каждый было бы
-						// расточительно.
-						if (event.data.search_id !== lastSearchId) {
-							lastSearchId = event.data.search_id;
-							query.summary.invalidate(queryClient);
-						}
-						break;
-					case "auth_changed":
-						query.auth.apply(queryClient, event);
-						break;
-					case "application_event":
-						query.application.apply(queryClient, event);
-						// The archive page renders status inline from the list payload,
-						// so only a list refetch can move its badges.
-						query.all_vacancies.invalidate(queryClient);
-						query.summary.invalidate(queryClient);
-				}
-			});
-		},
+		sync.onEvent,
 		undefined,
 		undefined,
 		undefined,
-		() => {
-			// The socket (re)connecting is the one moment we know we may have
-			// missed events: the backend publishes fire-and-forget, so anything
-			// that happened while we were down — or before the backend was even
-			// ready to accept the very first connection — is gone for good
-			// unless we resync here.
-			query.summary.invalidate(queryClient);
-		},
+		sync.onConnect,
+		sync.onDisconnect,
 	);
 	listener.connect();
 	return () => {
@@ -141,6 +91,14 @@ onMount(() => {
     -->
     <div class="flex h-svh flex-col overflow-hidden">
         <WindowTitlebar/>
+
+        <!--
+            Полоса «нет связи с бэкендом» — над рабочей областью, но под
+            титлбаром: она часть хрома окна, а не контента. Сама рендерится
+            только когда связь оборвана (см. компонент), поэтому в норме
+            раскладка её не замечает.
+        -->
+        <ConnectionBanner/>
 
         <div class="relative flex min-h-0 flex-1">
             <DottedBackground {dark}/>

@@ -9,12 +9,14 @@ import * as m from "$lib/paraglide/messages";
 import ChevronsUpDown from "@lucide/svelte/icons/chevrons-up-down";
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import User from "@lucide/svelte/icons/user";
+import WifiOff from "@lucide/svelte/icons/wifi-off";
 
 export type AuthStatus =
 	| "loading"
 	| "unauthorized"
 	| "authorizing"
-	| "authorized";
+	| "authorized"
+	| "offline";
 
 const {
 	status,
@@ -36,6 +38,7 @@ const statusLabel = $derived(
 		unauthorized: m.account_status_unauthorized(),
 		authorizing: m.account_status_authorizing(),
 		authorized: m.account_status_authorized(),
+		offline: m.account_status_offline(),
 	}[status],
 );
 
@@ -59,6 +62,7 @@ const ariaLabel = $derived(
 		unauthorized: m.account_aria_sign_in(),
 		authorizing: m.account_aria_cancel(),
 		authorized: m.account_aria_open_menu(),
+		offline: "",
 	}[status],
 );
 </script>
@@ -105,6 +109,25 @@ const ariaLabel = $derived(
 			<div class="h-2 w-20 animate-pulse rounded bg-muted"></div>
 		</div>
 	</div>
+{:else if status === "offline"}
+	<!--
+		Бэкенд недоступен: ячейка статична и без действия (клик всё равно не
+		дошёл бы), приглушена opacity + cursor-default — сигнал «не сейчас».
+		Иконка связи, а не пользователя: проблема в канале, а не в аккаунте.
+		Постоянный баннер сверху объясняет «почему» подробнее.
+	-->
+	<div
+		class="flex h-[52px] items-center gap-2.5 rounded-xl border px-2.5 opacity-70 cursor-default select-none"
+		aria-label={m.account_status_offline()}
+	>
+		<span
+			class="flex size-7 shrink-0 items-center justify-center rounded-full border bg-muted"
+		>
+			<WifiOff class="size-[15px] text-muted-foreground" />
+		</span>
+		{@render body()}
+	</div>
+
 {:else if status === "authorized"}
 	<!--
 		Signing out is destructive (drops the persistent hh.ru session — the

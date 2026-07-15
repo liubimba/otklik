@@ -28,10 +28,16 @@ export class EventsWebSocket {
 		private readonly onClose?: () => void,
 		options: ReconnectOptions = {},
 		private readonly onOpen?: () => void,
+		private readonly onDisconnect?: () => void,
 	) {
-		// onOpen intentionally trails `options` (which carries a default) — every
-		// existing call site passes it positionally, so re-ordering would force a
-		// churn edit at each one for no behavioural gain.
+		// onOpen/onDisconnect intentionally trail `options` (which carries a
+		// default) — every existing call site passes positionally, so re-ordering
+		// would force a churn edit at each one for no behavioural gain.
+		//
+		// onClose vs onDisconnect: onClose fires ONCE, on an intentional close()
+		// (or after giving up). onDisconnect fires on every UNwanted drop while we
+		// keep retrying — it's the "backend just became unreachable" signal the UI
+		// needs, distinct from "we're shutting the socket down on purpose".
 		this.url = `ws://${BASE_IP}:${BASE_PORT}/ws/events`;
 		this.options = {
 			initialDelay: options.initialDelay ?? 1_000,
@@ -80,6 +86,7 @@ export class EventsWebSocket {
 			);
 			this.ws = null;
 			this.onError?.(new Event("error"));
+			this.onDisconnect?.();
 			return;
 		}
 
@@ -97,6 +104,9 @@ export class EventsWebSocket {
 				`WebSocket connection closed for server events (code = ${event.code}, wasClosing = ${event.wasClean})`,
 			);
 			if (!this.closed) {
+				// Незапланированный обрыв: бэкенд отвалился. Сообщаем UI (баннер
+				// «нет связи») и уходим в переподключение с backoff.
+				this.onDisconnect?.();
 				this.scheduleReconnect();
 			} else {
 				this.onClose?.();

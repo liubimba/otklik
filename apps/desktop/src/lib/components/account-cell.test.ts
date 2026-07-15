@@ -29,6 +29,18 @@ describe("<AccountCell>", () => {
 		expect(screen.queryByRole("button")).not.toBeInTheDocument();
 	});
 
+	it("offline: shows 'Нет связи' and is NOT an interactive button — the backend is unreachable, so a click can't do anything (bug #2)", () => {
+		render(AccountCell, {
+			status: "offline",
+			onSignIn: noop,
+			onSignOut: noop,
+			onCancel: noop,
+		});
+
+		expect(screen.getByText("Нет связи")).toBeInTheDocument();
+		expect(screen.queryByRole("button")).not.toBeInTheDocument();
+	});
+
 	it("unauthorized: shows the status text, has an accessible name naming the action, and clicking calls onSignIn directly", async () => {
 		const onSignIn = vi.fn();
 		render(AccountCell, {

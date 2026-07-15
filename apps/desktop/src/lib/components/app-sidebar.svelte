@@ -3,10 +3,16 @@ import { page } from "$app/state";
 import { createActions } from "$lib/actions";
 import type { SummaryScope } from "$lib/api/types";
 import AccountCell from "$lib/components/account-cell.svelte";
+import {
+	authCellStatus,
+	badgeCount,
+	guardedAuthAction,
+} from "$lib/components/app-sidebar.logic";
 import SidebarNavRow from "$lib/components/sidebar-nav-row.svelte";
 import SidebarNotch from "$lib/components/sidebar-notch.svelte";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
+import { connection } from "$lib/stores/connection.svelte";
 import type { Icon as IconType } from "@lucide/svelte";
 import Briefcase from "@lucide/svelte/icons/briefcase";
 import History from "@lucide/svelte/icons/history";
@@ -17,6 +23,7 @@ import Settings from "@lucide/svelte/icons/settings";
 import Sun from "@lucide/svelte/icons/sun";
 import { useQueryClient } from "@tanstack/svelte-query";
 import { mode, toggleMode } from "mode-watcher";
+import { toast } from "svelte-sonner";
 
 type NavGroup = "work" | "config";
 type NavItem = {
@@ -51,20 +58,25 @@ const needsAttention: Record<SummaryScope, number | null> = $derived({
 			: summaryLatest.data.needs_attention,
 });
 
-// Нет данных — ячейка ещё не знает статус. `unknown` от бэкенда трактуется
-// как «не подключён»: ровно так же его читает `lib/stores/auth.svelte.ts`.
-const authStatus = $derived.by(() => {
-	if (!authQuery.data) return "loading" as const;
-	if (authQuery.data.status === "authorized") return "authorized" as const;
-	if (authQuery.data.status === "authorizing") return "authorizing" as const;
-	return "unauthorized" as const;
-});
+// Статус ячейки: офлайн бьёт всё (баг №2), иначе — ответ auth. Логика и её
+// тесты — в app-sidebar.logic.ts. Это же чинит «вечный скелетон» бага №1:
+// отсутствие данных из-за лежавшего бэкенда больше не читается как «грузится».
+const authStatus = $derived(
+	authCellStatus(connection.isOffline, authQuery.data),
+);
 
 const theme = $derived(mode.current === "dark" ? "dark" : "light");
 
-const onSignIn = () => actions.auth.authenticate.mutateAsync();
-const onSignOut = () => actions.auth.unauthorize.mutateAsync();
-const onCancelAuth = () => actions.auth.cancel.mutateAsync();
+// Действия авторизации ходят в бэкенд; при лежащем бэкенде они раньше падали
+// молча («ничего не происходит», баг №2). Теперь провал доходит тостом.
+const failToast = (message: string) =>
+	toast.error(m.account_action_failed(), { description: message });
+const onSignIn = () =>
+	guardedAuthAction(() => actions.auth.authenticate.mutateAsync(), failToast);
+const onSignOut = () =>
+	guardedAuthAction(() => actions.auth.unauthorize.mutateAsync(), failToast);
+const onCancelAuth = () =>
+	guardedAuthAction(() => actions.auth.cancel.mutateAsync(), failToast);
 
 const items: NavItem[] = $derived([
 	// Каждая строка считает ровно то, что показывает её экран.
@@ -166,7 +178,10 @@ $effect(() => {
 							label={item.label}
 							icon={item.icon}
 							active={activePath === item.href}
-							count={item.scope ? needsAttention[item.scope] : null}
+							count={badgeCount(
+								connection.isOffline,
+								item.scope ? needsAttention[item.scope] : null,
+							)}
 						/>
 					{/each}
 				</div>

@@ -1,5 +1,5 @@
 import { API } from "$lib/api/client";
-import type { LLMDeployment, SetupState } from "$lib/api/types";
+import type { LLMDeployment, Settings, SetupState } from "$lib/api/types";
 import { getLogger } from "$lib/log";
 
 const OLLAMA_HOST = "http://localhost:11434";
@@ -33,6 +33,20 @@ export class SetupViewModel {
 	#error = $state<string | null>(null);
 	#isPulling = $state(false);
 	#isConnectingCloud = $state(false);
+
+	/**
+	 * Мастер пишет deployment через POST /setup/deployment, а не через форму
+	 * Настроек — поэтому кэш ["settings"] (staleTime: Infinity, прогретый ещё
+	 * страницей очереди) сам об этом не узнает, и в Настройках новая модель не
+	 * появится до перезапуска. Бэкенд возвращает уже обновлённые настройки; этот
+	 * колбэк проталкивает их обратно в кэш (queryClient.setQueryData) — ровно
+	 * так же, как это делает форма Настроек после своего сохранения.
+	 */
+	#onDeploymentSaved: (settings: Settings) => void;
+
+	constructor(onDeploymentSaved: (settings: Settings) => void = () => {}) {
+		this.#onDeploymentSaved = onDeploymentSaved;
+	}
 
 	get screen(): SetupScreen {
 		return this.#screen;
@@ -155,10 +169,11 @@ export class SetupViewModel {
 		if (this.#state === null || this.#isConnectingCloud) return false;
 		this.#isConnectingCloud = true;
 		try {
-			await API.setup.deployment({
+			const saved = await API.setup.deployment({
 				model: this.#state.cloud_model,
 				api_key: null,
 			});
+			this.#onDeploymentSaved(saved);
 			return true;
 		} catch (error) {
 			this.#fail(error);
@@ -174,7 +189,8 @@ export class SetupViewModel {
 			api_base: OLLAMA_HOST,
 			api_key: null,
 		};
-		await API.setup.deployment(deployment);
+		const saved = await API.setup.deployment(deployment);
+		this.#onDeploymentSaved(saved);
 		this.#screen = "done";
 	}
 

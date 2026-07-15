@@ -4,6 +4,7 @@ import LiveStatus from "$lib/components/live-status.svelte";
 import { Button } from "$lib/components/ui/button";
 import { Separator } from "$lib/components/ui/separator";
 import * as m from "$lib/paraglide/messages";
+import { query } from "$lib/queries";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Cpu from "@lucide/svelte/icons/cpu";
@@ -12,6 +13,7 @@ import Gauge from "@lucide/svelte/icons/gauge";
 import PenLine from "@lucide/svelte/icons/pen-line";
 import Play from "@lucide/svelte/icons/play";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import { useQueryClient } from "@tanstack/svelte-query";
 import { onMount } from "svelte";
 import { SetupViewModel } from "./setup.viewmodel.svelte";
 
@@ -20,7 +22,13 @@ const OLLAMA_DOWNLOAD_URL = "https://ollama.com/download";
 // доводит фокус прямо до неё, а не до верха формы.
 const SETTINGS_AI_ANCHOR = "/settings#settings-ai";
 
-const vm = new SetupViewModel();
+// Мастер пишет deployment мимо формы Настроек, поэтому кэш ["settings"]
+// (staleTime: Infinity) надо обновить руками его же ответом — иначе в
+// Настройках модель не появится до перезапуска приложения.
+const queryClient = useQueryClient();
+const vm = new SetupViewModel((settings) =>
+	queryClient.setQueryData(query.settings.key, settings),
+);
 
 onMount(() => vm.refresh());
 
@@ -236,7 +244,7 @@ const liveStatus = $derived.by(() => {
                     >{vm.letter}</p>
                 </div>
             {/if}
-            <Button class="cursor-pointer" onclick={() => goto("/")}>
+            <Button class="cursor-pointer" onclick={() => goto("/queue")}>
                 {m.setup_done_continue()}
             </Button>
 

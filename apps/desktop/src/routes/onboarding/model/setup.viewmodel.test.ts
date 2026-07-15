@@ -1,5 +1,10 @@
 import { API } from "$lib/api/client";
-import type { PullProgress, SetupState } from "$lib/api/types";
+import type {
+	LLMDeployment,
+	PullProgress,
+	Settings,
+	SetupState,
+} from "$lib/api/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SetupViewModel } from "./setup.viewmodel.svelte";
 
@@ -33,6 +38,28 @@ function state(overrides: Partial<SetupState> = {}): SetupState {
 		local_model: "ollama_chat/qwen2.5:7b",
 		cloud_model: "gigachat/GigaChat-2",
 		...overrides,
+	};
+}
+
+// Настройки, какими их возвращает POST /setup/deployment после записи —
+// уже с новым deployment внутри. Точная форма несущественна: тесты кэша
+// проверяют, что вернувшийся объект дошёл до колбэка синхронизации целиком.
+function settingsWith(deployments: LLMDeployment[]): Settings {
+	return {
+		search: { max_pages: 1, max_vacancies: 20 },
+		user: { auto_submit: false },
+		rate_limits: {
+			daily_limit: 50,
+			hourly_limit: 10,
+			min_delay_ms: 1000,
+			delay_jitter_ms: 500,
+		},
+		llm: {
+			resume_text: "",
+			letter_style: "",
+			system_prompt: null,
+			deployments,
+		},
 	};
 }
 
@@ -374,6 +401,74 @@ describe("SetupViewModel", () => {
 				api_base: "http://localhost:11434",
 				api_key: null,
 			});
+		});
+	});
+
+	describe("settings cache sync after a deployment is written", () => {
+		// Регресс: онбординг писал deployment через POST /setup/deployment, но
+		// кэш ["settings"] (staleTime: Infinity, уже прогретый страницей очереди)
+		// об этом никто не уведомлял — и в Настройках модель не появлялась, пока
+		// приложение не перезапустят. Мастер обязан протолкнуть вернувшиеся
+		// настройки обратно в кэш через колбэк синхронизации.
+		it("notifies the sync callback with the settings the backend returned (local path)", async () => {
+			const saved = settingsWith([
+				{ model: "ollama_chat/qwen2.5:7b", api_base: "http://localhost:11434" },
+			]);
+			vi.mocked(API.setup.state).mockResolvedValue(state());
+			vi.mocked(API.setup.benchmark).mockResolvedValue({
+				passed: true,
+				seconds: 6.1,
+				letter: "Здравствуйте!",
+				failure_reason: null,
+				error: null,
+			});
+			vi.mocked(API.setup.deployment).mockResolvedValue(saved);
+			const onDeploymentSaved = vi.fn();
+			const vm = new SetupViewModel(onDeploymentSaved);
+
+			// На «capable» с готовой Ollama refresh() сам гонит замер и пишет
+			// deployment — второй ручной runBenchmark() был бы уже не про
+			// реальный поток, а про дубль, и ломал бы «ровно один вызов».
+			await vm.refresh();
+
+			expect(onDeploymentSaved).toHaveBeenCalledOnce();
+			expect(onDeploymentSaved).toHaveBeenCalledWith(saved);
+		});
+
+		it("notifies the sync callback with the settings the backend returned (cloud path)", async () => {
+			const saved = settingsWith([
+				{ model: "gigachat/GigaChat-2", api_key: null },
+			]);
+			vi.mocked(API.setup.state).mockResolvedValue(
+				state({ hardware: { tier: "weak", ram_gb: 8, cores: 4 } }),
+			);
+			vi.mocked(API.setup.deployment).mockResolvedValue(saved);
+			const onDeploymentSaved = vi.fn();
+			const vm = new SetupViewModel(onDeploymentSaved);
+			await vm.refresh();
+
+			await vm.connectCloud();
+
+			expect(onDeploymentSaved).toHaveBeenCalledOnce();
+			expect(onDeploymentSaved).toHaveBeenCalledWith(saved);
+		});
+
+		it("does not notify the sync callback when no deployment is written (too slow)", async () => {
+			vi.mocked(API.setup.state).mockResolvedValue(state());
+			vi.mocked(API.setup.benchmark).mockResolvedValue({
+				passed: false,
+				seconds: 45,
+				letter: null,
+				failure_reason: "deadline",
+				error: null,
+			});
+			const onDeploymentSaved = vi.fn();
+			const vm = new SetupViewModel(onDeploymentSaved);
+			await vm.refresh();
+
+			await vm.runBenchmark();
+
+			expect(onDeploymentSaved).not.toHaveBeenCalled();
 		});
 	});
 

@@ -277,6 +277,6 @@
 	"setup_retry": "Попробовать снова",
 	"setup_model_label": "Модель",
 	"setup_letter_label": "Письмо, которое написал ваш компьютер",
-	"setup_done_continue": "Начать работу",
+	"setup_done_continue": "Начать поиск",
 	"setup_progress_label": "Прогресс загрузки модели"
 }

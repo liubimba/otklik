@@ -9,9 +9,11 @@ import type {
 	BenchmarkResult,
 	ChatMessage,
 	ChatStreamEvent,
+	CloudModelOption,
 	CoverLetter,
 	FilterSessionConfirm,
 	LLMDeployment,
+	LocalSetupState,
 	NewFilterSession,
 	OrchestratorStatus,
 	PullProgress,
@@ -318,9 +320,17 @@ export const API = {
 	},
 	setup: {
 		state: () => api<SetupState>("setup/state"),
+		local: () => api<LocalSetupState>("setup/local"),
+		cloudModels: () => api<CloudModelOption[]>("setup/cloud-models"),
 		pull: () => streamPull(),
+		// benchmark оставлен ради компиляции старого мастера; удаляется в Task 10.
 		benchmark: () =>
 			api<BenchmarkResult>("setup/benchmark", { method: "POST" }),
+		trial: (deployment: LLMDeployment, deadlineSec: number) =>
+			api<BenchmarkResult>("setup/trial", {
+				method: "POST",
+				body: JSON.stringify({ deployment, deadline_sec: deadlineSec }),
+			}),
 		deployment: (body: LLMDeployment) =>
 			api<Settings>("setup/deployment", {
 				method: "POST",

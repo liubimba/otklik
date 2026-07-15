@@ -218,6 +218,15 @@ export type LLMDeployment = {
 	api_base?: string | null;
 };
 
+// Онбординг «облачная модель»: один пункт каталога облачных провайдеров,
+// с прямой ссылкой на страницу получения ключа для этого провайдера.
+export type CloudModelOption = {
+	model: string;
+	label: string;
+	provider: string;
+	key_url: string;
+};
+
 export type LLMSettings = {
 	resume_text: string;
 	letter_style: string;
@@ -307,6 +316,17 @@ export type SetupState = {
 	has_deployment: boolean;
 	local_model: string;
 	cloud_model: string;
+};
+
+// Онбординг «локальная модель»: снимок состояния Ollama на машине пользователя
+// плюс список того, что уже стянуто. recommended_installed отделяет «модель
+// стянута» от «стянута именно рекомендованная» — с других тегов recommended
+// всё равно нужно предлагать docker pull.
+export type LocalSetupState = {
+	ollama_state: OllamaState;
+	installed_models: string[];
+	recommended_tag: string;
+	recommended_installed: boolean;
 };
 
 export type PullProgress = {

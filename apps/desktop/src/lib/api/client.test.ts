@@ -520,6 +520,28 @@ describe("API.setup", () => {
 		);
 	});
 
+	it("posts a trial with model and deadline", async () => {
+		mockFetchJson({
+			passed: true,
+			seconds: 5,
+			letter: "ok",
+			failure_reason: null,
+			error: null,
+		});
+
+		await API.setup.trial(
+			{ model: "ollama_chat/qwen2.5:7b", api_base: "http://h" },
+			45,
+		);
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/setup\/trial$/);
+		expect(calls[0].init?.method).toBe("POST");
+		expect(bodyOf(calls[0])).toEqual({
+			deployment: { model: "ollama_chat/qwen2.5:7b", api_base: "http://h" },
+			deadline_sec: 45,
+		});
+	});
+
 	describe("SSE frame assembly across multiple reads", () => {
 		it("assembles a frame split inside JSON payload", async () => {
 			// Граница куска проходит посередине JSON-тела кадра: `completed_by` `tes`:

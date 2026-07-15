@@ -1,30 +1,24 @@
 import { API } from "$lib/api/client";
-import type {
-	LLMDeployment,
-	PullProgress,
-	Settings,
-	SetupState,
-} from "$lib/api/types";
+import type { SetupState } from "$lib/api/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SetupViewModel } from "./setup.viewmodel.svelte";
 
-// Тестовое окружение не под Tauri: без мока реальный логгер лезет в
-// `@tauri-apps/plugin-log` и роняет прогон необработанным rejection'ом.
 vi.mock("$lib/log", () => ({
 	getLogger: () => ({
-		debug: () => {},
-		info: () => {},
-		warn: () => {},
-		error: () => {},
+		debug() {},
+		info() {},
+		warn() {},
+		error() {},
 	}),
 }));
-
 vi.mock("$lib/api/client", () => ({
 	API: {
 		setup: {
 			state: vi.fn(),
+			local: vi.fn(),
+			cloudModels: vi.fn(),
 			pull: vi.fn(),
-			benchmark: vi.fn(),
+			trial: vi.fn(),
 			deployment: vi.fn(),
 		},
 	},
@@ -41,491 +35,85 @@ function state(overrides: Partial<SetupState> = {}): SetupState {
 	};
 }
 
-// Настройки, какими их возвращает POST /setup/deployment после записи —
-// уже с новым deployment внутри. Точная форма несущественна: тесты кэша
-// проверяют, что вернувшийся объект дошёл до колбэка синхронизации целиком.
-function settingsWith(deployments: LLMDeployment[]): Settings {
-	return {
-		search: { max_pages: 1, max_vacancies: 20 },
-		user: { auto_submit: false },
-		rate_limits: {
-			daily_limit: 50,
-			hourly_limit: 10,
-			min_delay_ms: 1000,
-			delay_jitter_ms: 500,
-		},
-		llm: {
-			resume_text: "",
-			letter_style: "",
-			system_prompt: null,
-			deployments,
-		},
-	};
-}
-
-async function* progress(...percents: number[]): AsyncGenerator<PullProgress> {
-	for (const percent of percents) {
-		yield {
-			status: percent === 100 ? "success" : "downloading",
-			completed_bytes: percent,
-			total_bytes: 100,
-			percent,
-			done: percent === 100,
-		};
-	}
-}
-
 beforeEach(() => vi.clearAllMocks());
 
-describe("SetupViewModel", () => {
-	it("skips the whole step when a deployment already exists", async () => {
-		// P0-1: повторное прохождение онбординга не должно снова гонять замер
-		// и качать модель — она уже настроена.
+describe("SetupViewModel (top level)", () => {
+	it("starts on the choose screen even when a deployment already exists", async () => {
 		vi.mocked(API.setup.state).mockResolvedValue(
 			state({ has_deployment: true }),
 		);
 		const vm = new SetupViewModel();
-
-		await vm.refresh();
-
-		expect(vm.screen).toBe("done");
-		expect(API.setup.benchmark).not.toHaveBeenCalled();
-		expect(API.setup.pull).not.toHaveBeenCalled();
-		// Разметка отличает «письмо только что написано» от «модель была
-		// настроена раньше» по наличию letter — без замера его не бывает,
-		// а seconds остаётся нулём инициализации, а не временем реального замера.
-		expect(vm.letter).toBeNull();
-		expect(vm.seconds).toBe(0);
+		await vm.init();
+		expect(vm.path).toBe("choose");
 	});
 
-	it("sends a weak machine to the fork, without downloading anything", async () => {
+	it("flags weak hardware for the local card", async () => {
 		vi.mocked(API.setup.state).mockResolvedValue(
 			state({ hardware: { tier: "weak", ram_gb: 8, cores: 4 } }),
 		);
 		const vm = new SetupViewModel();
-
-		await vm.refresh();
-
-		expect(vm.screen).toBe("weak-hardware");
-		expect(API.setup.pull).not.toHaveBeenCalled();
+		await vm.init();
+		expect(vm.hardwareWeak).toBe(true);
 	});
 
-	it("asks to install Ollama when it is absent", async () => {
-		vi.mocked(API.setup.state).mockResolvedValue(
-			state({ ollama: "not_installed" }),
-		);
+	it("enters the local branch and refreshes it", async () => {
+		vi.mocked(API.setup.state).mockResolvedValue(state());
+		vi.mocked(API.setup.local).mockResolvedValue({
+			ollama_state: "ready",
+			installed_models: ["qwen2.5:7b"],
+			recommended_tag: "qwen2.5:7b",
+			recommended_installed: true,
+		});
 		const vm = new SetupViewModel();
-
-		await vm.refresh();
-
-		expect(vm.screen).toBe("ollama-missing");
+		await vm.init();
+		await vm.chooseLocal();
+		expect(vm.path).toBe("local");
+		expect(vm.local.screen).toBe("local-select");
 	});
 
-	it("asks to start Ollama when it is installed but silent", async () => {
-		vi.mocked(API.setup.state).mockResolvedValue(
-			state({ ollama: "not_running" }),
-		);
+	it("enters the cloud branch and loads the catalog", async () => {
+		vi.mocked(API.setup.state).mockResolvedValue(state());
+		vi.mocked(API.setup.cloudModels).mockResolvedValue([
+			{
+				model: "openai/gpt-4o",
+				label: "gpt-4o",
+				provider: "openai",
+				key_url: "https://o",
+			},
+		]);
 		const vm = new SetupViewModel();
-
-		await vm.refresh();
-
-		expect(vm.screen).toBe("ollama-stopped");
+		await vm.init();
+		await vm.chooseCloud();
+		expect(vm.path).toBe("cloud");
+		expect(vm.cloud.screen).toBe("select");
 	});
 
-	it("offers the pull when the model is missing", async () => {
-		vi.mocked(API.setup.state).mockResolvedValue(
-			state({ ollama: "model_missing" }),
-		);
-		const vm = new SetupViewModel();
-
-		await vm.refresh();
-
-		expect(vm.screen).toBe("pull");
-		expect(vm.percent).toBe(0);
-	});
-
-	it("tracks real pull percentages and moves on to the benchmark", async () => {
-		vi.mocked(API.setup.state).mockResolvedValue(
-			state({ ollama: "model_missing" }),
-		);
-		vi.mocked(API.setup.pull).mockReturnValue(progress(25, 100));
-		vi.mocked(API.setup.benchmark).mockResolvedValue({
+	it("passes the cache-sync callback down to both branches", async () => {
+		vi.mocked(API.setup.state).mockResolvedValue(state());
+		vi.mocked(API.setup.cloudModels).mockResolvedValue([
+			{
+				model: "openai/gpt-4o",
+				label: "gpt-4o",
+				provider: "openai",
+				key_url: "https://o",
+			},
+		]);
+		vi.mocked(API.setup.trial).mockResolvedValue({
 			passed: true,
-			seconds: 6.1,
-			letter: "Здравствуйте!",
+			seconds: 4,
+			letter: "ok",
 			failure_reason: null,
 			error: null,
 		});
-		const vm = new SetupViewModel();
-		await vm.refresh();
-
-		await vm.pullModel();
-
-		expect(vm.percent).toBe(100);
-		expect(vm.screen).toBe("done");
-		expect(API.setup.deployment).toHaveBeenCalledWith({
-			model: "ollama_chat/qwen2.5:7b",
-			api_base: "http://localhost:11434",
-			api_key: null,
-		});
-	});
-
-	it("marks isPulling while the download is in flight, so a second click is a no-op", async () => {
-		// Пока не было кнопки, isPulling было некому проверять — теперь это
-		// единственный сигнал, которым разметка блокирует повторный клик.
-		vi.mocked(API.setup.state).mockResolvedValue(
-			state({ ollama: "model_missing" }),
-		);
-		vi.mocked(API.setup.pull).mockReturnValue(progress(25, 100));
-		vi.mocked(API.setup.benchmark).mockResolvedValue({
-			passed: true,
-			seconds: 6.1,
-			letter: "Здравствуйте!",
-			failure_reason: null,
-			error: null,
-		});
-		const vm = new SetupViewModel();
-		await vm.refresh();
-
-		expect(vm.isPulling).toBe(false);
-		const pulling = vm.pullModel();
-		// Код до первого await внутри pullModel() выполняется синхронно, поэтому
-		// флаг уже true сразу после вызова, без ожидания микротасков.
-		expect(vm.isPulling).toBe(true);
-		const secondCall = vm.pullModel();
-
-		await Promise.all([pulling, secondCall]);
-
-		expect(vm.isPulling).toBe(false);
-		expect(API.setup.pull).toHaveBeenCalledOnce();
-	});
-
-	it("shows the letter the machine wrote", async () => {
-		vi.mocked(API.setup.state).mockResolvedValue(state());
-		vi.mocked(API.setup.benchmark).mockResolvedValue({
-			passed: true,
-			seconds: 6.1,
-			letter: "Здравствуйте! Меня заинтересовала вакансия.",
-			failure_reason: null,
-			error: null,
-		});
-		const vm = new SetupViewModel();
-		await vm.refresh();
-
-		await vm.runBenchmark();
-
-		expect(vm.screen).toBe("done");
-		expect(vm.letter).toContain("Здравствуйте");
-		expect(vm.seconds).toBe(6.1);
-	});
-
-	it("does not write the deployment when the machine is too slow", async () => {
-		vi.mocked(API.setup.state).mockResolvedValue(state());
-		vi.mocked(API.setup.benchmark).mockResolvedValue({
-			passed: false,
-			seconds: 45,
-			letter: null,
-			failure_reason: "deadline",
-			error: null,
-		});
-		const vm = new SetupViewModel();
-		await vm.refresh();
-
-		await vm.runBenchmark();
-
-		expect(vm.screen).toBe("too-slow");
-		expect(API.setup.deployment).not.toHaveBeenCalled();
-	});
-
-	it("writes the deployment when the user keeps the slow local model", async () => {
-		vi.mocked(API.setup.state).mockResolvedValue(state());
-		vi.mocked(API.setup.benchmark).mockResolvedValue({
-			passed: false,
-			seconds: 45,
-			letter: null,
-			failure_reason: "deadline",
-			error: null,
-		});
-		const vm = new SetupViewModel();
-		await vm.refresh();
-		await vm.runBenchmark();
-
-		await vm.keepLocal();
-
-		expect(API.setup.deployment).toHaveBeenCalledOnce();
-		expect(vm.screen).toBe("done");
-	});
-
-	it("routes a model error to the error screen, not the 'too slow' fork", async () => {
-		// P0: a model that never answered (crash/OOM/refused connection) must
-		// not be offered as "slow but keepable" — the user would pick "keep
-		// local" on a deployment that has never once produced a letter.
-		vi.mocked(API.setup.state).mockResolvedValue(state());
-		vi.mocked(API.setup.benchmark).mockResolvedValue({
-			passed: false,
-			seconds: 0.3,
-			letter: null,
-			failure_reason: "model_error",
-			error: "connection refused",
-		});
-		const vm = new SetupViewModel();
-		await vm.refresh();
-
-		await vm.runBenchmark();
-
-		expect(vm.screen).toBe("error");
-		expect(vm.errorMessage).toContain("connection refused");
-		expect(API.setup.deployment).not.toHaveBeenCalled();
-	});
-
-	it("never gets a chance to write a deployment for a model that never answered", async () => {
-		// keepLocal() is only reachable from the "too-slow" screen; a
-		// model_error benchmark must never land there in the first place.
-		vi.mocked(API.setup.state).mockResolvedValue(state());
-		vi.mocked(API.setup.benchmark).mockResolvedValue({
-			passed: false,
-			seconds: 0.1,
-			letter: null,
-			failure_reason: "model_error",
-			error: "model 'qwen2.5:7b' not found, try pulling it first",
-		});
-		const vm = new SetupViewModel();
-		await vm.refresh();
-
-		await vm.runBenchmark();
-
-		expect(vm.screen).not.toBe("too-slow");
-		expect(vm.screen).toBe("error");
-	});
-
-	it("surfaces a pull failure instead of hanging on the progress bar", async () => {
-		vi.mocked(API.setup.state).mockResolvedValue(
-			state({ ollama: "model_missing" }),
-		);
-		vi.mocked(API.setup.pull).mockImplementation(() => {
-			throw new Error("no space left on device");
-		});
-		const vm = new SetupViewModel();
-		await vm.refresh();
-
-		await vm.pullModel();
-
-		expect(vm.screen).toBe("error");
-		expect(vm.errorMessage).toContain("no space left on device");
-	});
-
-	describe("useLocalAnyway (weak hardware escape hatch)", () => {
-		it("takes weak hardware to ollama-missing screen, ignoring hardware check", async () => {
-			// Слабое железо, но Ollama не установлена: пользователь видит инструкцию
-			// установки, а не "ваша машина слишком слабая".
-			vi.mocked(API.setup.state).mockResolvedValue(
-				state({
-					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
-					ollama: "not_installed",
-				}),
-			);
-			const vm = new SetupViewModel();
-			await vm.refresh();
-
-			await vm.useLocalAnyway();
-
-			expect(vm.screen).toBe("ollama-missing");
-			expect(API.setup.pull).not.toHaveBeenCalled();
-			expect(API.setup.benchmark).not.toHaveBeenCalled();
-		});
-
-		it("takes weak hardware to pull screen when model is missing, without auto-starting download", async () => {
-			// Слабое железо, модель отсутствует: экран загрузки, но сама загрузка
-			// НЕ стартует автоматически (пользователь запускает кнопкой).
-			vi.mocked(API.setup.state).mockResolvedValue(
-				state({
-					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
-					ollama: "model_missing",
-				}),
-			);
-			const vm = new SetupViewModel();
-			await vm.refresh();
-
-			await vm.useLocalAnyway();
-
-			expect(vm.screen).toBe("pull");
-			expect(vm.percent).toBe(0);
-			expect(API.setup.pull).not.toHaveBeenCalled();
-			expect(API.setup.benchmark).not.toHaveBeenCalled();
-		});
-
-		it("takes weak hardware to ollama-stopped screen when service is down", async () => {
-			// Слабое железо, Ollama установлена но не запущена: инструкция запуска.
-			vi.mocked(API.setup.state).mockResolvedValue(
-				state({
-					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
-					ollama: "not_running",
-				}),
-			);
-			const vm = new SetupViewModel();
-			await vm.refresh();
-
-			await vm.useLocalAnyway();
-
-			expect(vm.screen).toBe("ollama-stopped");
-			expect(API.setup.pull).not.toHaveBeenCalled();
-			expect(API.setup.benchmark).not.toHaveBeenCalled();
-		});
-
-		it("auto-starts benchmark on weak hardware when model is ready, writing deployment on pass", async () => {
-			// Слабое железо, модель готова: сразу замер, и если прошел — deployment,
-			// пользователь попадает на "Готово".
-			vi.mocked(API.setup.state).mockResolvedValue(
-				state({
-					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
-					ollama: "ready",
-				}),
-			);
-			vi.mocked(API.setup.benchmark).mockResolvedValue({
-				passed: true,
-				seconds: 5.2,
-				letter: "Здравствуйте, друзья!",
-				failure_reason: null,
-				error: null,
-			});
-			const vm = new SetupViewModel();
-			await vm.refresh();
-
-			await vm.useLocalAnyway();
-
-			expect(vm.screen).toBe("done");
-			expect(vm.seconds).toBe(5.2);
-			expect(API.setup.deployment).toHaveBeenCalledOnce();
-			expect(API.setup.deployment).toHaveBeenCalledWith({
-				model: "ollama_chat/qwen2.5:7b",
-				api_base: "http://localhost:11434",
-				api_key: null,
-			});
-		});
-	});
-
-	describe("settings cache sync after a deployment is written", () => {
-		// Регресс: онбординг писал deployment через POST /setup/deployment, но
-		// кэш ["settings"] (staleTime: Infinity, уже прогретый страницей очереди)
-		// об этом никто не уведомлял — и в Настройках модель не появлялась, пока
-		// приложение не перезапустят. Мастер обязан протолкнуть вернувшиеся
-		// настройки обратно в кэш через колбэк синхронизации.
-		it("notifies the sync callback with the settings the backend returned (local path)", async () => {
-			const saved = settingsWith([
-				{ model: "ollama_chat/qwen2.5:7b", api_base: "http://localhost:11434" },
-			]);
-			vi.mocked(API.setup.state).mockResolvedValue(state());
-			vi.mocked(API.setup.benchmark).mockResolvedValue({
-				passed: true,
-				seconds: 6.1,
-				letter: "Здравствуйте!",
-				failure_reason: null,
-				error: null,
-			});
-			vi.mocked(API.setup.deployment).mockResolvedValue(saved);
-			const onDeploymentSaved = vi.fn();
-			const vm = new SetupViewModel(onDeploymentSaved);
-
-			// На «capable» с готовой Ollama refresh() сам гонит замер и пишет
-			// deployment — второй ручной runBenchmark() был бы уже не про
-			// реальный поток, а про дубль, и ломал бы «ровно один вызов».
-			await vm.refresh();
-
-			expect(onDeploymentSaved).toHaveBeenCalledOnce();
-			expect(onDeploymentSaved).toHaveBeenCalledWith(saved);
-		});
-
-		it("notifies the sync callback with the settings the backend returned (cloud path)", async () => {
-			const saved = settingsWith([
-				{ model: "gigachat/GigaChat-2", api_key: null },
-			]);
-			vi.mocked(API.setup.state).mockResolvedValue(
-				state({ hardware: { tier: "weak", ram_gb: 8, cores: 4 } }),
-			);
-			vi.mocked(API.setup.deployment).mockResolvedValue(saved);
-			const onDeploymentSaved = vi.fn();
-			const vm = new SetupViewModel(onDeploymentSaved);
-			await vm.refresh();
-
-			await vm.connectCloud();
-
-			expect(onDeploymentSaved).toHaveBeenCalledOnce();
-			expect(onDeploymentSaved).toHaveBeenCalledWith(saved);
-		});
-
-		it("does not notify the sync callback when no deployment is written (too slow)", async () => {
-			vi.mocked(API.setup.state).mockResolvedValue(state());
-			vi.mocked(API.setup.benchmark).mockResolvedValue({
-				passed: false,
-				seconds: 45,
-				letter: null,
-				failure_reason: "deadline",
-				error: null,
-			});
-			const onDeploymentSaved = vi.fn();
-			const vm = new SetupViewModel(onDeploymentSaved);
-			await vm.refresh();
-
-			await vm.runBenchmark();
-
-			expect(onDeploymentSaved).not.toHaveBeenCalled();
-		});
-	});
-
-	describe("connectCloud (GigaChat preset)", () => {
-		it("writes the cloud deployment from state, with an empty key for the user to fill in", async () => {
-			// P0: the button used to be a bare goto("/settings") — the whole
-			// point of the preset is that the user never has to hand-type the
-			// LiteLLM model string themselves.
-			vi.mocked(API.setup.state).mockResolvedValue(
-				state({ hardware: { tier: "weak", ram_gb: 8, cores: 4 } }),
-			);
-			const vm = new SetupViewModel();
-			await vm.refresh();
-
-			const ok = await vm.connectCloud();
-
-			expect(ok).toBe(true);
-			expect(API.setup.deployment).toHaveBeenCalledOnce();
-			expect(API.setup.deployment).toHaveBeenCalledWith({
-				model: "gigachat/GigaChat-2",
-				api_key: null,
-			});
-		});
-
-		it("reads the model name from state instead of hardcoding it", async () => {
-			vi.mocked(API.setup.state).mockResolvedValue(
-				state({
-					hardware: { tier: "weak", ram_gb: 8, cores: 4 },
-					cloud_model: "gigachat/GigaChat-2-Max",
-				}),
-			);
-			const vm = new SetupViewModel();
-			await vm.refresh();
-
-			await vm.connectCloud();
-
-			expect(API.setup.deployment).toHaveBeenCalledWith({
-				model: "gigachat/GigaChat-2-Max",
-				api_key: null,
-			});
-		});
-
-		it("surfaces a failure instead of silently sending the user to settings", async () => {
-			vi.mocked(API.setup.state).mockResolvedValue(
-				state({ hardware: { tier: "weak", ram_gb: 8, cores: 4 } }),
-			);
-			vi.mocked(API.setup.deployment).mockRejectedValue(
-				new Error("network unreachable"),
-			);
-			const vm = new SetupViewModel();
-			await vm.refresh();
-
-			const ok = await vm.connectCloud();
-
-			expect(ok).toBe(false);
-			expect(vm.screen).toBe("error");
-			expect(vm.errorMessage).toContain("network unreachable");
-		});
+		vi.mocked(API.setup.deployment).mockResolvedValue({
+			llm: { deployments: [] },
+		} as never);
+		const saved = vi.fn();
+		const vm = new SetupViewModel(saved);
+		await vm.init();
+		await vm.chooseCloud();
+		vm.cloud.choose(vm.cloud.models[0]);
+		await vm.cloud.submitKey("sk");
+		expect(saved).toHaveBeenCalledOnce();
 	});
 });

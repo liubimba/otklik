@@ -1,225 +1,68 @@
 import { API } from "$lib/api/client";
-import type { LLMDeployment, Settings, SetupState } from "$lib/api/types";
+import type { Settings } from "$lib/api/types";
 import { getLogger } from "$lib/log";
+import { CloudFlow } from "./cloud-flow.svelte";
+import { LocalFlow } from "./local-flow.svelte";
 
-const OLLAMA_HOST = "http://localhost:11434";
 const logger = getLogger("SetupViewModel");
 
-export type SetupScreen =
-	| "checking"
-	| "weak-hardware"
-	| "ollama-missing"
-	| "ollama-stopped"
-	| "pull"
-	| "benchmark"
-	| "done"
-	| "too-slow"
-	| "error";
+export type SetupPath = "choose" | "local" | "cloud";
 
 /**
- * Машина состояний шага «локальная модель».
+ * Верхний уровень онбординга модели: развилка «локальная / облачная». Обе
+ * ветки — самостоятельные машины состояний (LocalFlow/CloudFlow); здесь только
+ * выбор пути и передача колбэка синхронизации кэша Настроек в обе ветки.
  *
- * Слабое железо не качает 4.7 ГБ, чтобы потом узнать, что оно их не тянет:
- * пре-фильтр по RAM и ядрам отсекает его раньше ("weak-hardware"). На
- * сильной машине вердикт выносит не эвристика, а секундомер — один
- * настоящий замер ("benchmark" → "done" | "too-slow").
+ * Экран выбора показывается всегда — даже когда deployment уже настроен: смена
+ * модели — законный сценарий, а не тупик. `has_deployment` идёт только на бейдж
+ * «Сейчас: …», а не на авто-прыжок в done.
  */
 export class SetupViewModel {
-	#state = $state<SetupState | null>(null);
-	#screen = $state<SetupScreen>("checking");
-	#percent = $state(0);
-	#seconds = $state(0);
-	#letter = $state<string | null>(null);
-	#error = $state<string | null>(null);
-	#isPulling = $state(false);
-	#isConnectingCloud = $state(false);
-
-	/**
-	 * Мастер пишет deployment через POST /setup/deployment, а не через форму
-	 * Настроек — поэтому кэш ["settings"] (staleTime: Infinity, прогретый ещё
-	 * страницей очереди) сам об этом не узнает, и в Настройках новая модель не
-	 * появится до перезапуска. Бэкенд возвращает уже обновлённые настройки; этот
-	 * колбэк проталкивает их обратно в кэш (queryClient.setQueryData) — ровно
-	 * так же, как это делает форма Настроек после своего сохранения.
-	 */
-	#onDeploymentSaved: (settings: Settings) => void;
+	#path = $state<SetupPath>("choose");
+	#hardwareWeak = $state(false);
+	#currentModel = $state<string | null>(null);
+	readonly local: LocalFlow;
+	readonly cloud: CloudFlow;
 
 	constructor(onDeploymentSaved: (settings: Settings) => void = () => {}) {
-		this.#onDeploymentSaved = onDeploymentSaved;
+		this.local = new LocalFlow(onDeploymentSaved);
+		this.cloud = new CloudFlow(onDeploymentSaved);
 	}
 
-	get screen(): SetupScreen {
-		return this.#screen;
+	get path(): SetupPath {
+		return this.#path;
 	}
-	get percent(): number {
-		return this.#percent;
+	get hardwareWeak(): boolean {
+		return this.#hardwareWeak;
 	}
-	/** Идёт ли сейчас загрузка модели — кнопка «Установить модель» смотрит сюда,
-	 * чтобы не дать запустить вторую параллельную загрузку. */
-	get isPulling(): boolean {
-		return this.#isPulling;
-	}
-	/** Идёт ли сейчас запись облачного deployment'а — кнопка «Подключить
-	 * GigaChat» смотрит сюда, чтобы не отправить POST дважды подряд. */
-	get isConnectingCloud(): boolean {
-		return this.#isConnectingCloud;
-	}
-	get seconds(): number {
-		return this.#seconds;
-	}
-	get letter(): string | null {
-		return this.#letter;
-	}
-	get errorMessage(): string | null {
-		return this.#error;
-	}
-	get localModel(): string {
-		return this.#state?.local_model ?? "";
-	}
-	get cloudModel(): string {
-		return this.#state?.cloud_model ?? "";
+	get currentModel(): string | null {
+		return this.#currentModel;
 	}
 
-	/** Перечитать состояние с бэкенда — «Проверить снова». */
-	async refresh(): Promise<void> {
-		this.#screen = "checking";
-		this.#error = null;
+	async init(): Promise<void> {
 		try {
 			const state = await API.setup.state();
-			this.#state = state;
-			this.#screen = this.#screenAfterHardwareCheck(state);
-			if (this.#screen === "benchmark") await this.runBenchmark();
+			this.#hardwareWeak = state.hardware.tier === "weak";
+			// «Сейчас: …» показываем, только если модель реально настроена.
+			this.#currentModel = state.has_deployment ? state.local_model : null;
 		} catch (error) {
-			this.#fail(error);
+			logger.error(
+				`Setup init failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		}
 	}
 
-	/** Загрузка модели + автоматический переход к замеру. */
-	async pullModel(): Promise<void> {
-		if (this.#isPulling) return; // вторая загрузка поверх первой не запускается
-		this.#screen = "pull";
-		this.#percent = 0;
-		this.#isPulling = true;
-		try {
-			for await (const progress of API.setup.pull()) {
-				this.#percent = progress.percent;
-			}
-			await this.runBenchmark();
-		} catch (error) {
-			// Провал стрима не имеет права оставить полосу прогресса висящей
-			// на последнем проценте — это отдельное явное состояние ошибки.
-			this.#fail(error);
-		} finally {
-			this.#isPulling = false;
-		}
+	async chooseLocal(): Promise<void> {
+		this.#path = "local";
+		await this.local.refresh();
 	}
 
-	async runBenchmark(): Promise<void> {
-		this.#screen = "benchmark";
-		try {
-			const result = await API.setup.benchmark();
-			this.#seconds = result.seconds;
-			this.#letter = result.letter;
-			if (!result.passed) {
-				if (result.failure_reason === "model_error") {
-					// Модель не ответила вовсе — это не про скорость. Показать
-					// «медленно» здесь нельзя: пользователь нажмёт «остаться на
-					// локальной» и мы запишем deployment, который ни разу не
-					// сработал. Это настоящая ошибка — экран error, не развилка.
-					this.#fail(result.error ?? "model_error");
-					return;
-				}
-				// Провал по времени — это НЕ ошибка, а развилка с выбором:
-				// deployment не пишем, пока пользователь не решит сам.
-				this.#screen = "too-slow";
-				return;
-			}
-			await this.#writeLocalDeployment();
-		} catch (error) {
-			this.#fail(error);
-		}
+	async chooseCloud(): Promise<void> {
+		this.#path = "cloud";
+		await this.cloud.load();
 	}
 
-	/** Слабое железо, но пользователь всё равно хочет локальную модель. */
-	async useLocalAnyway(): Promise<void> {
-		if (this.#state === null) return;
-		// Дальше решает уже реальное состояние Ollama на машине, а не эвристика
-		// по железу — та своё дело сделала (отсекла бы качание модели).
-		this.#screen = this.#screenForOllama(this.#state);
-		if (this.#screen === "benchmark") await this.runBenchmark();
-	}
-
-	/** Замер провалился («too-slow»), но пользователь готов ждать. */
-	async keepLocal(): Promise<void> {
-		try {
-			await this.#writeLocalDeployment();
-		} catch (error) {
-			this.#fail(error);
-		}
-	}
-
-	/**
-	 * Пресет облака (кнопка «Подключить GigaChat»): пишет deployment на
-	 * cloud_model с пустым ключом, так что дома в Настройках → AI пользователю
-	 * остаётся только вставить свой — без ручного ввода строки LiteLLM.
-	 * Возвращает false при провале, чтобы вызывающая сторона (разметка) не
-	 * уводила на /settings, если deployment на самом деле не записался.
-	 */
-	async connectCloud(): Promise<boolean> {
-		if (this.#state === null || this.#isConnectingCloud) return false;
-		this.#isConnectingCloud = true;
-		try {
-			const saved = await API.setup.deployment({
-				model: this.#state.cloud_model,
-				api_key: null,
-			});
-			this.#onDeploymentSaved(saved);
-			return true;
-		} catch (error) {
-			this.#fail(error);
-			return false;
-		} finally {
-			this.#isConnectingCloud = false;
-		}
-	}
-
-	async #writeLocalDeployment(): Promise<void> {
-		const deployment: LLMDeployment = {
-			model: this.#state?.local_model ?? "",
-			api_base: OLLAMA_HOST,
-			api_key: null,
-		};
-		const saved = await API.setup.deployment(deployment);
-		this.#onDeploymentSaved(saved);
-		this.#screen = "done";
-	}
-
-	// Модель уже настроена — шаг пройден, гонять замер и качать 4.7 ГБ второй
-	// раз незачем (P0-1). Иначе слабое железо уходит на развилку, минуя
-	// проверку Ollama, — ничего качать для неё смысла нет.
-	#screenAfterHardwareCheck(state: SetupState): SetupScreen {
-		if (state.has_deployment) return "done";
-		if (state.hardware.tier === "weak") return "weak-hardware";
-		return this.#screenForOllama(state);
-	}
-
-	#screenForOllama(state: SetupState): SetupScreen {
-		switch (state.ollama) {
-			case "not_installed":
-				return "ollama-missing";
-			case "not_running":
-				return "ollama-stopped";
-			case "model_missing":
-				return "pull";
-			case "ready":
-				return "benchmark";
-		}
-	}
-
-	#fail(error: unknown): void {
-		const message = error instanceof Error ? error.message : String(error);
-		logger.error(`Setup step failed: ${message}`);
-		this.#error = message;
-		this.#screen = "error";
+	back(): void {
+		this.#path = "choose";
 	}
 }

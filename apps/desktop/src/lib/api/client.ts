@@ -323,9 +323,6 @@ export const API = {
 		local: () => api<LocalSetupState>("setup/local"),
 		cloudModels: () => api<CloudModelOption[]>("setup/cloud-models"),
 		pull: () => streamPull(),
-		// benchmark оставлен ради компиляции старого мастера; удаляется в Task 10.
-		benchmark: () =>
-			api<BenchmarkResult>("setup/benchmark", { method: "POST" }),
 		trial: (deployment: LLMDeployment, deadlineSec: number) =>
 			api<BenchmarkResult>("setup/trial", {
 				method: "POST",

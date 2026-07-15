@@ -78,6 +78,32 @@ describe("CloudFlow", () => {
 		expect(saved).toHaveBeenCalledOnce();
 	});
 
+	it("guards against a concurrent double-submit", async () => {
+		vi.mocked(API.setup.cloudModels).mockResolvedValue(OPTIONS);
+		vi.mocked(API.setup.trial).mockResolvedValue({
+			passed: true,
+			seconds: 4,
+			letter: "Здравствуйте!",
+			failure_reason: null,
+			error: null,
+		});
+		vi.mocked(API.setup.deployment).mockResolvedValue({
+			llm: { deployments: [] },
+		} as never);
+		const flow = new CloudFlow(() => {});
+		await flow.load();
+		flow.choose(OPTIONS[0]);
+
+		const first = flow.submitKey("sk-123");
+		const second = flow.submitKey("sk-123");
+		const [firstResult, secondResult] = await Promise.all([first, second]);
+
+		expect(firstResult).toBe(true);
+		expect(secondResult).toBe(false);
+		expect(API.setup.trial).toHaveBeenCalledOnce();
+		expect(API.setup.deployment).toHaveBeenCalledOnce();
+	});
+
 	it("stays on key with an error when the trial fails, and never writes a deployment", async () => {
 		vi.mocked(API.setup.cloudModels).mockResolvedValue(OPTIONS);
 		vi.mocked(API.setup.trial).mockResolvedValue({

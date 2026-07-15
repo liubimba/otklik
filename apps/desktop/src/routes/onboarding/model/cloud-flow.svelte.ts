@@ -20,6 +20,7 @@ export class CloudFlow {
 	#selected = $state<CloudModelOption | null>(null);
 	#letter = $state<string | null>(null);
 	#error = $state<string | null>(null);
+	#isSubmitting = $state(false);
 	#lastKey: string | null = null;
 	#onDeploymentSaved: (settings: Settings) => void;
 
@@ -44,6 +45,11 @@ export class CloudFlow {
 	}
 	get errorMessage(): string | null {
 		return this.#error;
+	}
+	/** Идёт ли сейчас проверка ключа — кнопка «Проверить» смотрит сюда, чтобы
+	 * не отправить POST дважды подряд. */
+	get isSubmitting(): boolean {
+		return this.#isSubmitting;
 	}
 
 	get filtered(): CloudModelOption[] {
@@ -79,6 +85,8 @@ export class CloudFlow {
 	backToSelect(): void {
 		this.#error = null;
 		this.#screen = "select";
+		this.#selected = null;
+		this.#letter = null;
 	}
 
 	/**
@@ -89,6 +97,8 @@ export class CloudFlow {
 	 */
 	async submitKey(key: string): Promise<boolean> {
 		if (this.#selected === null) return false;
+		if (this.#isSubmitting) return false; // второй сабмит поверх первого не запускается
+		this.#isSubmitting = true;
 		this.#lastKey = key;
 		this.#screen = "trial";
 		this.#error = null;
@@ -111,6 +121,8 @@ export class CloudFlow {
 			this.#error = error instanceof Error ? error.message : String(error);
 			this.#screen = "key";
 			return false;
+		} finally {
+			this.#isSubmitting = false;
 		}
 	}
 

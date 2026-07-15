@@ -140,3 +140,13 @@ def test_setup_deployment_appends_a_different_model(client):
     )
     settings = SettingsAPISchema.model_validate(response.json())
     assert len(settings.llm.deployments) == 2
+
+
+def test_setup_cloud_models_lists_direct_providers(client):
+    response = client.get("/api/v1/setup/cloud-models")
+    assert response.status_code == 200
+    payload = response.json()
+    assert isinstance(payload, list) and len(payload) > 50
+    first = payload[0]
+    assert {"model", "label", "provider", "key_url"} <= first.keys()
+    assert all(item["key_url"] for item in payload)

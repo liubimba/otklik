@@ -22,6 +22,7 @@ from otklik_backend.db.models import SettingsORM
 from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.log import get_logger
 from otklik_backend.setup.benchmark import BenchmarkResult
+from otklik_backend.setup.cloud_catalog import CloudCatalog, CloudModelOption
 from otklik_backend.setup.constants import (
     CLOUD_MODEL,
     LOCAL_MODEL,
@@ -113,3 +114,8 @@ async def setup_deployment(
         ai_layer.rebuild(deployments=updated.llm_deployments)
         return settings_to_schema(orm=updated)
     return settings
+
+
+@setup_router.get("/cloud-models")
+async def setup_cloud_models() -> list[CloudModelOption]:
+    return CloudCatalog().options()

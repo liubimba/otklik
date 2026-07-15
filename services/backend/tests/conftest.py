@@ -128,6 +128,9 @@ class FakeOllamaGate:
     async def state(self) -> OllamaState:
         return self._state
 
+    async def list_models(self) -> list[str]:
+        return ["qwen2.5:7b", "llama3:8b"]
+
     async def pull(self) -> AsyncIterator[PullProgress]:
         yield PullProgress(
             status="downloading", completed_bytes=1, total_bytes=2, percent=50.0

@@ -12,13 +12,22 @@ from otklik_backend.api.dependencies import (
     OllamaGateDep,
     SessionDep,
 )
-from otklik_backend.api.schemas import SettingsAPISchema, SetupStateAPISchema
+from otklik_backend.api.schemas import (
+    LocalSetupStateAPISchema,
+    SettingsAPISchema,
+    SetupStateAPISchema,
+)
 from otklik_backend.db.converters import settings_to_orm, settings_to_schema
 from otklik_backend.db.models import SettingsORM
 from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.log import get_logger
 from otklik_backend.setup.benchmark import BenchmarkResult
-from otklik_backend.setup.constants import CLOUD_MODEL, LOCAL_MODEL, OLLAMA_HOST
+from otklik_backend.setup.constants import (
+    CLOUD_MODEL,
+    LOCAL_MODEL,
+    LOCAL_MODEL_TAG,
+    OLLAMA_HOST,
+)
 from otklik_backend.setup.ollama import OllamaPullError
 
 log = get_logger(__name__)
@@ -37,6 +46,17 @@ async def setup_state(
         has_deployment=any(item.is_usable() for item in settings.llm_deployments),
         local_model=LOCAL_MODEL,
         cloud_model=CLOUD_MODEL,
+    )
+
+
+@setup_router.get("/local")
+async def setup_local(ollama: OllamaGateDep) -> LocalSetupStateAPISchema:
+    installed = await ollama.list_models()
+    return LocalSetupStateAPISchema(
+        ollama_state=await ollama.state(),
+        installed_models=installed,
+        recommended_tag=LOCAL_MODEL_TAG,
+        recommended_installed=LOCAL_MODEL_TAG in installed,
     )
 
 

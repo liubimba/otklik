@@ -283,3 +283,10 @@ class SetupStateAPISchema(BaseModel):
     has_deployment: bool
     local_model: str
     cloud_model: str
+
+
+class LocalSetupStateAPISchema(BaseModel):
+    ollama_state: OllamaState
+    installed_models: list[str]
+    recommended_tag: str
+    recommended_installed: bool

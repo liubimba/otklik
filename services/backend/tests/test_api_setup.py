@@ -119,6 +119,16 @@ def test_setup_state_reports_cloud_deployment_with_key(client):
     assert state["has_deployment"] is True
 
 
+def test_setup_local_reports_installed_models(client):
+    response = client.get("/api/v1/setup/local")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ollama_state"] == "ready"
+    assert payload["installed_models"] == ["qwen2.5:7b", "llama3:8b"]
+    assert payload["recommended_tag"] == "qwen2.5:7b"
+    assert payload["recommended_installed"] is True
+
+
 def test_setup_deployment_appends_a_different_model(client):
     client.post(
         "/api/v1/setup/deployment",

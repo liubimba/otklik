@@ -16,6 +16,7 @@ from otklik_backend.api.schemas import (
     LocalSetupStateAPISchema,
     SettingsAPISchema,
     SetupStateAPISchema,
+    TrialRequestAPISchema,
 )
 from otklik_backend.db.converters import settings_to_orm, settings_to_schema
 from otklik_backend.db.models import SettingsORM
@@ -23,12 +24,7 @@ from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.log import get_logger
 from otklik_backend.setup.benchmark import BenchmarkResult
 from otklik_backend.setup.cloud_catalog import CloudCatalog, CloudModelOption
-from otklik_backend.setup.constants import (
-    CLOUD_MODEL,
-    LOCAL_MODEL,
-    LOCAL_MODEL_TAG,
-    OLLAMA_HOST,
-)
+from otklik_backend.setup.constants import CLOUD_MODEL, LOCAL_MODEL, LOCAL_MODEL_TAG
 from otklik_backend.setup.ollama import OllamaPullError
 
 log = get_logger(__name__)
@@ -88,10 +84,12 @@ async def setup_pull(ollama: OllamaGateDep) -> StreamingResponse:
     return StreamingResponse(frames(), media_type="text/event-stream")
 
 
-@setup_router.post("/benchmark")
-async def setup_benchmark(runner: BenchmarkRunnerDep) -> BenchmarkResult:
+@setup_router.post("/trial")
+async def setup_trial(
+    runner: BenchmarkRunnerDep, request: TrialRequestAPISchema
+) -> BenchmarkResult:
     return await runner.run(
-        deployment=LLMDeployment(model=LOCAL_MODEL, api_base=OLLAMA_HOST)
+        deployment=request.deployment, deadline_sec=request.deadline_sec
     )
 
 

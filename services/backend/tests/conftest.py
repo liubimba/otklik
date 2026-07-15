@@ -144,7 +144,9 @@ class FakeBenchmarkRunner:
             passed=True, seconds=6.1, letter="Здравствуйте! Это письмо."
         )
 
-    async def run(self, deployment: LLMDeployment) -> BenchmarkResult:
+    async def run(
+        self, deployment: LLMDeployment, deadline_sec: float | None = None
+    ) -> BenchmarkResult:
         return self._result
 
 

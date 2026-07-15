@@ -69,6 +69,23 @@ async def test_deadline_actually_cancels_the_request() -> None:
     assert layer.cancelled is True
 
 
+class _SlowLayer:
+    def __init__(self, *_args, **_kwargs) -> None: ...
+    async def generate_cover_letter(self, **_kwargs):
+        await asyncio.sleep(0.2)
+        raise AssertionError("should have hit the deadline first")
+
+
+async def test_run_honors_per_call_deadline_override():
+    runner = BenchmarkRunner(deadline_sec=999, layer_factory=_SlowLayer)
+    result = await runner.run(
+        deployment=LLMDeployment(model="x", api_base="http://h"),
+        deadline_sec=0.05,
+    )
+    assert result.passed is False
+    assert result.failure_reason == BenchmarkFailureReason.DEADLINE
+
+
 async def test_model_error_fails_the_benchmark() -> None:
     """Модель вообще не ответила (упала, OOM, обрыв соединения) — это
     MODEL_ERROR с текстом причины, а не «машина медленная». Смешивание этих

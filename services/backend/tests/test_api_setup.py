@@ -34,8 +34,14 @@ def test_setup_state(client):
     assert payload["cloud_model"] == "gigachat/GigaChat-2"
 
 
-def test_setup_benchmark(client):
-    response: Response = client.post("/api/v1/setup/benchmark")
+def test_setup_trial_generates_a_letter(client):
+    response = client.post(
+        "/api/v1/setup/trial",
+        json={
+            "deployment": {"model": "ollama_chat/qwen2.5:7b", "api_base": "http://h"},
+            "deadline_sec": 45,
+        },
+    )
     assert response.status_code == 200
     payload = response.json()
     assert payload["passed"] is True

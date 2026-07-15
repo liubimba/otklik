@@ -62,14 +62,17 @@ class BenchmarkRunner:
         self._layer_factory = layer_factory
         self._log = get_logger(__name__)
 
-    async def run(self, deployment: LLMDeployment) -> BenchmarkResult:
+    async def run(
+        self, deployment: LLMDeployment, deadline_sec: float | None = None
+    ) -> BenchmarkResult:
+        deadline = deadline_sec if deadline_sec is not None else self._deadline_sec
         # Ровно один deployment: с несколькими LiteLLM-роутер построит
         # кросс-продукт фолбэков и может втихую подменить модель — тогда мы
         # замерим не то, что думаем.
         layer = self._layer_factory([deployment])
         started = time.monotonic()
         try:
-            async with asyncio.timeout(self._deadline_sec):
+            async with asyncio.timeout(deadline):
                 result: AICoverLetterResult = await layer.generate_cover_letter(
                     vacancy_model=BENCHMARK_VACANCY,
                     resume=BENCHMARK_RESUME,
@@ -77,10 +80,7 @@ class BenchmarkRunner:
                 )
         except TimeoutError:
             elapsed = time.monotonic() - started
-            self._log.info(
-                "Benchmark: model did not finish within %.1fs — machine is too slow",
-                self._deadline_sec,
-            )
+            self._log.info("Benchmark: model did not finish within %.1fs", deadline)
             return BenchmarkResult(
                 passed=False,
                 seconds=round(elapsed, 1),

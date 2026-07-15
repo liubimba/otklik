@@ -290,3 +290,8 @@ class LocalSetupStateAPISchema(BaseModel):
     installed_models: list[str]
     recommended_tag: str
     recommended_installed: bool
+
+
+class TrialRequestAPISchema(BaseModel):
+    deployment: LLMDeployment
+    deadline_sec: float

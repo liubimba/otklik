@@ -9,6 +9,7 @@ from litellm import ModelResponse
 from otklik_backend.ai.claude_code import (
     ClaudeCodeError,
     ClaudeCodeLLM,
+    _clean_env,
     _messages_to_prompt,
     register_claude_code_provider,
     resolve_claude_binary,
@@ -236,18 +237,30 @@ class _FakeAsyncReader:
         return self._data
 
 
+class _FakeStdout:
+    """Подделка asyncio.StreamReader: `readline()` по списку, затем EOF (b"")."""
+
+    def __init__(self, lines: list[bytes]):
+        self._lines = list(lines)
+
+    async def readline(self) -> bytes:
+        if not self._lines:
+            return b""
+        return self._lines.pop(0)
+
+
 class _FakeStreamProc:
     """Подделка процесса со stdout-строками stream-json."""
 
-    def __init__(self, lines: list[bytes], returncode: int = 0, stderr: bytes = b""):
-        self.stdout = self._aiter(lines)
+    def __init__(
+        self,
+        lines: list[bytes],
+        returncode: int | None = 0,
+        stderr: bytes = b"",
+    ):
+        self.stdout = _FakeStdout(lines)
         self.stderr = _FakeAsyncReader(stderr)
         self.returncode = returncode
-
-    @staticmethod
-    async def _aiter(lines: list[bytes]):
-        for line in lines:
-            yield line
 
     def kill(self) -> None:
         self.returncode = -9
@@ -358,3 +371,58 @@ async def test_astreaming_raises_on_mid_stream_death_without_result() -> None:
                 model_response=ModelResponse(),
             ):
                 pass
+
+
+async def test_astreaming_raises_and_kills_process_on_idle_timeout() -> None:
+    """`claude -p` (stream) перестаёт писать в stdout, но не завершается —
+    цикл чтения должен оборваться по дедлайну бездействия между чанками, а
+    не повиснуть навечно (иначе letter-edit chat зависает без ответа)."""
+    llm = ClaudeCodeLLM()
+    proc = _FakeStreamProc([], returncode=None)  # ещё "жив" — не вышел
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+
+    async def _fake_wait_for(coro, timeout):
+        coro.close()  # avoid "coroutine was never awaited" warning
+        raise asyncio.TimeoutError
+
+    with (
+        patch(
+            "otklik_backend.ai.claude_code.resolve_claude_binary",
+            return_value="/usr/bin/claude",
+        ),
+        patch(
+            "otklik_backend.ai.claude_code.asyncio.create_subprocess_exec",
+            side_effect=_fake_exec,
+        ),
+        patch(
+            "otklik_backend.ai.claude_code.asyncio.wait_for",
+            side_effect=_fake_wait_for,
+        ),
+    ):
+        with pytest.raises(ClaudeCodeError, match="idle"):
+            async for _ in llm.astreaming(
+                model="claude-code/sonnet",
+                messages=[{"role": "user", "content": "go"}],
+                model_response=ModelResponse(),
+            ):
+                pass
+    assert proc.returncode == -9  # killed & reaped in `finally`
+
+
+def test_clean_env_strips_api_key_and_auth_token() -> None:
+    with patch(
+        "otklik_backend.ai.claude_code.os.environ",
+        {
+            "ANTHROPIC_API_KEY": "sk-leaked",
+            "ANTHROPIC_AUTH_TOKEN": "token-leaked",
+            "ANTHROPIC_BASE_URL": "https://example.com",
+            "PATH": "/usr/bin",
+        },
+    ):
+        env = _clean_env()
+    assert "ANTHROPIC_API_KEY" not in env
+    assert "ANTHROPIC_AUTH_TOKEN" not in env
+    assert env["ANTHROPIC_BASE_URL"] == "https://example.com"
+    assert env["PATH"] == "/usr/bin"

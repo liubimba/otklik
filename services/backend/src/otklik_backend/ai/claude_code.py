@@ -20,6 +20,13 @@ log = get_logger(__name__)
 # дедлайн (asyncio.timeout вокруг всего вызова) — этот страхует steady-state.
 DEFAULT_TIMEOUT_SEC = 180.0
 
+# Дедлайн бездействия для стрима: между двумя последовательными чанками от
+# `claude -p`, а НЕ общий таймаут на весь стрим — иначе долгий, но живой
+# ответ (или медленный потребитель) оборвался бы сам по себе. Оборвать нужно
+# только зависший дочерний процесс, который перестал писать в stdout, не
+# выйдя (letter-edit-chat иначе висит вечно).
+STREAM_IDLE_TIMEOUT_SEC = 120.0
+
 
 class ClaudeCodeError(Exception):
     """`claude -p` не смог выдать ответ: нет бинарника, не залогинен, ненулевой
@@ -51,9 +58,11 @@ def _clean_cwd() -> str:
 
 
 def _clean_env() -> dict[str, str]:
-    """Окружение подпроцесса без ANTHROPIC_API_KEY — auth только из подписки."""
+    """Окружение подпроцесса без ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN —
+    auth только из подписки, ни ключ, ни токен не должны увести CLI с неё."""
     env = dict(os.environ)
     env.pop("ANTHROPIC_API_KEY", None)
+    env.pop("ANTHROPIC_AUTH_TOKEN", None)
     return env
 
 
@@ -206,7 +215,27 @@ class ClaudeCodeLLM(CustomLLM):
             stderr_task = asyncio.create_task(proc.stderr.read())
         final_usage: dict[str, int] | None = None
         try:
-            async for raw in proc.stdout:
+            while True:
+                # Дедлайн — только на ожидание СЛЕДУЮЩЕЙ строки. Он стартует
+                # заново на каждой итерации, поэтому время, потраченное
+                # потребителем между нашими yield'ами, в него не попадает —
+                # только фактический простой самого дочернего процесса.
+                try:
+                    raw = await asyncio.wait_for(
+                        proc.stdout.readline(), STREAM_IDLE_TIMEOUT_SEC
+                    )
+                except (asyncio.TimeoutError, TimeoutError) as exc:
+                    log.warning(
+                        "claude-code: `claude -p` (stream) idle for over %.0fs, "
+                        "killing",
+                        STREAM_IDLE_TIMEOUT_SEC,
+                    )
+                    raise ClaudeCodeError(
+                        "`claude -p` (stream) stream idle timed out after "
+                        f"{STREAM_IDLE_TIMEOUT_SEC:.0f}s"
+                    ) from exc
+                if not raw:
+                    break  # EOF
                 line = raw.decode(errors="replace").strip()
                 if not line:
                     continue

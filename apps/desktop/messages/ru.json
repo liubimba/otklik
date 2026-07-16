@@ -300,5 +300,16 @@
 	"setup_cloud_key_check": "Проверить",
 	"setup_cloud_trial_progress": "Пишем пробное письмо…",
 	"setup_cloud_pick_another": "Выбрать другую модель",
-	"setup_back": "Назад"
+	"setup_back": "Назад",
+	"setup_choose_claude": "Claude по подписке",
+	"setup_choose_claude_hint": "Через установленный Claude Code, на вашей подписке",
+	"setup_claude_select_title": "Какую модель Claude использовать?",
+	"setup_claude_run_trial": "Проверить",
+	"setup_claude_trial_progress": "Пишем пробное письмо через Claude…",
+	"setup_claude_not_installed_title": "Не найден Claude Code",
+	"setup_claude_not_installed_body": "Установите Claude Code и войдите в свою подписку, затем нажмите «Проверить снова».",
+	"setup_claude_not_installed_link": "Установить Claude Code",
+	"setup_claude_not_authed_title": "Claude Code не авторизован",
+	"setup_claude_not_authed_body": "Запустите claude в терминале, войдите в аккаунт, затем нажмите «Проверить снова».",
+	"setup_claude_done_body": "Готово! Claude написал это письмо за {seconds} с."
 }

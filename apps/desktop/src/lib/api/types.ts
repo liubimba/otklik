@@ -316,6 +316,23 @@ export type SetupState = {
 	has_deployment: boolean;
 	local_model: string;
 	cloud_model: string;
+	claude_available: boolean;
+};
+
+// Онбординг «Claude по подписке»: состояние CLI Claude Code на машине.
+// not_installed — бинарник не найден; not_authed — есть, но не залогинен;
+// ready — есть и залогинен. Валидность токена проверяет уже пробное письмо.
+export type ClaudeCodeState = "not_installed" | "not_authed" | "ready";
+
+export type ClaudeModelOption = {
+	model: string; // строка для бэкенда, напр. "claude-code/sonnet"
+	label: string; // подпись, напр. "Claude Sonnet"
+};
+
+export type ClaudeSetupState = {
+	claude_state: ClaudeCodeState;
+	default_model: string;
+	model_options: ClaudeModelOption[];
 };
 
 // Онбординг «локальная модель»: снимок состояния Ollama на машине пользователя

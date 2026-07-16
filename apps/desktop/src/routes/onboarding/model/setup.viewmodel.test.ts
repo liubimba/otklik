@@ -17,6 +17,7 @@ vi.mock("$lib/api/client", () => ({
 			state: vi.fn(),
 			local: vi.fn(),
 			cloudModels: vi.fn(),
+			claude: vi.fn(),
 			pull: vi.fn(),
 			trial: vi.fn(),
 			deployment: vi.fn(),
@@ -31,6 +32,7 @@ function state(overrides: Partial<SetupState> = {}): SetupState {
 		has_deployment: false,
 		local_model: "ollama_chat/qwen2.5:7b",
 		cloud_model: "gigachat/GigaChat-2",
+		claude_available: false,
 		...overrides,
 	};
 }
@@ -86,6 +88,31 @@ describe("SetupViewModel (top level)", () => {
 		await vm.chooseCloud();
 		expect(vm.path).toBe("cloud");
 		expect(vm.cloud.screen).toBe("select");
+	});
+
+	it("exposes claude availability from setup state", async () => {
+		vi.mocked(API.setup.state).mockResolvedValue(
+			state({ claude_available: true }),
+		);
+		const vm = new SetupViewModel();
+		await vm.init();
+		expect(vm.claudeAvailable).toBe(true);
+	});
+
+	it("enters the claude branch and loads gate state", async () => {
+		vi.mocked(API.setup.state).mockResolvedValue(
+			state({ claude_available: true }),
+		);
+		vi.mocked(API.setup.claude).mockResolvedValue({
+			claude_state: "ready",
+			default_model: "claude-code/sonnet",
+			model_options: [{ model: "claude-code/sonnet", label: "Claude Sonnet" }],
+		} as never);
+		const vm = new SetupViewModel();
+		await vm.init();
+		await vm.chooseClaude();
+		expect(vm.path).toBe("claude");
+		expect(vm.claude.screen).toBe("select");
 	});
 
 	it("passes the cache-sync callback down to both branches", async () => {

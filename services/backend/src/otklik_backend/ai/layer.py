@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator, Sequence
 from typing import cast
 
+from otklik_backend.ai.claude_code import register_claude_code_provider
 from otklik_backend.ai.deployment import LLMDeployment
 from otklik_backend.ai.postprocess import LetterCleaner
 from litellm import (
@@ -21,6 +22,9 @@ from otklik_backend.log import get_logger
 
 class AILayer:
     def __init__(self, deployments: list[LLMDeployment] = []) -> None:
+        # Регистрируем провайдер claude-code, чтобы Router умел маршрутизировать
+        # model='claude-code/...' в CLI `claude -p`. Идемпотентно.
+        register_claude_code_provider()
         self._prompt_builder = PromptBuilder()
         self._cleaner = LetterCleaner()
         self._log = get_logger(__name__)

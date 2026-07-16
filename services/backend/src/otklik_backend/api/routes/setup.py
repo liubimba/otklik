@@ -8,11 +8,14 @@ from otklik_backend.ai.deployment import LLMDeployment
 from otklik_backend.api.dependencies import (
     AILayerDep,
     BenchmarkRunnerDep,
+    ClaudeCodeGateDep,
     HardwareProbeDep,
     OllamaGateDep,
     SessionDep,
 )
 from otklik_backend.api.schemas import (
+    ClaudeModelOption,
+    ClaudeSetupStateAPISchema,
     LocalSetupStateAPISchema,
     SettingsAPISchema,
     SetupStateAPISchema,
@@ -24,7 +27,13 @@ from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.log import get_logger
 from otklik_backend.setup.benchmark import BenchmarkResult
 from otklik_backend.setup.cloud_catalog import CloudCatalog, CloudModelOption
-from otklik_backend.setup.constants import CLOUD_MODEL, LOCAL_MODEL, LOCAL_MODEL_TAG
+from otklik_backend.setup.constants import (
+    CLAUDE_CODE_DEFAULT_MODEL,
+    CLAUDE_CODE_MODEL_OPTIONS,
+    CLOUD_MODEL,
+    LOCAL_MODEL,
+    LOCAL_MODEL_TAG,
+)
 from otklik_backend.setup.ollama import OllamaPullError
 
 log = get_logger(__name__)
@@ -34,7 +43,10 @@ setup_router = APIRouter(prefix="/setup", tags=["setup"])
 
 @setup_router.get("/state")
 async def setup_state(
-    session: SessionDep, hardware: HardwareProbeDep, ollama: OllamaGateDep
+    session: SessionDep,
+    hardware: HardwareProbeDep,
+    ollama: OllamaGateDep,
+    claude: ClaudeCodeGateDep,
 ) -> SetupStateAPISchema:
     settings: SettingsORM = await SettingsRepository.get(session=session)
     return SetupStateAPISchema(
@@ -43,6 +55,7 @@ async def setup_state(
         has_deployment=any(item.is_usable() for item in settings.llm_deployments),
         local_model=LOCAL_MODEL,
         cloud_model=CLOUD_MODEL,
+        claude_available=claude.credentials_present(),
     )
 
 
@@ -54,6 +67,18 @@ async def setup_local(ollama: OllamaGateDep) -> LocalSetupStateAPISchema:
         installed_models=installed,
         recommended_tag=LOCAL_MODEL_TAG,
         recommended_installed=LOCAL_MODEL_TAG in installed,
+    )
+
+
+@setup_router.get("/claude")
+async def setup_claude(claude: ClaudeCodeGateDep) -> ClaudeSetupStateAPISchema:
+    return ClaudeSetupStateAPISchema(
+        claude_state=await claude.state(),
+        default_model=CLAUDE_CODE_DEFAULT_MODEL,
+        model_options=[
+            ClaudeModelOption(model=model, label=label)
+            for model, label in CLAUDE_CODE_MODEL_OPTIONS
+        ],
     )
 
 

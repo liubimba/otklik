@@ -18,6 +18,7 @@ import Gauge from "@lucide/svelte/icons/gauge";
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import PenLine from "@lucide/svelte/icons/pen-line";
 import Play from "@lucide/svelte/icons/play";
+import Sparkles from "@lucide/svelte/icons/sparkles";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { useQueryClient } from "@tanstack/svelte-query";
 import { onMount } from "svelte";
@@ -40,6 +41,7 @@ onMount(() => vm.init());
 // экран «Готово», не трогая состояние CloudFlow (там так и остаётся "trial").
 let keyInput = $state("");
 let cloudDone = $state(false);
+let claudeDone = $state(false);
 
 async function goLocal(): Promise<void> {
 	await vm.chooseLocal();
@@ -56,16 +58,29 @@ async function checkKey(): Promise<void> {
 	if (await vm.cloud.submitKey(keyInput)) cloudDone = true;
 }
 
-// Письмо — общий для обеих веток артефакт: локальный замер или облачный trial,
-// смотря какой путь довёл до «Готово».
-const letter = $derived(vm.local.letter ?? vm.cloud.letter);
+async function goClaude(): Promise<void> {
+	// Тот же принцип, что и у goCloud: заново войдя в ветку, не наследуем
+	// «done» от прошлой попытки — ClaudeFlow сам приземлится на нужный экран.
+	claudeDone = false;
+	await vm.chooseClaude();
+}
+
+async function runClaudeTrial(): Promise<void> {
+	if (await vm.claude.runTrial()) claudeDone = true;
+}
+
+// Письмо — общий для всех веток артефакт: локальный замер, облачный trial
+// или пробное письмо Claude, смотря какой путь довёл до «Готово».
+const letter = $derived(vm.local.letter ?? vm.cloud.letter ?? vm.claude.letter);
 
 // «Готово» — это не отдельный path, а терминальный экран внутри ветки:
-// локальная машина доходит до screen==="done", облачная — до успешного
-// submitKey (cloudDone), при котором CloudFlow остаётся на "trial".
+// локальная машина доходит до screen==="done", облачная и Claude — до
+// успешного trial'а (cloudDone/claudeDone), при котором сама машина
+// остаётся на "trial".
 const isDone = $derived(
 	(vm.path === "local" && vm.local.screen === "done") ||
-		(vm.path === "cloud" && cloudDone),
+		(vm.path === "cloud" && cloudDone) ||
+		(vm.path === "claude" && claudeDone),
 );
 
 // Проценты и секунды приходят дробными — округляем один раз здесь, чтобы
@@ -96,6 +111,22 @@ const liveStatus = $derived.by(() => {
 				return m.setup_slow_title();
 			case "error":
 				return m.setup_error({ error: vm.local.errorMessage ?? "" });
+		}
+	}
+	if (vm.path === "claude") {
+		switch (vm.claude.screen) {
+			case "checking":
+				return m.setup_checking();
+			case "not-installed":
+				return m.setup_claude_not_installed_title();
+			case "not-authed":
+				return m.setup_claude_not_authed_title();
+			case "select":
+				return m.setup_claude_select_title();
+			case "trial":
+				return m.setup_claude_trial_progress();
+			case "error":
+				return m.setup_error({ error: vm.claude.errorMessage ?? "" });
 		}
 	}
 	switch (vm.cloud.screen) {
@@ -153,6 +184,8 @@ const liveStatus = $derived.by(() => {
                             {m.setup_done_body({ seconds })}
                         {:else if vm.path === "cloud" && cloudDone}
                             {m.setup_cloud_done_body({ seconds: Math.round(vm.cloud.seconds) })}
+                        {:else if vm.path === "claude" && claudeDone}
+                            {m.setup_claude_done_body({ seconds: Math.round(vm.claude.seconds) })}
                         {:else}
                             {m.setup_done_already_configured()}
                         {/if}
@@ -190,7 +223,7 @@ const liveStatus = $derived.by(() => {
                 {/if}
             </div>
 
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class={`grid gap-3 ${vm.claudeAvailable ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
                 <button
                         type="button"
                         onclick={goLocal}
@@ -222,7 +255,121 @@ const liveStatus = $derived.by(() => {
                         <p class="text-muted-foreground text-sm">{m.setup_choose_cloud_hint()}</p>
                     </div>
                 </button>
+
+                {#if vm.claudeAvailable}
+                    <button
+                            type="button"
+                            onclick={goClaude}
+                            class="bg-card hover:border-primary/60 hover:bg-accent/40 focus-visible:ring-ring group flex cursor-pointer flex-col gap-3 rounded-lg border p-5 text-left shadow-[var(--elevation-1)] transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                    >
+                        <Sparkles class="text-primary size-6 shrink-0"/>
+                        <div class="space-y-1">
+                            <p class="font-medium">{m.setup_choose_claude()}</p>
+                            <p class="text-muted-foreground text-sm">{m.setup_choose_claude_hint()}</p>
+                        </div>
+                    </button>
+                {/if}
             </div>
+        </section>
+
+    {:else if vm.path === "claude"}
+        <!--
+            Отдельная ветка, не общий {:else}-контейнер ниже: у Claude свой
+            «Назад» в шапке экрана уже есть общий (см. header выше), здесь же
+            нужен собственный набор экранов детекта CLI → выбор модели → trial,
+            не пересекающийся с local/cloud switch'ами.
+        -->
+        <section class="bg-card space-y-4 rounded-lg border p-6 shadow-[var(--elevation-1)]">
+            {#if vm.claude.screen === "checking"}
+                <div class="flex items-center gap-3">
+                    <LoaderCircle class="text-muted-foreground size-5 shrink-0 animate-spin"/>
+                    <p class="text-sm">{m.setup_checking()}</p>
+                </div>
+
+            {:else if vm.claude.screen === "not-installed"}
+                <div class="flex items-start gap-3">
+                    <CircleAlert class="text-destructive size-5 shrink-0"/>
+                    <div class="space-y-1">
+                        <h1 class="text-lg font-semibold">{m.setup_claude_not_installed_title()}</h1>
+                        <p class="text-muted-foreground text-sm">{m.setup_claude_not_installed_body()}</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <!--
+                        Установка Claude Code — вне приложения, поэтому ссылка —
+                        настоящий <a>: opener открывает её в системном браузере.
+                    -->
+                    <a
+                            href="https://claude.com/product/claude-code"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-primary text-sm underline-offset-4 hover:underline"
+                    >{m.setup_claude_not_installed_link()}</a>
+                    <Button variant="outline" class="cursor-pointer" onclick={goClaude}>
+                        {m.setup_recheck()}
+                    </Button>
+                </div>
+
+            {:else if vm.claude.screen === "not-authed"}
+                <div class="flex items-start gap-3">
+                    <CircleAlert class="text-destructive size-5 shrink-0"/>
+                    <div class="space-y-1">
+                        <h1 class="text-lg font-semibold">{m.setup_claude_not_authed_title()}</h1>
+                        <p class="text-muted-foreground text-sm">{m.setup_claude_not_authed_body()}</p>
+                    </div>
+                </div>
+                <Button variant="outline" class="cursor-pointer" onclick={goClaude}>
+                    {m.setup_recheck()}
+                </Button>
+
+            {:else if vm.claude.screen === "select"}
+                <div class="space-y-2">
+                    <h1 class="text-lg font-semibold">{m.setup_claude_select_title()}</h1>
+                </div>
+                <div class="space-y-2">
+                    {#each vm.claude.models as option (option.model)}
+                        <button
+                                type="button"
+                                onclick={() => vm.claude.selectModel(option.model)}
+                                class={`focus-visible:ring-ring flex w-full cursor-pointer items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none ${vm.claude.selected === option.model ? "border-primary bg-accent/40" : "hover:border-primary/60 hover:bg-accent/40"}`}
+                        >
+                            <span class="text-sm font-medium">{option.label}</span>
+                            {#if vm.claude.selected === option.model}
+                                <CircleCheck class="text-primary size-4 shrink-0"/>
+                            {/if}
+                        </button>
+                    {/each}
+                </div>
+                {#if vm.claude.errorMessage}
+                    <p class="text-destructive text-sm" role="alert">
+                        {m.setup_error({ error: vm.claude.errorMessage })}
+                    </p>
+                {/if}
+                <!--
+                    disabled на isSubmitting запирает второй сабмит поверх
+                    идущего trial'а — тот же приём, что у облачной ветки.
+                -->
+                <Button class="cursor-pointer" disabled={vm.claude.isSubmitting} onclick={runClaudeTrial}>
+                    {m.setup_claude_run_trial()}
+                </Button>
+
+            {:else if vm.claude.screen === "trial"}
+                <div class="flex items-center gap-3">
+                    <LoaderCircle class="text-muted-foreground size-5 shrink-0 animate-spin"/>
+                    <p class="text-sm">{m.setup_claude_trial_progress()}</p>
+                </div>
+
+            {:else if vm.claude.screen === "error"}
+                <div class="flex items-start gap-3">
+                    <CircleAlert class="text-destructive size-5 shrink-0"/>
+                    <p class="text-destructive text-sm" role="alert">
+                        {m.setup_error({ error: vm.claude.errorMessage ?? "" })}
+                    </p>
+                </div>
+                <Button variant="outline" class="cursor-pointer" onclick={goClaude}>
+                    {m.setup_retry()}
+                </Button>
+            {/if}
         </section>
 
     {:else}

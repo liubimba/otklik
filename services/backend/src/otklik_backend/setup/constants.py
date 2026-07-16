@@ -24,3 +24,17 @@ MIN_CORES = 8
 
 # Порог гейта и таймаут замера — одно и то же число.
 BENCHMARK_DEADLINE_SEC = 45.0
+
+# Провайдер Claude Code: генерация через локально установленный `claude -p` на
+# подписке пользователя. Дискриминатор — префикс модели, отдельного поля в
+# LLMDeployment не заводим.
+CLAUDE_CODE_PROVIDER = "claude-code"
+CLAUDE_CODE_PREFIX = "claude-code/"
+CLAUDE_CODE_DEFAULT_MODEL = "claude-code/sonnet"
+# (строка модели для LiteLLM, подпись для UI). Алиасы (`sonnet`/`opus`/`haiku`)
+# понимает `claude -p --model`.
+CLAUDE_CODE_MODEL_OPTIONS: list[tuple[str, str]] = [
+    ("claude-code/sonnet", "Claude Sonnet"),
+    ("claude-code/opus", "Claude Opus"),
+    ("claude-code/haiku", "Claude Haiku"),
+]

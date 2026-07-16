@@ -187,3 +187,27 @@ def test_setup_cloud_models_lists_direct_providers(client):
     first = payload[0]
     assert {"model", "label", "provider", "key_url"} <= first.keys()
     assert all(item["key_url"] for item in payload)
+
+
+def test_setup_claude_reports_ready(client):
+    response = client.get("/api/v1/setup/claude")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["claude_state"] == "ready"
+    assert payload["default_model"] == "claude-code/sonnet"
+    models = [opt["model"] for opt in payload["model_options"]]
+    assert models == ["claude-code/sonnet", "claude-code/opus", "claude-code/haiku"]
+
+
+def test_setup_state_exposes_claude_available(client):
+    state = client.get("/api/v1/setup/state").json()
+    assert state["claude_available"] is True
+
+
+def test_setup_claude_deployment_counts_as_configured(client):
+    client.post(
+        "/api/v1/setup/deployment",
+        json=LLMDeployment(model="claude-code/sonnet").model_dump(),
+    )
+    state = client.get("/api/v1/setup/state").json()
+    assert state["has_deployment"] is True

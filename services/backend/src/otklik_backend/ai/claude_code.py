@@ -3,10 +3,11 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 import litellm
 from litellm import CustomLLM, ModelResponse  # type: ignore[attr-defined]
+from litellm.types.utils import GenericStreamingChunk
 
 from otklik_backend.log import get_logger
 from otklik_backend.paths import AppPaths
@@ -173,6 +174,67 @@ class ClaudeCodeLLM(CustomLLM):
                 f"`claude -p` reported an error: {str(data.get('result', ''))[:300]}"
             )
         return self._to_response(model, data)
+
+    async def astreaming(  # type: ignore[override]
+        self, *args: Any, **kwargs: Any
+    ) -> AsyncIterator[GenericStreamingChunk]:
+        model: str = kwargs["model"]
+        messages: list[dict[str, Any]] = kwargs["messages"]
+        binary = resolve_claude_binary()
+        if binary is None:
+            raise ClaudeCodeError("Claude Code CLI (`claude`) not found")
+        system, prompt = _messages_to_prompt(messages)
+        proc_args = self._base_args(binary, model, system, prompt) + [
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--include-partial-messages",
+        ]
+        proc = await self._spawn(proc_args)
+        assert proc.stdout is not None
+        final_usage: dict[str, int] | None = None
+        try:
+            async for raw in proc.stdout:
+                line = raw.decode(errors="replace").strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                etype = event.get("type")
+                if etype == "stream_event":
+                    inner = event.get("event", {})
+                    if inner.get("type") == "content_block_delta":
+                        delta = inner.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            yield {
+                                "text": str(delta.get("text", "")),
+                                "is_finished": False,
+                                "finish_reason": "",
+                                "usage": None,
+                                "index": 0,
+                            }
+                elif etype == "result":
+                    u = event.get("usage") or {}
+                    in_tok = int(u.get("input_tokens", 0) or 0)
+                    out_tok = int(u.get("output_tokens", 0) or 0)
+                    final_usage = {
+                        "prompt_tokens": in_tok,
+                        "completion_tokens": out_tok,
+                        "total_tokens": in_tok + out_tok,
+                    }
+        finally:
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+        yield {
+            "text": "",
+            "is_finished": True,
+            "finish_reason": "stop",
+            "usage": final_usage,  # type: ignore[typeddict-item]
+            "index": 0,
+        }
 
     @staticmethod
     def _to_response(model: str, data: dict[str, Any]) -> ModelResponse:

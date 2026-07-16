@@ -224,3 +224,85 @@ def test_resolve_binary_returns_none_without_install() -> None:
         patch("otklik_backend.ai.claude_code.Path.exists", return_value=False),
     ):
         assert resolve_claude_binary() is None
+
+
+class _FakeStreamProc:
+    """Подделка процесса со stdout-строками stream-json."""
+
+    def __init__(self, lines: list[bytes], returncode: int = 0):
+        self.stdout = self._aiter(lines)
+        self.returncode = returncode
+
+    @staticmethod
+    async def _aiter(lines: list[bytes]):
+        for line in lines:
+            yield line
+
+    def kill(self) -> None:
+        self.returncode = -9
+
+    async def wait(self) -> int:
+        return self.returncode
+
+
+def _stream_lines() -> list[bytes]:
+    def delta(text: str) -> bytes:
+        return (
+            json.dumps(
+                {
+                    "type": "stream_event",
+                    "event": {
+                        "type": "content_block_delta",
+                        "delta": {"type": "text_delta", "text": text},
+                    },
+                }
+            )
+            + "\n"
+        ).encode()
+
+    result = (
+        json.dumps(
+            {
+                "type": "result",
+                "result": "Привет!",
+                "usage": {"input_tokens": 4, "output_tokens": 2},
+            }
+        )
+        + "\n"
+    ).encode()
+    return [delta("Прив"), delta("ет!"), result]
+
+
+async def test_astreaming_yields_deltas_then_terminal_chunk() -> None:
+    llm = ClaudeCodeLLM()
+    proc = _FakeStreamProc(_stream_lines())
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+
+    with (
+        patch(
+            "otklik_backend.ai.claude_code.resolve_claude_binary",
+            return_value="/usr/bin/claude",
+        ),
+        patch(
+            "otklik_backend.ai.claude_code.asyncio.create_subprocess_exec",
+            side_effect=_fake_exec,
+        ),
+    ):
+        chunks = [
+            chunk
+            async for chunk in llm.astreaming(
+                model="claude-code/sonnet",
+                messages=[{"role": "user", "content": "go"}],
+                model_response=ModelResponse(),
+            )
+        ]
+
+    texts = [c["text"] for c in chunks]
+    assert "".join(texts) == "Прив" + "ет!"
+    assert chunks[-1]["is_finished"] is True
+    assert chunks[-1]["finish_reason"] == "stop"
+    assert chunks[-1]["usage"]["completion_tokens"] == 2
+    # промежуточные дельты не финальные
+    assert all(c["is_finished"] is False for c in chunks[:-1])

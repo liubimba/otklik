@@ -53,7 +53,13 @@ async def test_slow_machine_fails_on_the_deadline() -> None:
 
     assert result.passed is False
     assert result.letter is None
-    assert result.seconds >= 0.05
+    # Не ставим положительный порог на seconds: runner округляет elapsed до
+    # одного знака (round(elapsed, 1)), поэтому любое elapsed < 0.05 c схлопывается
+    # в 0.0, а на грубом таймере Windows дедлайн в 0.05 c именно так и меряется
+    # (проходило на Linux/macOS лишь по удаче тайминга — CI на windows-latest
+    # падал на `0.0 >= 0.05`). Смысл ветки — DEADLINE, а не точная длительность;
+    # его несёт failure_reason ниже. Здесь достаточно, что время неотрицательно.
+    assert result.seconds >= 0.0
     assert result.failure_reason is BenchmarkFailureReason.DEADLINE
     assert result.error is None
 

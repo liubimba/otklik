@@ -13,8 +13,10 @@ class LLMDeployment(BaseModel):
     id: str = Field(default_factory=lambda: uuid4().hex)
     model: str
     # ВРЕМЕННО: ключ ещё живёт в БД. Удаляется в задаче 5, когда ключи переедут
-    # в хранилище окончательно.
-    api_key: str | None = None
+    # в хранилище окончательно. exclude=True: с задачи 3 ключ больше никогда
+    # не попадает ни в один response — ни здесь, ни через SettingsRepository
+    # (после задачи 3 сюда пишется только None, см. DeploymentSecretsService.plan).
+    api_key: str | None = Field(default=None, exclude=True)
     api_base: str | None = None
     has_api_key: bool = False
 

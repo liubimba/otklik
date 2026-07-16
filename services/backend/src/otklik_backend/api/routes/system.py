@@ -6,6 +6,7 @@ from otklik_backend.ai.health import AILayerHealthStatus
 from otklik_backend.api.dependencies import (
     AILayerDep,
     OrchestratorDep,
+    SecretStoreDep,
     SessionDep,
 )
 from otklik_backend.api.schemas import (
@@ -13,6 +14,7 @@ from otklik_backend.api.schemas import (
     OrchestratorStatusAPISchema,
     RateLimitInfoAPISchema,
     RateLimitsBudgetAPISchema,
+    SecretStorageAPISchema,
     SettingsAPISchema,
 )
 from otklik_backend.db.converters import settings_to_schema
@@ -52,6 +54,11 @@ async def rate_limits(session: SessionDep) -> RateLimitsBudgetAPISchema:
 async def ai_health(ai_layer: AILayerDep) -> AIHealthStatusAPISchema:
     status: AILayerHealthStatus = await ai_layer.get_health_status()
     return AIHealthStatusAPISchema(status=status.value)
+
+
+@system_router.get("/secret-storage")
+async def secret_storage(store: SecretStoreDep) -> SecretStorageAPISchema:
+    return SecretStorageAPISchema(mode=store.mode)
 
 
 @system_router.get("/orchestrator/status")

@@ -11,7 +11,9 @@ from otklik_backend.api.dependencies import (
     get_browser,
     get_claude_code_gate,
     get_cover_letter_service,
+    get_deployment_secrets,
     get_ollama_gate,
+    get_secret_store,
     get_session,
     get_orchestrator,
     get_state_service,
@@ -48,6 +50,8 @@ from pydantic import SecretStr
 from otklik_backend.ai.deployment import LLMDeployment, ResolvedDeployment
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.db.repositories.vacancies import VacancyRepository
+from otklik_backend.secrets.service import DeploymentSecretsService
+from otklik_backend.secrets.store import SecretStorageMode
 from otklik_backend.setup.benchmark import BenchmarkResult
 from otklik_backend.setup.claude_code import ClaudeCodeState
 from otklik_backend.setup.ollama import OllamaState, PullProgress
@@ -167,6 +171,28 @@ class FakeBenchmarkRunner:
         return self._result
 
 
+class FakeSecretStore:
+    """In-memory хранилище. Настоящую связку тесты не трогают никогда: на CI
+    (ubuntu под xvfb-run) нет ни D-Bus, ни SecretService."""
+
+    def __init__(self, mode: SecretStorageMode = SecretStorageMode.KEYCHAIN) -> None:
+        self.items: dict[str, str] = {}
+        self._mode = mode
+
+    @property
+    def mode(self) -> SecretStorageMode:
+        return self._mode
+
+    async def get(self, account: str) -> str | None:
+        return self.items.get(account)
+
+    async def set(self, account: str, secret: str) -> None:
+        self.items[account] = secret
+
+    async def delete(self, account: str) -> None:
+        self.items.pop(account, None)
+
+
 class FakeWriter:
     def __init__(self, results: list[SubmissionResult] | None = None) -> None:
         self._results: list[SubmissionResult] = list(results) if results else []
@@ -251,6 +277,11 @@ def fake_benchmark_runner() -> FakeBenchmarkRunner:
 
 
 @pytest.fixture
+def fake_secret_store() -> FakeSecretStore:
+    return FakeSecretStore()
+
+
+@pytest.fixture
 async def session_factory(
     tmp_path: Path,
 ) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
@@ -305,6 +336,7 @@ async def client(
     fake_ollama_gate: FakeOllamaGate,
     fake_claude_code_gate: FakeClaudeCodeGate,
     fake_benchmark_runner: FakeBenchmarkRunner,
+    fake_secret_store: FakeSecretStore,
 ) -> TestClient:
     async def override_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
@@ -337,6 +369,10 @@ async def client(
     app.dependency_overrides[get_ollama_gate] = lambda: fake_ollama_gate
     app.dependency_overrides[get_claude_code_gate] = lambda: fake_claude_code_gate
     app.dependency_overrides[get_benchmark_runner] = lambda: fake_benchmark_runner
+    app.dependency_overrides[get_secret_store] = lambda: fake_secret_store
+    app.dependency_overrides[get_deployment_secrets] = lambda: DeploymentSecretsService(
+        store=fake_secret_store
+    )
 
     async with session_factory() as session:
         await VacancyRepository.create(

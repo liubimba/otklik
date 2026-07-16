@@ -3,12 +3,14 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
+from pydantic import SecretStr
 
-from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.deployment import LLMDeployment, ResolvedDeployment
 from otklik_backend.api.dependencies import (
     AILayerDep,
     BenchmarkRunnerDep,
     ClaudeCodeGateDep,
+    DeploymentSecretsDep,
     HardwareProbeDep,
     OllamaGateDep,
     SessionDep,
@@ -16,6 +18,7 @@ from otklik_backend.api.dependencies import (
 from otklik_backend.api.schemas import (
     ClaudeModelOption,
     ClaudeSetupStateAPISchema,
+    LLMDeploymentWriteAPISchema,
     LocalSetupStateAPISchema,
     SettingsAPISchema,
     SetupStateAPISchema,
@@ -113,33 +116,62 @@ async def setup_pull(ollama: OllamaGateDep) -> StreamingResponse:
 async def setup_trial(
     runner: BenchmarkRunnerDep, request: TrialRequestAPISchema
 ) -> BenchmarkResult:
-    return await runner.run(
-        deployment=request.deployment.resolve(), deadline_sec=request.deadline_sec
+    """Ключ едет в теле запроса и живёт только на время замера — рантайм
+    строит ResolvedDeployment прямо тут, минуя и БД, и SecretStore: пробную
+    модель нельзя ни сохранить, ни осиротить в хранилище."""
+    resolved = ResolvedDeployment(
+        deployment=LLMDeployment(
+            model=request.deployment.model, api_base=request.deployment.api_base
+        ),
+        api_key=(
+            SecretStr(request.deployment.api_key)
+            if request.deployment.api_key
+            else None
+        ),
     )
+    return await runner.run(deployment=resolved, deadline_sec=request.deadline_sec)
 
 
 @setup_router.post("/deployment")
 async def setup_deployment(
-    session: SessionDep, ai_layer: AILayerDep, deployment: LLMDeployment
+    session: SessionDep,
+    ai_layer: AILayerDep,
+    secrets: DeploymentSecretsDep,
+    deployment: LLMDeploymentWriteAPISchema,
 ) -> SettingsAPISchema:
     """Пишет deployment в настройки, делая его основным (index 0). Прежние
-    остаются фолбэками. Идемпотентно и по «продвижению»: повторный выбор той же
-    модели (совпадение по LLMDeployment.matches() — модель+адрес, без ключа и
-    id) поднимает её в основные без дубля, заменяя старую запись новой (это же
-    чинит ротацию ключа: раньше сверка шла по id, производному от ключа, и
-    смена ключа порождала дубль вместо замены)."""
-    settings: SettingsAPISchema = settings_to_schema(
-        orm=await SettingsRepository.get(session=session)
-    )
-    rest = [d for d in settings.llm.deployments if not deployment.matches(d)]
-    new_list = [deployment, *rest]
-    if new_list == settings.llm.deployments:
-        return settings  # уже основной и единственный такой — ничего не меняем
-    settings.llm.deployments = new_list
+    остаются фолбэками. Совпадение по (model, api_base) — как раньше —
+    поднимает существующую запись в основные, заменяя её новой: это же чинит
+    ротацию ключа, переиспользуя id совпавшей записи (иначе новый ключ ушёл бы
+    под новым id, а старый осиротел бы в хранилище).
+
+    Раннего возврата при «список не изменился» тут нарочно нет (был раньше и
+    убран): с задачи 5, когда ключ уйдёт из LLMDeployment, повторный POST той
+    же модели с новым ключом даёт РАВНЫЕ модели — такая проверка молча
+    отбросила бы новый ключ. Перезапись синглтон-записи дёшева, а эта дыра —
+    нет."""
+    current: SettingsORM = await SettingsRepository.get(session=session)
+    probe = LLMDeployment(model=deployment.model, api_base=deployment.api_base)
+    matched = next((d for d in current.llm_deployments if probe.matches(d)), None)
+    rest = [d for d in current.llm_deployments if not probe.matches(d)]
+    promoted = deployment.model_copy(update={"id": matched.id if matched else None})
+    # Остальные записи идут в plan() как «не трогать ключ» (api_key отсутствует
+    # — сентинел «оставить как было»), со своим настоящим id, иначе их ключи
+    # были бы приняты за исчезнувшие и удалены из хранилища.
+    incoming = [promoted] + [
+        LLMDeploymentWriteAPISchema(id=d.id, model=d.model, api_base=d.api_base)
+        for d in rest
+    ]
+    deployments, plan = secrets.plan(current=current.llm_deployments, incoming=incoming)
+    await secrets.commit(plan=plan)
+    settings: SettingsAPISchema = settings_to_schema(orm=current)
     updated: SettingsORM = await SettingsRepository.update(
-        session=session, new_settings=settings_to_orm(settings)
+        session=session,
+        new_settings=settings_to_orm(schema=settings, deployments=deployments),
     )
-    ai_layer.rebuild(deployments=[d.resolve() for d in updated.llm_deployments])
+    ai_layer.rebuild(
+        deployments=await secrets.resolve(deployments=updated.llm_deployments)
+    )
     return settings_to_schema(orm=updated)
 
 

@@ -2,10 +2,10 @@ from collections.abc import AsyncIterator
 
 from fastapi import Response
 
-from otklik_backend.ai.deployment import LLMDeployment
 from otklik_backend.api.app import app
 from otklik_backend.api.dependencies import get_ollama_gate
-from otklik_backend.api.schemas import SettingsAPISchema
+from otklik_backend.api.schemas import LLMDeploymentWriteAPISchema, SettingsAPISchema
+from otklik_backend.secrets.store import account_for
 from otklik_backend.setup.ollama import OllamaPullError, PullProgress
 
 
@@ -48,6 +48,23 @@ def test_setup_trial_generates_a_letter(client):
     assert payload["letter"]
 
 
+def test_setup_trial_does_not_persist_the_key(client, fake_secret_store):
+    """Ключ в /trial живёт только на время замера: не должен попасть ни в
+    хранилище, ни в строку настроек."""
+    response = client.post(
+        "/api/v1/setup/trial",
+        json={
+            "deployment": {"model": "gigachat/GigaChat-2", "api_key": "sk-trial"},
+            "deadline_sec": 45,
+        },
+    )
+    assert response.status_code == 200
+    assert fake_secret_store.items == {}
+
+    settings = SettingsAPISchema.model_validate(client.get("/api/v1/settings").json())
+    assert settings.llm.deployments == []
+
+
 def test_setup_pull_streams_progress(client):
     with client.stream("POST", "/api/v1/setup/pull") as response:
         assert response.status_code == 200
@@ -80,7 +97,7 @@ def test_setup_pull_delivers_failure_in_band(client):
 
 
 def test_setup_deployment_writes_settings(client):
-    body = LLMDeployment(
+    body = LLMDeploymentWriteAPISchema(
         model="ollama_chat/qwen2.5:7b", api_base="http://localhost:11434"
     ).model_dump()
     response: Response = client.post("/api/v1/setup/deployment", json=body)
@@ -94,7 +111,7 @@ def test_setup_deployment_writes_settings(client):
 
 
 def test_setup_deployment_is_idempotent(client):
-    body = LLMDeployment(
+    body = LLMDeploymentWriteAPISchema(
         model="ollama_chat/qwen2.5:7b", api_base="http://localhost:11434"
     ).model_dump()
     client.post("/api/v1/setup/deployment", json=body)
@@ -110,7 +127,7 @@ def test_setup_state_ignores_cloud_deployment_without_key(client):
     настройках, поэтому мастер не должен считать шаг пройденным."""
     client.post(
         "/api/v1/setup/deployment",
-        json=LLMDeployment(model="gigachat/GigaChat-2").model_dump(),
+        json=LLMDeploymentWriteAPISchema(model="gigachat/GigaChat-2").model_dump(),
     )
     state = client.get("/api/v1/setup/state").json()
     assert state["has_deployment"] is False
@@ -119,7 +136,9 @@ def test_setup_state_ignores_cloud_deployment_without_key(client):
 def test_setup_state_reports_cloud_deployment_with_key(client):
     client.post(
         "/api/v1/setup/deployment",
-        json=LLMDeployment(model="gigachat/GigaChat-2", api_key="secret").model_dump(),
+        json=LLMDeploymentWriteAPISchema(
+            model="gigachat/GigaChat-2", api_key="secret"
+        ).model_dump(),
     )
     state = client.get("/api/v1/setup/state").json()
     assert state["has_deployment"] is True
@@ -138,11 +157,13 @@ def test_setup_local_reports_installed_models(client):
 def test_setup_deployment_appends_a_different_model(client):
     client.post(
         "/api/v1/setup/deployment",
-        json=LLMDeployment(model="ollama_chat/qwen2.5:7b").model_dump(),
+        json=LLMDeploymentWriteAPISchema(model="ollama_chat/qwen2.5:7b").model_dump(),
     )
     response: Response = client.post(
         "/api/v1/setup/deployment",
-        json=LLMDeployment(model="gigachat/GigaChat-2", api_key="k").model_dump(),
+        json=LLMDeploymentWriteAPISchema(
+            model="gigachat/GigaChat-2", api_key="k"
+        ).model_dump(),
     )
     settings = SettingsAPISchema.model_validate(response.json())
     assert len(settings.llm.deployments) == 2
@@ -179,6 +200,36 @@ def test_setup_deployment_is_idempotent_and_promotes(client):
     assert models == ["gigachat/GigaChat-2", "openai/gpt-4o"]
 
 
+def test_setup_deployment_rotating_key_replaces_not_duplicates(
+    client, fake_secret_store
+):
+    """Регрессия на удалённый эндшпиль-шорткат: тот же (model, api_base) с
+    новым ключом должен заменить запись и её секрет, а не потеряться из-за
+    «список не изменился» (эта проверка сравнивала целые модели — а с задачи
+    5, когда ключ уйдёт из LLMDeployment, такое сравнение было бы всегда
+    равным при ротации, и новый ключ тихо не долетал бы до хранилища)."""
+    payload = {"model": "gigachat/GigaChat-2", "api_base": None}
+    first = client.post(
+        "/api/v1/setup/deployment", json={**payload, "api_key": "sk-old"}
+    )
+    assert first.status_code == 200
+    first_settings = SettingsAPISchema.model_validate(first.json())
+    assert len(first_settings.llm.deployments) == 1
+    first_id = first_settings.llm.deployments[0].id
+    assert fake_secret_store.items[account_for(first_id)] == "sk-old"
+
+    second = client.post(
+        "/api/v1/setup/deployment", json={**payload, "api_key": "sk-new"}
+    )
+    assert second.status_code == 200
+    second_settings = SettingsAPISchema.model_validate(second.json())
+
+    assert len(second_settings.llm.deployments) == 1  # не дубль
+    second_id = second_settings.llm.deployments[0].id
+    assert second_id == first_id  # id переиспользован — не сирота в хранилище
+    assert fake_secret_store.items[account_for(second_id)] == "sk-new"
+
+
 def test_setup_cloud_models_lists_direct_providers(client):
     response = client.get("/api/v1/setup/cloud-models")
     assert response.status_code == 200
@@ -207,7 +258,18 @@ def test_setup_state_exposes_claude_available(client):
 def test_setup_claude_deployment_counts_as_configured(client):
     client.post(
         "/api/v1/setup/deployment",
-        json=LLMDeployment(model="claude-code/sonnet").model_dump(),
+        json=LLMDeploymentWriteAPISchema(model="claude-code/sonnet").model_dump(),
     )
     state = client.get("/api/v1/setup/state").json()
     assert state["has_deployment"] is True
+
+
+def test_setup_deployment_response_never_contains_api_key(client):
+    import json as _json
+
+    response = client.post(
+        "/api/v1/setup/deployment",
+        json={"model": "gigachat/GigaChat-2", "api_key": "sk-secret"},
+    )
+    assert response.status_code == 200
+    assert '"api_key"' not in _json.dumps(response.json())

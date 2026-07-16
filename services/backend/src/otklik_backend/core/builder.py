@@ -18,6 +18,9 @@ from otklik_backend.orchestrator.search import SearchService
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.letter_pending import LetterPendingWorker
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from otklik_backend.secrets.factory import SecretStoreFactory
+from otklik_backend.secrets.service import DeploymentSecretsService
+from otklik_backend.secrets.store import SecretStore
 from otklik_backend.sites.hh_ru import HHRUAuthFlow, HHRUParser, HHRUWriter
 
 logger = get_logger(__name__)
@@ -32,6 +35,7 @@ class AppContext:
     writer: HHRUWriter
     search_service: SearchService
     ai_layer: AILayer
+    secret_store: SecretStore
     cover_letter_service: CoverLetterService
     letter_chat_service: LetterChatService
     letter_sending_worker: LetterSendingWorker
@@ -61,10 +65,19 @@ class AppContext:
 
 
 class BackendBuilder:
-    def __init__(self, session_maker: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_maker: async_sessionmaker[AsyncSession],
+        secret_store: SecretStore | None = None,
+    ) -> None:
         self._session_maker = session_maker
+        self._secret_store = secret_store
 
     async def build(self) -> AppContext:
+        # Режим (связка/файл) решается один раз на старте живой пробой связки —
+        # см. SecretStoreFactory. secret_store можно подсунуть готовым (тесты,
+        # будущие вызовы) — тогда пробы не будет.
+        secret_store = self._secret_store or await SecretStoreFactory().create()
         browser = BrowserCore()
         auth_flow = HHRUAuthFlow(browser=browser)
         broadcaster = EventBroadcaster()
@@ -83,7 +96,7 @@ class BackendBuilder:
             writer=writer,
             broadcaster=broadcaster,
         )
-        ai_layer = await self._bootstrap_ai_layer()
+        ai_layer = await self._bootstrap_ai_layer(secret_store=secret_store)
         cover_letter_service = CoverLetterService(
             session_maker=self._session_maker,
             ai_layer=ai_layer,
@@ -121,6 +134,7 @@ class BackendBuilder:
             writer=writer,
             search_service=search_service,
             ai_layer=ai_layer,
+            secret_store=secret_store,
             cover_letter_service=cover_letter_service,
             letter_chat_service=letter_chat_service,
             letter_sending_worker=letter_sending_worker,
@@ -130,11 +144,14 @@ class BackendBuilder:
             authorization_service=authorization_service,
         )
 
-    async def _bootstrap_ai_layer(self) -> AILayer:
+    async def _bootstrap_ai_layer(self, secret_store: SecretStore) -> AILayer:
         async with self._session_maker() as session:
             settings: SettingsORM = await SettingsRepository.get(session=session)
         try:
-            return AILayer(deployments=[d.resolve() for d in settings.llm_deployments])
+            resolved = await DeploymentSecretsService(secret_store).resolve(
+                deployments=settings.llm_deployments
+            )
+            return AILayer(deployments=resolved)
         except Exception as e:
             logger.error(
                 "Failed to initialize AI Layer with error: %s. Initializing with no deployments.",

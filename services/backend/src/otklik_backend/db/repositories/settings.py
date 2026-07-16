@@ -10,7 +10,7 @@ class SettingsRepository:
     async def get(cls, session: AsyncSession) -> SettingsORM:
         settings: SettingsORM | None = await session.get(SettingsORM, 1)
         if settings is None:
-            settings = settings_to_orm(schema=SettingsAPISchema())
+            settings = settings_to_orm(schema=SettingsAPISchema(), deployments=[])
             session.add(settings)
             await session.commit()
         return settings

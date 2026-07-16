@@ -14,6 +14,8 @@ from otklik_backend.orchestrator.letter_chat_service import LetterChatService
 from otklik_backend.orchestrator.search import SearchService
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from otklik_backend.secrets.service import DeploymentSecretsService
+from otklik_backend.secrets.store import SecretStore
 from otklik_backend.setup.benchmark import BenchmarkRunner
 from otklik_backend.setup.claude_code import ClaudeCodeGate
 from otklik_backend.setup.hardware import HardwareProbe
@@ -68,6 +70,10 @@ def get_state_service(request: HTTPConnection) -> StateTransitionService:
     return request.app.state.state_service  # type: ignore[no-any-return]
 
 
+def get_secret_store(request: HTTPConnection) -> SecretStore:
+    return request.app.state.secret_store  # type: ignore[no-any-return]
+
+
 # Три компонента без состояния и без внешних ручек — строим на месте, а не
 # тащим через BackendBuilder/app.state: класть в контекст приложения нечего.
 def get_hardware_probe() -> HardwareProbe:
@@ -84,6 +90,13 @@ def get_claude_code_gate() -> ClaudeCodeGate:
 
 def get_benchmark_runner() -> BenchmarkRunner:
     return BenchmarkRunner()
+
+
+SecretStoreDep = Annotated[SecretStore, Depends(get_secret_store)]
+
+
+def get_deployment_secrets(store: SecretStoreDep) -> DeploymentSecretsService:
+    return DeploymentSecretsService(store=store)
 
 
 BrowserDep = Annotated[BrowserCore, Depends(get_browser)]
@@ -104,3 +117,6 @@ HardwareProbeDep = Annotated[HardwareProbe, Depends(get_hardware_probe)]
 OllamaGateDep = Annotated[OllamaGate, Depends(get_ollama_gate)]
 ClaudeCodeGateDep = Annotated[ClaudeCodeGate, Depends(get_claude_code_gate)]
 BenchmarkRunnerDep = Annotated[BenchmarkRunner, Depends(get_benchmark_runner)]
+DeploymentSecretsDep = Annotated[
+    DeploymentSecretsService, Depends(get_deployment_secrets)
+]

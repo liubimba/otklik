@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 import hashlib
 
+from otklik_backend.setup.constants import CLAUDE_CODE_PREFIX
+
 
 class LLMDeployment(BaseModel):
     model: str
@@ -17,6 +19,10 @@ class LLMDeployment(BaseModel):
 
         Локальная модель (у неё задан `api_base` — адрес Ollama) ключа не
         просит. Облачная (без `api_base`) без ключа гарантированно упадёт
-        на первом же запросе — такой deployment числится настроенным
-        только формально."""
-        return bool(self.api_base) or bool(self.api_key)
+        на первом же запросе. Claude Code (`claude-code/...`) не имеет ни
+        `api_base`, ни `api_key` — auth живёт в CLI/подписке, но он рабочий."""
+        return (
+            bool(self.api_base)
+            or bool(self.api_key)
+            or self.model.startswith(CLAUDE_CODE_PREFIX)
+        )

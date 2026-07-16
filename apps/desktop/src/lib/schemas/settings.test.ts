@@ -81,65 +81,85 @@ describe("settingsFormSchema — coercion + validation", () => {
 	});
 });
 
-describe("apiDeploymentToForm / formDeploymentToAPI round-trip", () => {
-	it("apiDeploymentToForm assigns a fresh id and normalises nulls to empty strings", () => {
-		const form = apiDeploymentToForm({
-			model: "openai/gpt-4o",
-			api_key: null,
-			api_base: null,
-		});
-		expect(form.model).toBe("openai/gpt-4o");
-		expect(form.api_key).toBe("");
-		expect(form.api_base).toBe("");
-		expect(form.id).toEqual(expect.any(String));
-		expect(form.id.length).toBeGreaterThan(0);
-	});
-
-	it("formDeploymentToAPI reverses empty strings back to null", () => {
-		const api = formDeploymentToAPI({
-			id: "any",
-			model: "groq/llama",
-			api_key: "   ",
+describe("formDeploymentToAPI", () => {
+	it("untouched key field sends null — «не трогать», не «удалить»", () => {
+		// Это ровно тот регресс, из-за которого сохранение max_pages стирало ключи.
+		const form = {
+			id: "a",
+			model: "m",
 			api_base: "",
-		});
-		expect(api).toEqual({
-			model: "groq/llama",
-			api_key: null,
-			api_base: null,
-		});
-	});
-
-	it("formDeploymentToAPI preserves non-empty values verbatim", () => {
-		const api = formDeploymentToAPI({
-			id: "any",
-			model: "groq/llama",
-			api_key: "sk-live-xyz",
-			api_base: "https://api.example",
-		});
-		expect(api).toEqual({
-			model: "groq/llama",
-			api_key: "sk-live-xyz",
-			api_base: "https://api.example",
-		});
-	});
-
-	it("api → form → api leaves the payload semantically identical", () => {
-		const original = {
-			model: "openai/gpt-4o",
-			api_key: "sk-a",
-			api_base: null,
+			has_api_key: true,
+			api_key: "",
+			clear_api_key: false,
 		};
-		const roundtrip = formDeploymentToAPI(apiDeploymentToForm(original));
-		expect(roundtrip).toEqual(original);
+		expect(formDeploymentToAPI(form).api_key).toBeNull();
+	});
+
+	it("typed key is sent as-is", () => {
+		const form = {
+			id: "a",
+			model: "m",
+			api_base: "",
+			has_api_key: false,
+			api_key: "sk-new",
+			clear_api_key: false,
+		};
+		expect(formDeploymentToAPI(form).api_key).toBe("sk-new");
+	});
+
+	it("explicit clear sends the empty-string sentinel", () => {
+		const form = {
+			id: "a",
+			model: "m",
+			api_base: "",
+			has_api_key: true,
+			api_key: "",
+			clear_api_key: true,
+		};
+		expect(formDeploymentToAPI(form).api_key).toBe("");
+	});
+
+	it("clear wins over a typed buffer", () => {
+		const form = {
+			id: "a",
+			model: "m",
+			api_base: "",
+			has_api_key: true,
+			api_key: "sk-x",
+			clear_api_key: true,
+		};
+		expect(formDeploymentToAPI(form).api_key).toBe("");
+	});
+
+	it("round-trips the backend id", () => {
+		expect(
+			formDeploymentToAPI(
+				apiDeploymentToForm({ id: "abc", model: "m", has_api_key: true }),
+			).id,
+		).toBe("abc");
+	});
+});
+
+describe("apiDeploymentToForm", () => {
+	it("keeps has_api_key for display and leaves the buffer empty", () => {
+		const form = apiDeploymentToForm({
+			id: "a",
+			model: "m",
+			api_base: null,
+			has_api_key: true,
+		});
+		expect(form.has_api_key).toBe(true);
+		expect(form.api_key).toBe("");
+		expect(form.clear_api_key).toBe(false);
 	});
 });
 
 describe("makeDeploymentId", () => {
-	it("delegates to crypto.randomUUID", () => {
+	it("delegates to crypto.randomUUID and strips dashes to match the backend's hex id form", () => {
 		const spy = vi
 			.spyOn(crypto, "randomUUID")
 			.mockReturnValue("00000000-0000-0000-0000-000000000000");
-		expect(makeDeploymentId()).toBe("00000000-0000-0000-0000-000000000000");
+		expect(makeDeploymentId()).toBe("00000000000000000000000000000000");
 		expect(spy).toHaveBeenCalledTimes(1);
 		spy.mockRestore();
 	});

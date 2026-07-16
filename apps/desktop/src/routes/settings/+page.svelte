@@ -13,12 +13,10 @@ import { m } from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import { zform } from "$lib/schemas";
 import {
-	type LLMDeploymentForm,
 	apiDeploymentToForm,
 	formDeploymentToAPI,
 } from "$lib/schemas/settings";
 import { useQueryClient } from "@tanstack/svelte-query";
-import { untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import { defaults, superForm } from "sveltekit-superforms";
 import { zod4 } from "sveltekit-superforms/adapters";
@@ -61,14 +59,7 @@ const { form: formData, enhance, submitting } = form;
 
 $effect(() => {
 	if (!settings.data) return;
-	const existingDeployments = untrack(() => $formData.llm?.deployments ?? []);
-	const deployments: LLMDeploymentForm[] = settings.data.llm.deployments.map(
-		(d, i) => {
-			const existingId = existingDeployments[i]?.id;
-			const fresh = apiDeploymentToForm(d);
-			return existingId ? { ...fresh, id: existingId } : fresh;
-		},
-	);
+	const deployments = settings.data.llm.deployments.map(apiDeploymentToForm);
 
 	formData.set({
 		search: settings.data.search,

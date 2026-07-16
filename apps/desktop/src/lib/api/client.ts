@@ -13,7 +13,7 @@ import type {
 	CloudModelOption,
 	CoverLetter,
 	FilterSessionConfirm,
-	LLMDeployment,
+	LLMDeploymentWrite,
 	LocalSetupState,
 	NewFilterSession,
 	OrchestratorStatus,
@@ -21,7 +21,9 @@ import type {
 	RateLimitsBudget,
 	SearchData,
 	SearchHistory,
+	SecretStorage,
 	Settings,
+	SettingsWrite,
 	SetupState,
 	SummaryScope,
 	Vacancy,
@@ -304,7 +306,7 @@ export const API = {
 	},
 	settings: {
 		get: () => api<Settings>("settings"),
-		update: (body: Settings) =>
+		update: (body: SettingsWrite) =>
 			api<Settings>("settings", {
 				method: "PUT",
 				body: JSON.stringify(body),
@@ -313,6 +315,7 @@ export const API = {
 	system: {
 		rateLimits: () => api<RateLimitsBudget>("system/rate-limits"),
 		aiHealth: () => api<{ status: string }>("system/ai/health"),
+		secretStorage: () => api<SecretStorage>("system/secret-storage"),
 		orchestrator: {
 			status: () => api<OrchestratorStatus>("system/orchestrator/status"),
 			resume: () =>
@@ -325,12 +328,12 @@ export const API = {
 		claude: () => api<ClaudeSetupState>("setup/claude"),
 		cloudModels: () => api<CloudModelOption[]>("setup/cloud-models"),
 		pull: () => streamPull(),
-		trial: (deployment: LLMDeployment, deadlineSec: number) =>
+		trial: (deployment: LLMDeploymentWrite, deadlineSec: number) =>
 			api<BenchmarkResult>("setup/trial", {
 				method: "POST",
 				body: JSON.stringify({ deployment, deadline_sec: deadlineSec }),
 			}),
-		deployment: (body: LLMDeployment) =>
+		deployment: (body: LLMDeploymentWrite) =>
 			api<Settings>("setup/deployment", {
 				method: "POST",
 				body: JSON.stringify(body),

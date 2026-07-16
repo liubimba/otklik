@@ -212,11 +212,27 @@ export const TERMINAL_SEARCH_STATUSES = new Set<SearchData["status"]>([
 	"interrupted",
 ]);
 
+// Исходящая форма: ключа нет и не будет. has_api_key — только факт наличия.
 export type LLMDeployment = {
+	id: string;
 	model: string;
-	api_key?: string | null;
 	api_base?: string | null;
+	has_api_key: boolean;
 };
+
+// Входящая форма — единственная, где ключ вообще есть.
+// api_key: null/отсутствует — не трогать сохранённый; "" — удалить; строка — записать.
+export type LLMDeploymentWrite = {
+	id?: string | null;
+	model: string;
+	api_base?: string | null;
+	api_key?: string | null;
+};
+
+// Где бэкенд держит ключи. "file" — связки в системе нет, ключи в
+// ~/.otklik/secrets.json (0600): менее безопасно, UI обязан предупредить.
+export type SecretStorageMode = "keychain" | "file";
+export type SecretStorage = { mode: SecretStorageMode };
 
 // Онбординг «облачная модель»: один пункт каталога облачных провайдеров,
 // с прямой ссылкой на страницу получения ключа для этого провайдера.
@@ -245,6 +261,11 @@ export type Settings = {
 	};
 	llm: LLMSettings;
 };
+
+export type LLMSettingsWrite = Omit<LLMSettings, "deployments"> & {
+	deployments: LLMDeploymentWrite[];
+};
+export type SettingsWrite = Omit<Settings, "llm"> & { llm: LLMSettingsWrite };
 
 export type CoverLetter = {
 	text: string;

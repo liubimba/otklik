@@ -68,8 +68,10 @@ function addDeployment() {
 	const created: LLMDeploymentForm = {
 		id: makeDeploymentId(),
 		model: "",
-		api_key: "",
 		api_base: "",
+		has_api_key: false,
+		api_key: "",
+		clear_api_key: false,
 	};
 	$formData.llm.deployments = [...$formData.llm.deployments, created];
 	openItems = [...openItems, created.id];

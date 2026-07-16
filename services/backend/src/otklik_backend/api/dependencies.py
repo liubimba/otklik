@@ -15,6 +15,7 @@ from otklik_backend.orchestrator.search import SearchService
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from otklik_backend.setup.benchmark import BenchmarkRunner
+from otklik_backend.setup.claude_code import ClaudeCodeGate
 from otklik_backend.setup.hardware import HardwareProbe
 from otklik_backend.setup.ollama import OllamaGate
 from otklik_backend.sites.hh_ru.auth_flow import HHRUAuthFlow
@@ -77,6 +78,10 @@ def get_ollama_gate() -> OllamaGate:
     return OllamaGate()
 
 
+def get_claude_code_gate() -> ClaudeCodeGate:
+    return ClaudeCodeGate()
+
+
 def get_benchmark_runner() -> BenchmarkRunner:
     return BenchmarkRunner()
 
@@ -97,4 +102,5 @@ AuthorizationServiceDep = Annotated[
 StateServiceDep = Annotated[StateTransitionService, Depends(get_state_service)]
 HardwareProbeDep = Annotated[HardwareProbe, Depends(get_hardware_probe)]
 OllamaGateDep = Annotated[OllamaGate, Depends(get_ollama_gate)]
+ClaudeCodeGateDep = Annotated[ClaudeCodeGate, Depends(get_claude_code_gate)]
 BenchmarkRunnerDep = Annotated[BenchmarkRunner, Depends(get_benchmark_runner)]

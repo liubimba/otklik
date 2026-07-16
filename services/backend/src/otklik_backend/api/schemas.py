@@ -10,6 +10,7 @@ from otklik_backend.ai.deployment import LLMDeployment
 # call-site compatibility until every import is migrated (removed in stage 3.2+).
 from otklik_backend.core.state import ErrorDomain as ErrorDomain
 from otklik_backend.core.state import ProcessingState as ProcessingState
+from otklik_backend.setup.claude_code import ClaudeCodeState
 from otklik_backend.setup.hardware import HardwareSpecs
 from otklik_backend.setup.ollama import OllamaState
 
@@ -283,6 +284,7 @@ class SetupStateAPISchema(BaseModel):
     has_deployment: bool
     local_model: str
     cloud_model: str
+    claude_available: bool
 
 
 class LocalSetupStateAPISchema(BaseModel):
@@ -290,6 +292,17 @@ class LocalSetupStateAPISchema(BaseModel):
     installed_models: list[str]
     recommended_tag: str
     recommended_installed: bool
+
+
+class ClaudeModelOption(BaseModel):
+    model: str  # строка для LiteLLM, напр. "claude-code/sonnet"
+    label: str  # подпись для UI, напр. "Claude Sonnet"
+
+
+class ClaudeSetupStateAPISchema(BaseModel):
+    claude_state: ClaudeCodeState
+    default_model: str
+    model_options: list[ClaudeModelOption]
 
 
 class TrialRequestAPISchema(BaseModel):

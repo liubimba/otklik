@@ -9,6 +9,7 @@ from otklik_backend.api.dependencies import (
     get_benchmark_runner,
     get_broadcaster,
     get_browser,
+    get_claude_code_gate,
     get_cover_letter_service,
     get_ollama_gate,
     get_session,
@@ -47,6 +48,7 @@ from otklik_backend.ai.deployment import LLMDeployment
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.setup.benchmark import BenchmarkResult
+from otklik_backend.setup.claude_code import ClaudeCodeState
 from otklik_backend.setup.ollama import OllamaState, PullProgress
 
 configure_logging()
@@ -138,6 +140,20 @@ class FakeOllamaGate:
         yield PullProgress(status="success", percent=100.0, done=True)
 
 
+class FakeClaudeCodeGate:
+    def __init__(
+        self, state: ClaudeCodeState = ClaudeCodeState.READY, credentials: bool = True
+    ) -> None:
+        self._state = state
+        self._credentials = credentials
+
+    async def state(self) -> ClaudeCodeState:
+        return self._state
+
+    def credentials_present(self) -> bool:
+        return self._credentials
+
+
 class FakeBenchmarkRunner:
     def __init__(self, result: BenchmarkResult | None = None) -> None:
         self._result = result or BenchmarkResult(
@@ -224,6 +240,11 @@ def fake_ollama_gate() -> FakeOllamaGate:
 
 
 @pytest.fixture
+def fake_claude_code_gate() -> FakeClaudeCodeGate:
+    return FakeClaudeCodeGate()
+
+
+@pytest.fixture
 def fake_benchmark_runner() -> FakeBenchmarkRunner:
     return FakeBenchmarkRunner()
 
@@ -274,6 +295,7 @@ async def client(
     fake_search_service: FakeSearchService,
     ai_layer_with_router: AILayer,
     fake_ollama_gate: FakeOllamaGate,
+    fake_claude_code_gate: FakeClaudeCodeGate,
     fake_benchmark_runner: FakeBenchmarkRunner,
 ) -> TestClient:
     async def override_session() -> AsyncIterator[AsyncSession]:
@@ -305,6 +327,7 @@ async def client(
     app.dependency_overrides[get_authorization_service] = lambda: authorization_service
     app.dependency_overrides[get_cover_letter_service] = lambda: cover_letter_service
     app.dependency_overrides[get_ollama_gate] = lambda: fake_ollama_gate
+    app.dependency_overrides[get_claude_code_gate] = lambda: fake_claude_code_gate
     app.dependency_overrides[get_benchmark_runner] = lambda: fake_benchmark_runner
 
     async with session_factory() as session:

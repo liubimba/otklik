@@ -36,6 +36,11 @@ const vm = new SetupViewModel((settings) =>
 
 onMount(() => vm.init());
 
+// Тут пользователь как раз отдаёт ключ — честный момент сказать, куда он
+// ляжет, если системной связки нет (см. предупреждение в /settings).
+const secretStorage = query.secret_storage.create();
+const insecureStorage = $derived(secretStorage.data?.mode === "file");
+
 // Ключ и признак «облако прошло» живут на странице, а не в машине: submitKey
 // уже вернул true и записал deployment — флаг лишь переключает вид на общий
 // экран «Готово», не трогая состояние CloudFlow (там так и остаётся "trial").
@@ -572,6 +577,12 @@ const liveStatus = $derived.by(() => {
                         placeholder={m.setup_cloud_key_placeholder()}
                         aria-label={m.setup_cloud_key_placeholder()}
                 />
+                {#if insecureStorage}
+                    <p class="text-muted-foreground flex items-center gap-1.5 text-xs">
+                        <TriangleAlert class="size-3 shrink-0"/>
+                        {m.settings_ai_storage_file_warning()}
+                    </p>
+                {/if}
                 {#if vm.cloud.errorMessage}
                     <p class="text-destructive text-sm" role="alert">
                         {m.setup_error({ error: vm.cloud.errorMessage })}

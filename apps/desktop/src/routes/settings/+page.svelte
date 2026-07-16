@@ -57,6 +57,12 @@ const form = superForm(defaults(zod4(zform.settings.schema)), {
 });
 const { form: formData, enhance, submitting } = form;
 
+// Тот же эффект отрабатывает и после Save: onUpdate пишет ответ бэкенда
+// (без ключей) в кэш через queryClient.setQueryData(query.settings.key, saved),
+// settings.data меняется, и apiDeploymentToForm обнуляет буферы —
+// api_key: "", clear_api_key: false, has_api_key из свежего ответа. Так
+// повторный Save не переотправляет уже сохранённый ключ, а «Удалить» не
+// остаётся навсегда отмеченным.
 $effect(() => {
 	if (!settings.data) return;
 	const deployments = settings.data.llm.deployments.map(apiDeploymentToForm);

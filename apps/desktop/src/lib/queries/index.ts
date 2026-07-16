@@ -24,6 +24,10 @@ import {
 	createSearchHistoryQuery,
 	searchHistoryQueryKey,
 } from "$lib/queries/search_history";
+import {
+	createSecretStorageQuery,
+	secretStorageQueryKey,
+} from "$lib/queries/secret_storage";
 import { createSettingsQuery, settingsQueryKey } from "$lib/queries/settings";
 import {
 	createSummaryQuery,
@@ -61,6 +65,10 @@ export const query = {
 	settings: {
 		key: settingsQueryKey,
 		create: createSettingsQuery,
+	},
+	secret_storage: {
+		key: secretStorageQueryKey,
+		create: createSecretStorageQuery,
 	},
 	auth: {
 		key: authQueryKey,

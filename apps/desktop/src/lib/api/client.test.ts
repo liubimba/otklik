@@ -467,6 +467,7 @@ describe("API.setup", () => {
 			has_deployment: false,
 			local_model: "ollama_chat/qwen2.5:7b",
 			cloud_model: "gigachat/GigaChat-2",
+			claude_available: false,
 		};
 		mockFetchJson(state);
 

@@ -9,6 +9,7 @@ import type {
 	BenchmarkResult,
 	ChatMessage,
 	ChatStreamEvent,
+	ClaudeSetupState,
 	CloudModelOption,
 	CoverLetter,
 	FilterSessionConfirm,
@@ -321,6 +322,7 @@ export const API = {
 	setup: {
 		state: () => api<SetupState>("setup/state"),
 		local: () => api<LocalSetupState>("setup/local"),
+		claude: () => api<ClaudeSetupState>("setup/claude"),
 		cloudModels: () => api<CloudModelOption[]>("setup/cloud-models"),
 		pull: () => streamPull(),
 		trial: (deployment: LLMDeployment, deadlineSec: number) =>

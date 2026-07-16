@@ -31,6 +31,7 @@ function state(overrides: Partial<SetupState> = {}): SetupState {
 		has_deployment: false,
 		local_model: "ollama_chat/qwen2.5:7b",
 		cloud_model: "gigachat/GigaChat-2",
+		claude_available: false,
 		...overrides,
 	};
 }

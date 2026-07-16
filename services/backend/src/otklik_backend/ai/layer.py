@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator, Sequence
 from typing import cast
 
 from otklik_backend.ai.claude_code import register_claude_code_provider
-from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.deployment import ResolvedDeployment
 from otklik_backend.ai.postprocess import LetterCleaner
 from litellm import (
     AllMessageValues,
@@ -21,7 +21,7 @@ from otklik_backend.log import get_logger
 
 
 class AILayer:
-    def __init__(self, deployments: list[LLMDeployment] = []) -> None:
+    def __init__(self, deployments: list[ResolvedDeployment] = []) -> None:
         # Регистрируем провайдер claude-code, чтобы Router умел маршрутизировать
         # model='claude-code/...' в CLI `claude -p`. Идемпотентно.
         register_claude_code_provider()
@@ -55,7 +55,7 @@ class AILayer:
             )
             raise GenerationCoverLetterError("no deployments configured")
         try:
-            llm: LLMDeployment = self._get_primary_llm()
+            llm: ResolvedDeployment = self._get_primary_llm()
             messages: list[AllMessageValues] = (
                 self._prompt_builder.build_cover_letter_prompt(
                     vacancy_model=vacancy_model,
@@ -65,10 +65,12 @@ class AILayer:
                 )
             )
             self._log.info(
-                "Sending request to AI model: %s with messages: %s", llm.model, messages
+                "Sending request to AI model: %s with messages: %s",
+                llm.deployment.model,
+                messages,
             )
             response: ModelResponse = await self._router.acompletion(
-                model=llm.model, messages=messages
+                model=llm.deployment.model, messages=messages
             )
             self._log.info(
                 "Received response from AI model: %s with content: %s",
@@ -81,8 +83,8 @@ class AILayer:
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
-                was_fallback=response._hidden_params.get("model_id", llm.id())
-                != llm.id(),
+                was_fallback=response._hidden_params.get("model_id", llm.deployment.id)
+                != llm.deployment.id,
                 cost_usd=response._hidden_params.get("response_cost", 0.0),
             )
         except Exception as e:
@@ -111,7 +113,7 @@ class AILayer:
             self._log.error("Cannot start letter chat: no deployments configured")
             raise GenerationCoverLetterError("no deployments configured")
 
-        llm: LLMDeployment = self._get_primary_llm()
+        llm: ResolvedDeployment = self._get_primary_llm()
         messages: list[AllMessageValues] = (
             self._prompt_builder.build_letter_chat_messages(
                 vacancy_model=vacancy_model,
@@ -131,7 +133,7 @@ class AILayer:
         stream: CustomStreamWrapper = cast(
             CustomStreamWrapper,
             await self._router.acompletion(
-                model=llm.model, messages=messages, stream=True
+                model=llm.deployment.model, messages=messages, stream=True
             ),
         )
         async for chunk in stream:
@@ -146,7 +148,7 @@ class AILayer:
             return AILayerHealthStatus.NO_DEPLOYMENTS
         try:
             await self._router.acompletion(
-                model=self._get_primary_llm().model,
+                model=self._get_primary_llm().deployment.model,
                 messages=self._prompt_builder.build_ping(),
             )
         except Exception as e:
@@ -155,35 +157,37 @@ class AILayer:
         self._log.info("Layer is healthy")
         return AILayerHealthStatus.HEALTHY
 
-    def rebuild(self, deployments: list[LLMDeployment]) -> None:
+    def rebuild(self, deployments: list[ResolvedDeployment]) -> None:
         self._deployments = deployments
         self._router = Router(
             model_list=self._generate_model_list(deployments=deployments),
             fallbacks=self._generate_fallbacks(deployments=deployments),
         )
 
-    def _get_primary_llm(self) -> LLMDeployment:
+    def _get_primary_llm(self) -> ResolvedDeployment:
         return self._deployments[0]
 
-    def _map_llm_to_deploy(self, llm: LLMDeployment) -> DeploymentTypedDict:
+    def _map_llm_to_deploy(self, llm: ResolvedDeployment) -> DeploymentTypedDict:
         return DeploymentTypedDict(
-            model_name=llm.model,
-            model_info={"id": llm.id()},
+            model_name=llm.deployment.model,
+            model_info={"id": llm.deployment.id},
             litellm_params=LiteLLMParamsTypedDict(
-                model=llm.model, api_base=llm.api_base, api_key=llm.api_key
+                model=llm.deployment.model,
+                api_base=llm.deployment.api_base,
+                api_key=llm.api_key.get_secret_value() if llm.api_key else None,
             ),
         )
 
     def _generate_model_list(
-        self, deployments: list[LLMDeployment]
+        self, deployments: list[ResolvedDeployment]
     ) -> list[DeploymentTypedDict]:
         return list(map(lambda llm: self._map_llm_to_deploy(llm=llm), deployments))
 
     def _generate_fallbacks(
-        self, deployments: list[LLMDeployment]
+        self, deployments: list[ResolvedDeployment]
     ) -> list[dict[str, list[str]]]:
         unique_models: list[str] = list(
-            dict.fromkeys(deploy.model for deploy in deployments)
+            dict.fromkeys(deploy.deployment.model for deploy in deployments)
         )
         return [
             {model: [other for other in unique_models if other != model]}

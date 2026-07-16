@@ -134,7 +134,7 @@ class BackendBuilder:
         async with self._session_maker() as session:
             settings: SettingsORM = await SettingsRepository.get(session=session)
         try:
-            return AILayer(deployments=settings.llm_deployments)
+            return AILayer(deployments=[d.resolve() for d in settings.llm_deployments])
         except Exception as e:
             logger.error(
                 "Failed to initialize AI Layer with error: %s. Initializing with no deployments.",

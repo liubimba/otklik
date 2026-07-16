@@ -44,7 +44,8 @@ from otklik_backend.orchestrator.search import (
     SearchSessionTask,
 )
 from otklik_backend.api.schemas import VacanciesStartSearchRequestAPISchema
-from otklik_backend.ai.deployment import LLMDeployment
+from pydantic import SecretStr
+from otklik_backend.ai.deployment import LLMDeployment, ResolvedDeployment
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.setup.benchmark import BenchmarkResult
@@ -161,7 +162,7 @@ class FakeBenchmarkRunner:
         )
 
     async def run(
-        self, deployment: LLMDeployment, deadline_sec: float | None = None
+        self, deployment: ResolvedDeployment, deadline_sec: float | None = None
     ) -> BenchmarkResult:
         return self._result
 
@@ -268,7 +269,7 @@ async def session_factory(
 
 @pytest.fixture
 def make_ai_layer():
-    def _make(deployments: list[LLMDeployment] | None = None) -> AILayer:
+    def _make(deployments: list[ResolvedDeployment] | None = None) -> AILayer:
         layer: AILayer = AILayer(deployments=deployments or [])
         layer._router = AsyncMock()
         return layer
@@ -279,7 +280,14 @@ def make_ai_layer():
 @pytest.fixture
 def ai_layer_with_router(make_ai_layer) -> AILayer:
     return make_ai_layer(
-        [LLMDeployment(model="groq/llama-3.3-70b-versatile", api_key="test-key")]
+        [
+            ResolvedDeployment(
+                deployment=LLMDeployment(
+                    model="groq/llama-3.3-70b-versatile", has_api_key=True
+                ),
+                api_key=SecretStr("test-key"),
+            )
+        ]
     )
 
 

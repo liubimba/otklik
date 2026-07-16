@@ -114,7 +114,7 @@ async def setup_trial(
     runner: BenchmarkRunnerDep, request: TrialRequestAPISchema
 ) -> BenchmarkResult:
     return await runner.run(
-        deployment=request.deployment, deadline_sec=request.deadline_sec
+        deployment=request.deployment.resolve(), deadline_sec=request.deadline_sec
     )
 
 
@@ -124,19 +124,22 @@ async def setup_deployment(
 ) -> SettingsAPISchema:
     """Пишет deployment в настройки, делая его основным (index 0). Прежние
     остаются фолбэками. Идемпотентно и по «продвижению»: повторный выбор той же
-    модели поднимает её в основные без дубля (сверка по LLMDeployment.id())."""
+    модели (совпадение по LLMDeployment.matches() — модель+адрес, без ключа и
+    id) поднимает её в основные без дубля, заменяя старую запись новой (это же
+    чинит ротацию ключа: раньше сверка шла по id, производному от ключа, и
+    смена ключа порождала дубль вместо замены)."""
     settings: SettingsAPISchema = settings_to_schema(
         orm=await SettingsRepository.get(session=session)
     )
-    rest = [d for d in settings.llm.deployments if d.id() != deployment.id()]
+    rest = [d for d in settings.llm.deployments if not deployment.matches(d)]
     new_list = [deployment, *rest]
-    if [d.id() for d in new_list] == [d.id() for d in settings.llm.deployments]:
+    if new_list == settings.llm.deployments:
         return settings  # уже основной и единственный такой — ничего не меняем
     settings.llm.deployments = new_list
     updated: SettingsORM = await SettingsRepository.update(
         session=session, new_settings=settings_to_orm(settings)
     )
-    ai_layer.rebuild(deployments=updated.llm_deployments)
+    ai_layer.rebuild(deployments=[d.resolve() for d in updated.llm_deployments])
     return settings_to_schema(orm=updated)
 
 

@@ -21,5 +21,5 @@ async def update_settings_api(
     settings: SettingsORM = await SettingsRepository.update(
         session=session, new_settings=settings_to_orm(new_settings)
     )
-    ai_layer.rebuild(deployments=settings.llm_deployments)
+    ai_layer.rebuild(deployments=[d.resolve() for d in settings.llm_deployments])
     return settings_to_schema(orm=settings)

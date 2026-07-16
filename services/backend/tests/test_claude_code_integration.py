@@ -1,7 +1,7 @@
 import json
 from unittest.mock import patch
 
-from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.deployment import LLMDeployment, ResolvedDeployment
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.ai.result import AICoverLetterResult
 from otklik_backend.api.schemas import (
@@ -42,7 +42,11 @@ def _vacancy() -> VacancyAPISchema:
 async def test_ailayer_routes_claude_deployment_through_adapter() -> None:
     """Полный путь: AILayer с реальным Router (не мок) и claude-code-моделью
     должен уйти в ClaudeCodeLLM, а тот — в поддельный `claude -p`."""
-    layer = AILayer(deployments=[LLMDeployment(model="claude-code/sonnet")])
+    layer = AILayer(
+        deployments=[
+            ResolvedDeployment(deployment=LLMDeployment(model="claude-code/sonnet"))
+        ]
+    )
     proc = _FakeProc(
         json.dumps(
             {
@@ -78,7 +82,11 @@ async def test_ailayer_routes_claude_deployment_through_adapter() -> None:
 
 async def test_claude_deployment_receives_model_alias_without_prefix() -> None:
     """`claude -p --model` должен получить `sonnet`, а не `claude-code/sonnet`."""
-    layer = AILayer(deployments=[LLMDeployment(model="claude-code/opus")])
+    layer = AILayer(
+        deployments=[
+            ResolvedDeployment(deployment=LLMDeployment(model="claude-code/opus"))
+        ]
+    )
     captured: dict[str, list[str]] = {}
 
     class _CapturingProc(_FakeProc):

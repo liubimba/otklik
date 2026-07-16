@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 from otklik_backend.log import configure_logging
@@ -281,21 +282,41 @@ def fake_secret_store() -> FakeSecretStore:
     return FakeSecretStore()
 
 
+@dataclass
+class DbHandle:
+    """session_factory плюс то, что ему не нужно, но нужно SecretMigrator'у:
+    сам engine (VACUUM не может идти через AsyncSession — он открывает
+    транзакцию неявно) и путь к файлу (байтовый тест читает файл и -wal
+    напрямую)."""
+
+    session_maker: async_sessionmaker[AsyncSession]
+    engine: AsyncEngine
+    db_path: Path
+
+
 @pytest.fixture
-async def session_factory(
-    tmp_path: Path,
-) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
-    engine: AsyncEngine = create_async_engine(
-        f"sqlite+aiosqlite:///{tmp_path / "test.sqlite"}"
-    )
+async def test_database(tmp_path: Path) -> AsyncIterator[DbHandle]:
+    db_path = tmp_path / "test.sqlite"
+    engine: AsyncEngine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
     apply_sqlite_pragmas(target_engine=engine)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     try:
-        yield async_sessionmaker(engine, expire_on_commit=False)
+        yield DbHandle(
+            session_maker=async_sessionmaker(engine, expire_on_commit=False),
+            engine=engine,
+            db_path=db_path,
+        )
     finally:
         await engine.dispose()
+
+
+@pytest.fixture
+async def session_factory(
+    test_database: DbHandle,
+) -> async_sessionmaker[AsyncSession]:
+    return test_database.session_maker
 
 
 @pytest.fixture

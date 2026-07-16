@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.api.broadcaster import EventBroadcaster
@@ -19,6 +19,7 @@ from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.letter_pending import LetterPendingWorker
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from otklik_backend.secrets.factory import SecretStoreFactory
+from otklik_backend.secrets.migrator import SecretMigrator
 from otklik_backend.secrets.service import DeploymentSecretsService
 from otklik_backend.secrets.store import SecretStore
 from otklik_backend.sites.hh_ru import HHRUAuthFlow, HHRUParser, HHRUWriter
@@ -68,9 +69,11 @@ class BackendBuilder:
     def __init__(
         self,
         session_maker: async_sessionmaker[AsyncSession],
+        engine: AsyncEngine,
         secret_store: SecretStore | None = None,
     ) -> None:
         self._session_maker = session_maker
+        self._engine = engine
         self._secret_store = secret_store
 
     async def build(self) -> AppContext:
@@ -78,6 +81,12 @@ class BackendBuilder:
         # см. SecretStoreFactory. secret_store можно подсунуть готовым (тесты,
         # будущие вызовы) — тогда пробы не будет.
         secret_store = self._secret_store or await SecretStoreFactory().create()
+        # До всего остального: если в БД остались легаси-ключи в открытом
+        # виде, они должны переехать в хранилище и исчезнуть с диска раньше,
+        # чем что-либо (включая _bootstrap_ai_layer ниже) их прочитает.
+        await SecretMigrator(
+            session_maker=self._session_maker, engine=self._engine, store=secret_store
+        ).migrate()
         browser = BrowserCore()
         auth_flow = HHRUAuthFlow(browser=browser)
         broadcaster = EventBroadcaster()

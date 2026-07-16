@@ -20,7 +20,7 @@ from otklik_backend.api.routes import (
 from otklik_backend.api.schemas import SearchStatusAPISchema
 from otklik_backend.core.builder import BackendBuilder
 from otklik_backend.db.repositories.search_history import SearchHistoryRepository
-from otklik_backend.db.session import ensure_db_dir, session_maker
+from otklik_backend.db.session import engine, ensure_db_dir, session_maker
 from otklik_backend.log import configure_logging, get_logger
 
 logger = get_logger(__name__)
@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI) -> Any:
     # Adopts ~/.headhunter_ai from installs predating the rename, before any
     # component can touch the database.
     ensure_db_dir()
-    ctx = await BackendBuilder(session_maker=session_maker).build()
+    ctx = await BackendBuilder(session_maker=session_maker, engine=engine).build()
     for attr, value in ctx.__dict__.items():
         setattr(app.state, attr, value)
 

@@ -190,8 +190,19 @@ class ClaudeCodeLLM(CustomLLM):
             "--verbose",
             "--include-partial-messages",
         ]
-        proc = await self._spawn(proc_args)
+        try:
+            proc = await self._spawn(proc_args)
+        except OSError as exc:
+            log.warning("claude-code: failed to spawn %s: %s", binary, exc)
+            raise ClaudeCodeError(
+                f"failed to spawn `claude` binary at {binary!r}: {exc}"
+            ) from exc
         assert proc.stdout is not None
+        # Drain stderr concurrently so a chatty child can't deadlock on a full
+        # pipe buffer while we're only reading stdout below.
+        stderr_task: asyncio.Task[bytes] | None = None
+        if proc.stderr is not None:
+            stderr_task = asyncio.create_task(proc.stderr.read())
         final_usage: dict[str, int] | None = None
         try:
             async for raw in proc.stdout:
@@ -224,10 +235,32 @@ class ClaudeCodeLLM(CustomLLM):
                         "completion_tokens": out_tok,
                         "total_tokens": in_tok + out_tok,
                     }
+            # stdout hit EOF — reap the process and make sure a mid-stream
+            # death (crash/truncation before a "result" line) surfaces as an
+            # error instead of a fake success chunk.
+            await proc.wait()
+            stderr_tail = ""
+            if stderr_task is not None:
+                stderr_tail = (await stderr_task).decode(errors="replace")[-500:]
+            if proc.returncode not in (0, None):
+                log.warning(
+                    "claude-code: `claude -p` (stream) exited %s: %s",
+                    proc.returncode,
+                    stderr_tail,
+                )
+                raise ClaudeCodeError(
+                    f"`claude -p` (stream) exited {proc.returncode}: {stderr_tail}"
+                )
         finally:
             if proc.returncode is None:
                 proc.kill()
                 await proc.wait()
+            if stderr_task is not None and not stderr_task.done():
+                stderr_task.cancel()
+                try:
+                    await stderr_task
+                except asyncio.CancelledError:
+                    pass
         yield {
             "text": "",
             "is_finished": True,

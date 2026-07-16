@@ -226,11 +226,22 @@ def test_resolve_binary_returns_none_without_install() -> None:
         assert resolve_claude_binary() is None
 
 
+class _FakeAsyncReader:
+    """Подделка asyncio.StreamReader: одноразовый async `read()`."""
+
+    def __init__(self, data: bytes = b""):
+        self._data = data
+
+    async def read(self, _n: int = -1) -> bytes:
+        return self._data
+
+
 class _FakeStreamProc:
     """Подделка процесса со stdout-строками stream-json."""
 
-    def __init__(self, lines: list[bytes], returncode: int = 0):
+    def __init__(self, lines: list[bytes], returncode: int = 0, stderr: bytes = b""):
         self.stdout = self._aiter(lines)
+        self.stderr = _FakeAsyncReader(stderr)
         self.returncode = returncode
 
     @staticmethod
@@ -306,3 +317,44 @@ async def test_astreaming_yields_deltas_then_terminal_chunk() -> None:
     assert chunks[-1]["usage"]["completion_tokens"] == 2
     # промежуточные дельты не финальные
     assert all(c["is_finished"] is False for c in chunks[:-1])
+
+
+async def test_astreaming_raises_on_mid_stream_death_without_result() -> None:
+    """`claude -p` умирает/обрывается до строки "result" — стрим должен
+    поднять ClaudeCodeError, а не молча выдать терминальный чанк успеха
+    (иначе letter-edit chat подсунет пользователю обрезанное письмо)."""
+    llm = ClaudeCodeLLM()
+    delta_line = (
+        json.dumps(
+            {
+                "type": "stream_event",
+                "event": {
+                    "type": "content_block_delta",
+                    "delta": {"type": "text_delta", "text": "Прив"},
+                },
+            }
+        )
+        + "\n"
+    ).encode()
+    proc = _FakeStreamProc([delta_line], returncode=1, stderr=b"rate limited, aborting")
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+
+    with (
+        patch(
+            "otklik_backend.ai.claude_code.resolve_claude_binary",
+            return_value="/usr/bin/claude",
+        ),
+        patch(
+            "otklik_backend.ai.claude_code.asyncio.create_subprocess_exec",
+            side_effect=_fake_exec,
+        ),
+    ):
+        with pytest.raises(ClaudeCodeError, match="exited 1"):
+            async for _ in llm.astreaming(
+                model="claude-code/sonnet",
+                messages=[{"role": "user", "content": "go"}],
+                model_response=ModelResponse(),
+            ):
+                pass

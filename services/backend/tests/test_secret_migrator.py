@@ -13,7 +13,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from otklik_backend.secrets.migrator import SecretMigrator
-from otklik_backend.secrets.store import SecretStore, SecretStorageMode, account_for
+from otklik_backend.secrets.store import (
+    SecretStore,
+    SecretStorageMode,
+    SecretStoreUnavailableError,
+    account_for,
+)
 from tests.conftest import FakeSecretStore, DbHandle
 
 LEGACY_KEY = "sk-legacy-must-not-survive"
@@ -165,3 +170,60 @@ async def test_store_failure_leaves_the_column_untouched(
 
     column = json.loads(await _raw_column(test_database.session_maker))
     assert column[0]["api_key"] == LEGACY_KEY
+
+
+class _PartiallyBrokenSecretStore:
+    """set() успевает для первого аккаунта и падает на втором — хранилище
+    недоступно. Проверяет, что миграция не пишет колонку частично: либо все
+    ключи перенесены и колонка вычищена, либо ни один и колонка нетронута."""
+
+    def __init__(self) -> None:
+        self.items: dict[str, str] = {}
+
+    @property
+    def mode(self) -> SecretStorageMode:
+        return SecretStorageMode.FILE
+
+    async def get(self, account: str) -> str | None:
+        return self.items.get(account)
+
+    async def set(self, account: str, secret: str) -> None:
+        if self.items:
+            raise SecretStoreUnavailableError()
+        self.items[account] = secret
+
+    async def delete(self, account: str) -> None:
+        pass
+
+
+async def test_multi_deployment_failure_leaves_both_entries_untouched(
+    test_database: DbHandle,
+) -> None:
+    """Атомарность на несколько записей: первая ушла в store, вторая упала —
+    колонка должна остаться байт-в-байт исходной, ключ первой записи не
+    потерян вместе с ней (никакой частичной записи)."""
+    entries = [
+        {"model": "gigachat/GigaChat-2", "api_key": LEGACY_KEY, "api_base": None},
+        {
+            "model": "openai/gpt-4o",
+            "api_key": "sk-second-must-not-vanish",
+            "api_base": None,
+        },
+    ]
+    await _seed_legacy_row(test_database.session_maker, entries)
+    seeded_column = await _raw_column(test_database.session_maker)
+
+    store: SecretStore = _PartiallyBrokenSecretStore()
+    migrator = SecretMigrator(
+        session_maker=test_database.session_maker,
+        engine=test_database.engine,
+        store=store,
+    )
+    await migrator.migrate()
+
+    column_after = await _raw_column(test_database.session_maker)
+    assert column_after == seeded_column  # ничего не записалось частично
+
+    column = json.loads(column_after)
+    assert column[0]["api_key"] == LEGACY_KEY
+    assert column[1]["api_key"] == "sk-second-must-not-vanish"

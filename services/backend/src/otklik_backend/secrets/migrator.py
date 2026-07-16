@@ -6,7 +6,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from otklik_backend.log import get_logger
-from otklik_backend.secrets.store import SecretStore, account_for
+from otklik_backend.secrets.store import (
+    SecretStore,
+    SecretStoreUnavailableError,
+    account_for,
+)
 
 
 class SecretMigrator:
@@ -46,10 +50,21 @@ class SecretMigrator:
                 if key:
                     await self._store.set(account_for(str(entry["id"])), str(key))
                     moved += 1
+        except SecretStoreUnavailableError as e:
+            # Ожидаемый, ретраимый случай: хранилище — ненадёжная сторона (диск
+            # полон, нет прав, связка заблокирована). Колонку не трогаем вовсе:
+            # ключ остаётся на месте, следующий старт повторит.
+            self._log.warning(
+                "Секретное хранилище недоступно, повторим на следующем старте: %s", e
+            )
+            return
         except Exception as e:
-            # Хранилище — ненадёжная сторона (диск полон, нет прав). Колонку не
-            # трогаем вовсе: ключ остаётся на месте, следующий старт повторит.
-            self._log.error("Failed to move LLM keys into the secret store: %s", e)
+            # НЕ сбой хранилища — баг в самом миграторе (например, битая
+            # запись). Колонку всё равно не трогаем, потому что упасть на
+            # старте бэкенда хуже, чем повторить попытку — но это не outage,
+            # и маскировать его под "хранилище недоступно" нельзя: без
+            # различия такая ошибка ретраится на каждом старте бесконечно.
+            self._log.error("Неожиданный сбой SecretMigrator'а: %s", e)
             return
         await self._write_raw(entries)
         if moved:

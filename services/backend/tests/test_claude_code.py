@@ -1,3 +1,4 @@
+import asyncio
 import json
 from unittest.mock import patch
 
@@ -136,6 +137,72 @@ async def test_acompletion_raises_on_is_error_payload() -> None:
         _spawn_returns(proc),
     ):
         with pytest.raises(ClaudeCodeError, match="reported an error"):
+            await llm.acompletion(
+                model="claude-code/sonnet",
+                messages=[{"role": "user", "content": "go"}],
+                model_response=ModelResponse(),
+            )
+
+
+async def test_acompletion_raises_on_non_json_stdout() -> None:
+    llm = ClaudeCodeLLM()
+    proc = _FakeProc(stdout=b"not json at all", returncode=0)
+    with (
+        patch(
+            "otklik_backend.ai.claude_code.resolve_claude_binary",
+            return_value="/usr/bin/claude",
+        ),
+        _spawn_returns(proc),
+    ):
+        with pytest.raises(ClaudeCodeError, match="non-JSON"):
+            await llm.acompletion(
+                model="claude-code/sonnet",
+                messages=[{"role": "user", "content": "go"}],
+                model_response=ModelResponse(),
+            )
+
+
+async def test_acompletion_raises_and_kills_process_on_timeout() -> None:
+    llm = ClaudeCodeLLM()
+    proc = _FakeProc()
+
+    async def _fake_wait_for(coro, timeout):
+        coro.close()  # avoid "coroutine was never awaited" warning
+        raise asyncio.TimeoutError
+
+    with (
+        patch(
+            "otklik_backend.ai.claude_code.resolve_claude_binary",
+            return_value="/usr/bin/claude",
+        ),
+        _spawn_returns(proc),
+        patch(
+            "otklik_backend.ai.claude_code.asyncio.wait_for",
+            side_effect=_fake_wait_for,
+        ),
+    ):
+        with pytest.raises(ClaudeCodeError, match="timed out"):
+            await llm.acompletion(
+                model="claude-code/sonnet",
+                messages=[{"role": "user", "content": "go"}],
+                model_response=ModelResponse(),
+            )
+    assert proc.returncode == -9
+
+
+async def test_acompletion_raises_when_spawn_fails() -> None:
+    llm = ClaudeCodeLLM()
+    with (
+        patch(
+            "otklik_backend.ai.claude_code.resolve_claude_binary",
+            return_value="/usr/bin/claude",
+        ),
+        patch(
+            "otklik_backend.ai.claude_code.asyncio.create_subprocess_exec",
+            side_effect=FileNotFoundError("no such file"),
+        ),
+    ):
+        with pytest.raises(ClaudeCodeError, match="/usr/bin/claude"):
             await llm.acompletion(
                 model="claude-code/sonnet",
                 messages=[{"role": "user", "content": "go"}],

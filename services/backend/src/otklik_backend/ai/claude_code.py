@@ -117,6 +117,7 @@ class ClaudeCodeLLM(CustomLLM):
     async def _spawn(self, args: list[str]) -> asyncio.subprocess.Process:
         return await asyncio.create_subprocess_exec(
             *args,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=_clean_cwd(),
@@ -129,31 +130,45 @@ class ClaudeCodeLLM(CustomLLM):
         timeout: float = kwargs.get("timeout") or DEFAULT_TIMEOUT_SEC
         binary = resolve_claude_binary()
         if binary is None:
+            log.warning("claude-code: binary not found")
             raise ClaudeCodeError("Claude Code CLI (`claude`) not found")
         system, prompt = _messages_to_prompt(messages)
         proc_args = self._base_args(binary, model, system, prompt) + [
             "--output-format",
             "json",
         ]
-        proc = await self._spawn(proc_args)
+        try:
+            proc = await self._spawn(proc_args)
+        except OSError as exc:
+            log.warning("claude-code: failed to spawn %s: %s", binary, exc)
+            raise ClaudeCodeError(
+                f"failed to spawn `claude` binary at {binary!r}: {exc}"
+            ) from exc
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
         except (asyncio.TimeoutError, TimeoutError) as exc:
             proc.kill()
             await proc.wait()
+            log.warning("claude-code: `claude -p` timed out after %.0fs", timeout)
             raise ClaudeCodeError(
                 f"`claude -p` timed out after {timeout:.0f}s"
             ) from exc
         if proc.returncode != 0:
             tail = stderr.decode(errors="replace")[-500:]
+            log.warning("claude-code: `claude -p` exited %s: %s", proc.returncode, tail)
             raise ClaudeCodeError(f"`claude -p` exited {proc.returncode}: {tail}")
         try:
             data = json.loads(stdout.decode(errors="replace"))
         except json.JSONDecodeError as exc:
+            log.warning("claude-code: `claude -p` returned non-JSON output: %s", exc)
             raise ClaudeCodeError(
                 f"`claude -p` returned non-JSON output: {exc}"
             ) from exc
         if data.get("is_error"):
+            log.warning(
+                "claude-code: `claude -p` reported an error: %s",
+                str(data.get("result", ""))[:300],
+            )
             raise ClaudeCodeError(
                 f"`claude -p` reported an error: {str(data.get('result', ''))[:300]}"
             )

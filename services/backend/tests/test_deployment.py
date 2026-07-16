@@ -55,10 +55,18 @@ def test_matches_distinguishes_model_and_base() -> None:
     )
 
 
-def test_has_api_key_is_set_from_api_key_by_the_transitional_shim() -> None:
-    """ВРЕМЕННО (пока api_key ещё живёт в БД, до задачи 5): запись,
-    прочитанная из БД с непустым api_key, но без has_api_key, всё равно
-    должна остаться usable."""
-    deployment = LLMDeployment(model="gigachat/GigaChat-2", api_key="secret")
-    assert deployment.has_api_key is True
-    assert deployment.is_usable() is True
+def test_deployment_model_cannot_carry_a_secret() -> None:
+    """Структурная гарантия, ради которой всё и затевалось: у персистентной
+    модели нет поля под ключ, поэтому process_bind_param (model_dump) физически
+    не может записать секрет в SQLite. Лишние поля pydantic v2 игнорирует —
+    поэтому даже подсунутый api_key не долетит до колонки."""
+    deployment = LLMDeployment(model="gigachat/GigaChat-2", has_api_key=True)
+    assert "api_key" not in deployment.model_dump(mode="json")
+    assert not hasattr(deployment, "api_key")
+
+    # Даже если кто-то попробует протащить ключ через конструктор — его там не будет.
+    sneaky = LLMDeployment(
+        model="gigachat/GigaChat-2", has_api_key=True, api_key="sk-should-vanish"
+    )  # type: ignore[call-arg]
+    assert '"api_key"' not in sneaky.model_dump_json()
+    assert "sk-should-vanish" not in sneaky.model_dump_json()

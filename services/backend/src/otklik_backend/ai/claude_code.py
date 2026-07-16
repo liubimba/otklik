@@ -8,6 +8,7 @@ from typing import Any, AsyncIterator
 import litellm
 from litellm import CustomLLM, ModelResponse  # type: ignore[attr-defined]
 from litellm.types.utils import GenericStreamingChunk
+from litellm.utils import custom_llm_setup
 
 from otklik_backend.log import get_logger
 from otklik_backend.paths import AppPaths
@@ -301,7 +302,19 @@ class ClaudeCodeLLM(CustomLLM):
 
 def register_claude_code_provider() -> None:
     """Идемпотентно регистрирует ClaudeCodeLLM под провайдером `claude-code`,
-    чтобы LiteLLM маршрутизировал `model='claude-code/...'` в него."""
+    чтобы LiteLLM маршрутизировал `model='claude-code/...'` в него.
+
+    Мало добавить запись в `custom_provider_map` — LiteLLM сверяется не с
+    ним напрямую, а с `litellm.provider_list`/`litellm._custom_providers`,
+    которые синхронизируются из `custom_provider_map` только внутри
+    `custom_llm_setup()`. Обычно эта синхронизация — ленивая: она происходит
+    при первом вызове `completion`/`acompletion` изнутри `function_setup()`.
+    Но `Router.__init__` валидирует модели деплойментов через
+    `get_llm_provider` синхронно, при создании — то есть до первого вызова
+    completion. Без явного вызова `custom_llm_setup()` здесь Router не узнаёт
+    провайдер `claude-code` и падает с `BadRequestError: LLM Provider NOT
+    provided` уже на этапе конструирования, а не при обращении к модели.
+    """
     for item in litellm.custom_provider_map:
         if item.get("provider") == CLAUDE_CODE_PROVIDER:
             return
@@ -309,3 +322,4 @@ def register_claude_code_provider() -> None:
         *litellm.custom_provider_map,
         {"provider": CLAUDE_CODE_PROVIDER, "custom_handler": ClaudeCodeLLM()},
     ]
+    custom_llm_setup()  # type: ignore[no-untyped-call]

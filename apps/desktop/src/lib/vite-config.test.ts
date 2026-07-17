@@ -19,13 +19,24 @@ import { afterEach, describe, expect, it } from "vitest";
 // untrack вырождается в (fn) => fn().
 //
 // И ни один гейт этого не ловил: vitest, pnpm check и pnpm build оставались
-// зелёными на полностью сломанном dev/prod. Потому что svelteTesting() из
-// @testing-library/svelte возвращает "browser" обратно — но ровно тогда, когда
-// выставлен process.env.VITEST. Тесты чинили окружение под собой и слепли к
-// поломке, которую видел бы только живой запуск.
+// зелёными на полностью сломанном dev/prod. Механика ровно такая: во время
+// настоящего прогона плагин самого vitest подмешивает в конфиг
+// resolve.conditions: ["node"], и только тогда addBrowserCondition() из
+// @testing-library/svelte находит "node" и вставляет "browser" перед ним
+// (см. его vite.js: splice происходит ТОЛЬКО если "node" уже в списке).
+// Компонентные тесты жили в условиях резолва, не совпадающих ни с dev, ни с
+// build, — и потому к этому классу поломок слепы структурно.
 //
-// Поэтому тест снимает VITEST на время резолва: он обязан видеть конфиг ровно
-// таким, каким его получит `pnpm tauri dev` и `pnpm build`.
+// Этот тест зовёт resolveConfig() напрямую, мимо плагина vitest: "node" в
+// список не попадает, значит и addBrowserCondition ничего не вставляет, значит
+// условия видны ровно такими, какими их получит `pnpm build`. Именно поэтому
+// гейт работает.
+//
+// ВАЖНО про охват: тест проверяет ПРОКСИ (массив conditions), а не исход (что
+// svelte резолвится в index-client.js). Он не поймает поломку через
+// resolve.alias, mainFields, dedupe или optimizeDeps, и щупает только
+// command: "build" (сегодня идентичен "serve"). Это точечный гейт на одну
+// регрессию, а не покрытие клиентского резолва вообще.
 const configDir = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../..",
@@ -33,11 +44,17 @@ const configDir = path.resolve(
 
 async function resolveClientConditions(): Promise<readonly string[]> {
 	const saved = process.env.VITEST;
-	// Только delete: автофикс биома (= undefined) здесь НЕВЕРЕН — process.env
-	// приводит значение к строке, переменная стала бы "undefined", то есть
-	// truthy. Проверка `if (!process.env.VITEST) return` внутри svelteTesting()
-	// всё равно вернула бы "browser", и тест перестал бы ловить ровно то, ради
-	// чего написан.
+	// Страховка, а НЕ несущая конструкция: сегодня VITEST на условия резолва не
+	// влияет вовсе (проверено — с ним и без него resolveConfig отдаёт
+	// одинаковый список), потому что svelteTesting() вставляет "browser" только
+	// при уже присутствующем "node", а его сюда кладёт плагин vitest, которого
+	// в прямом вызове resolveConfig нет. Снимаем на случай, если
+	// @testing-library/svelte однажды начнёт добавлять "browser" безусловно —
+	// тогда тест молча перестал бы что-либо проверять. Цена — одна строка.
+	//
+	// Именно delete, а не автофикс биома (= undefined): process.env приводит
+	// значение к строке, переменная стала бы "undefined" — truthy, то есть
+	// «снятие» ничего бы не сняло.
 	// biome-ignore lint/performance/noDelete: см. комментарий выше
 	delete process.env.VITEST;
 	try {

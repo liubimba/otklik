@@ -13,8 +13,9 @@ from otklik_backend.db import models  # noqa: F401, E402
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option(name="sqlalchemy.url", value=DATABASE_URL)
-ensure_db_dir()
+if not config.get_main_option("sqlalchemy.url", None):
+    config.set_main_option(name="sqlalchemy.url", value=DATABASE_URL)
+    ensure_db_dir()
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

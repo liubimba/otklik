@@ -6,8 +6,10 @@ from otklik_backend.ai.layer import AILayer
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.browser.core import BrowserCore
 from otklik_backend.core.protocols import EventListener, Recoverable, Runnable
+from otklik_backend.db.migrations import SchemaMigrator
 from otklik_backend.db.models import SettingsORM
 from otklik_backend.db.repositories.settings import SettingsRepository
+from otklik_backend.db.session import DATABASE_URL
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.authorization_service import AuthorizationService
 from otklik_backend.orchestrator.cover_letter_service import CoverLetterService
@@ -76,6 +78,7 @@ class BackendBuilder:
         self._secret_store = secret_store
 
     async def build(self) -> AppContext:
+        SchemaMigrator(database_url=DATABASE_URL).upgrade_to_head()
         secret_store = self._secret_store or await SecretStoreFactory().create()
         await SecretMigrator(
             session_maker=self._session_maker, engine=self._engine, store=secret_store

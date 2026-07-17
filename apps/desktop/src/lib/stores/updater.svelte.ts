@@ -1,5 +1,18 @@
+import { getLogger } from "$lib/log";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { type Update, check } from "@tauri-apps/plugin-updater";
+
+const logger = getLogger("Updater");
+
+const EMPTY_FEED = [
+	"could not fetch a valid release json",
+	"did not respond with a successful status code",
+];
+
+function isEmptyFeed(message: string): boolean {
+	const lowered = message.toLowerCase();
+	return EMPTY_FEED.some((signature) => lowered.includes(signature));
+}
 
 class Updater {
 	available = $state<Update | null>(null);
@@ -19,7 +32,12 @@ class Updater {
 			}
 			return false;
 		} catch (e) {
-			this.error = e instanceof Error ? e.message : String(e);
+			const message = e instanceof Error ? e.message : String(e);
+			if (isEmptyFeed(message)) {
+				logger.info(`No release feed published yet: ${message}`);
+				return false;
+			}
+			this.error = message;
 			return false;
 		} finally {
 			this.checking = false;

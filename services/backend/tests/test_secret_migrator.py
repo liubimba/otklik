@@ -233,8 +233,27 @@ async def test_multi_deployment_failure_keeps_every_key_in_the_column(
     assert column[1]["api_key"] == "sk-second-must-not-vanish"
 
 
-async def test_failed_store_write_persists_ids_so_the_retry_reuses_the_account(
-    test_database: DbHandle, fake_secret_store: FakeSecretStore
+class _FlakySecretStore(FakeSecretStore):
+    """Падает ровно на втором set() за всю жизнь, дальше работает.
+
+    Такая форма нужна, чтобы сироту вообще можно было воспроизвести: она
+    появляется только если первый проход успел записать ЧАСТЬ ключей и упал.
+    Хранилище, падающее сразу, сирот не оставляет — по нему тест был бы
+    зелёным при любой реализации."""
+
+    def __init__(self) -> None:
+        super().__init__(mode=SecretStorageMode.FILE)
+        self.calls = 0
+
+    async def set(self, account: str, secret: str) -> None:
+        self.calls += 1
+        if self.calls == 2:
+            raise SecretStoreUnavailableError("связка заблокирована")
+        await super().set(account, secret)
+
+
+async def test_partial_failure_then_retry_does_not_orphan_accounts(
+    test_database: DbHandle,
 ) -> None:
     """Сбой хранилища не должен плодить сирот в связке.
 
@@ -242,35 +261,48 @@ async def test_failed_store_write_persists_ids_so_the_retry_reuses_the_account(
     терял бы id вместе с ней: следующий старт сминтил бы новый uuid, положил
     ключ под новым аккаунтом, а запись под старым осталась бы в связке
     навсегда — по сироте за каждую неудачную загрузку. Поэтому id уезжает в
-    колонку ДО переноса ключей, и повтор пишет в тот же аккаунт."""
+    колонку ДО переноса ключей, и повтор пишет в те же аккаунты.
+
+    Сценарий: две записи, первый старт переносит первую и падает на второй,
+    второй старт доводит дело до конца. В связке должно остаться РОВНО два
+    аккаунта. Без персистентного id их было бы три — первый ключ лежал бы ещё
+    и под осиротевшим uuid первого прогона."""
     await _seed_legacy_row(
         test_database.session_maker,
-        [{"model": "gigachat/GigaChat-2", "api_key": LEGACY_KEY, "api_base": None}],
+        [
+            {"model": "gigachat/GigaChat-2", "api_key": LEGACY_KEY, "api_base": None},
+            {"model": "openai/gpt-4o", "api_key": "sk-second", "api_base": None},
+        ],
     )
+    store = _FlakySecretStore()
 
-    # Первый старт: хранилище недоступно.
+    # Первый старт: первый ключ уехал, второй упал.
     await SecretMigrator(
         session_maker=test_database.session_maker,
         engine=test_database.engine,
-        store=_BrokenSecretStore(),  # type: ignore[arg-type]
+        store=store,
     ).migrate()
 
     after_failure = json.loads(await _raw_column(test_database.session_maker))
-    # Ключ никуда не делся — терять его нельзя.
+    # Ключи никуда не делись — терять их нельзя.
     assert after_failure[0]["api_key"] == LEGACY_KEY
-    # ...но id уже проштампован и переживёт перезапуск.
-    stamped_id = after_failure[0]["id"]
-    assert len(stamped_id) == 32
+    assert after_failure[1]["api_key"] == "sk-second"
+    # ...но id уже проштампованы и переживут перезапуск.
+    stamped_ids = [entry["id"] for entry in after_failure]
+    assert all(len(i) == 32 for i in stamped_ids)
 
-    # Второй старт: хранилище починилось.
+    # Второй старт: то же хранилище, уже здоровое.
     await SecretMigrator(
         session_maker=test_database.session_maker,
         engine=test_database.engine,
-        store=fake_secret_store,
+        store=store,
     ).migrate()
 
     after_retry = json.loads(await _raw_column(test_database.session_maker))
-    assert after_retry[0]["id"] == stamped_id  # тот же id, а не новый uuid
-    assert "api_key" not in after_retry[0]
-    # Ровно один аккаунт — сирот нет.
-    assert fake_secret_store.items == {account_for(stamped_id): LEGACY_KEY}
+    assert [e["id"] for e in after_retry] == stamped_ids  # те же id, не новые
+    assert all("api_key" not in entry for entry in after_retry)
+    # Ровно два аккаунта: сироты первого прогона нет.
+    assert store.items == {
+        account_for(stamped_ids[0]): LEGACY_KEY,
+        account_for(stamped_ids[1]): "sk-second",
+    }

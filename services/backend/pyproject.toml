@@ -34,6 +34,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "mypy>=1.13",
+    "pyinstaller>=6.21.0",
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "types-psutil>=7.2.2.20260518",

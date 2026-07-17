@@ -193,3 +193,39 @@ jobs:
               sys.exit(f"missing tables: {sorted(missing)}")
           print("schema OK:", sorted(tables))
           PY
+
+      - name: Chromium download must actually start
+        run: |
+          rm -rf "$HOME/.otklik"
+          ./apps/desktop/src-tauri/resources/backend/otklik-backend --port 18125 &
+          BACKEND=$!
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:18125/api/v1/system/health && break
+            sleep 2
+          done
+          curl -sN -X POST http://127.0.0.1:18125/api/v1/setup/chromium \
+            > frames.txt 2>&1 &
+          STREAM=$!
+          for i in $(seq 1 45); do
+            grep -q '"status":"downloading"' frames.txt && break
+            sleep 2
+          done
+          kill $STREAM $BACKEND 2>/dev/null || true
+          echo "--- frames ---"
+          head -4 frames.txt
+          python3 - <<'PY'
+          import json, re, sys
+          frames = []
+          for line in open("frames.txt"):
+              if line.startswith("data: "):
+                  frames.append(json.loads(line[6:]))
+          errors = [f for f in frames if f.get("type") == "error"]
+          if errors:
+              sys.exit(f"install reported an error: {errors[0]['detail'][:400]}")
+          downloading = [f for f in frames if f.get("status") == "downloading"]
+          if not downloading:
+              sys.exit("download never started: no downloading frame")
+          if not any(f["total_bytes"] > 0 for f in downloading):
+              sys.exit("progress parsed no size — the patchright output format changed")
+          print("download started:", downloading[0])
+          PY

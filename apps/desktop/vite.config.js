@@ -5,7 +5,7 @@ import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { svelteTesting } from "@testing-library/svelte/vite";
 import { visualizer } from "rollup-plugin-visualizer";
-import { defineConfig } from "vite";
+import { defaultClientConditions, defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -65,10 +65,19 @@ const bitsUiTestShimId = "\0virtual:bits-ui-test-shim";
 //
 // Declaring the condition statically here (rather than relying on the
 // plugin to inject it at runtime) reaches both vite instances, since it's
-// plain config data both read — no per-package alias needed. Harmless for
-// dev/build: it's the exact condition vite-plugin-svelte already adds
-// there.
-const svelteResolveConditions = ["svelte"];
+// plain config data both read — no per-package alias needed.
+//
+// ОБЯЗАТЕЛЬНО со спредом defaultClientConditions: resolve.conditions
+// ЗАМЕЩАЕТ дефолты вайта, а не дополняет их. Голый ["svelte"] выкидывает
+// "browser", и клиентский бандл начинает резолвить svelte по ветке
+// "default" её exports-мапы — то есть на СЕРВЕРНУЮ сборку: onDestroy падает
+// на любой странице с superForm (Настройки), onMount становится no-op'ом,
+// svelte/reactivity подменяется нереактивными заглушками внутри
+// bits-ui/runed, а untrack вырождается в (fn) => fn(). Ни один гейт этого
+// не увидит: svelteTesting() возвращает "browser" обратно, но только когда
+// выставлен process.env.VITEST — то есть тесты, pnpm check и pnpm build
+// остаются зелёными на сломанном dev/prod.
+const svelteResolveConditions = [...defaultClientConditions, "svelte"];
 
 // https://vite.dev/config/
 export default defineConfig(

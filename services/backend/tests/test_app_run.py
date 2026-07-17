@@ -1,8 +1,8 @@
 import os
 import sys
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
-from otklik_backend.api.app import app, run
+from otklik_backend.api.app import app, run, start_browser_best_effort
 from otklik_backend.paths import AppPaths
 
 
@@ -28,6 +28,19 @@ def test_cli_reads_port_from_argv() -> None:
             with patch.object(sys, "argv", ["otklik-backend", "--port", "23456"]):
                 main()
     assert uvicorn_run.call_args.kwargs["port"] == 23456
+
+
+async def test_startup_survives_a_browser_whose_chromium_is_not_installed() -> None:
+    browser = AsyncMock()
+    browser.start.side_effect = RuntimeError("Executable doesn't exist at chrome")
+    await start_browser_best_effort(browser=browser)
+    browser.start.assert_awaited_once()
+
+
+async def test_startup_starts_the_browser_when_chromium_is_present() -> None:
+    browser = AsyncMock()
+    await start_browser_best_effort(browser=browser)
+    browser.start.assert_awaited_once()
 
 
 def test_cli_points_the_patchright_driver_at_the_app_data_dir() -> None:

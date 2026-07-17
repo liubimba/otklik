@@ -33,6 +33,16 @@ def test_upgrade_stamps_the_alembic_version_table(tmp_path: Path) -> None:
     assert "alembic_version" in _tables_of(db)
 
 
+async def test_upgrade_creates_the_schema_from_inside_a_running_event_loop(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "db.sqlite"
+    await SchemaMigrator(
+        database_url=f"sqlite+aiosqlite:///{db}"
+    ).upgrade_to_head_async()
+    assert {"settings", "vacancies", "applications"} <= _tables_of(db)
+
+
 def test_upgrade_migrates_the_given_url_and_not_the_app_database(
     tmp_path: Path,
 ) -> None:

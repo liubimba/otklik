@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from pathlib import Path
 
@@ -25,3 +26,6 @@ class SchemaMigrator:
         config.set_main_option("sqlalchemy.url", self._database_url)
         self._log.info("Upgrading database schema to head")
         command.upgrade(config, "head")
+
+    async def upgrade_to_head_async(self) -> None:
+        await asyncio.to_thread(self.upgrade_to_head)

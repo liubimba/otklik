@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import Any
+from typing import Any, Protocol
 
 from fastapi import APIRouter, FastAPI
 from fastapi.concurrency import asynccontextmanager
@@ -32,6 +32,20 @@ ALLOWED_ORIGINS = [
 ]
 
 
+class StartableBrowser(Protocol):
+    async def start(self) -> None: ...
+
+
+async def start_browser_best_effort(browser: StartableBrowser) -> None:
+    try:
+        await browser.start()
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Browser did not start; API stays up so the UI can install Chromium",
+            error=str(exc),
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> Any:
     configure_logging()
@@ -57,7 +71,7 @@ async def lifespan(app: FastAPI) -> Any:
                 )
     logger.info("Recovery complete")
 
-    await ctx.browser.start()
+    await start_browser_best_effort(browser=ctx.browser)
 
     tasks = [asyncio.create_task(r.run()) for r in ctx.runnables()]
     try:

@@ -78,7 +78,7 @@ class BackendBuilder:
         self._secret_store = secret_store
 
     async def build(self) -> AppContext:
-        SchemaMigrator(database_url=DATABASE_URL).upgrade_to_head()
+        await SchemaMigrator(database_url=DATABASE_URL).upgrade_to_head_async()
         secret_store = self._secret_store or await SecretStoreFactory().create()
         await SecretMigrator(
             session_maker=self._session_maker, engine=self._engine, store=secret_store

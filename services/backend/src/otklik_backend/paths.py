@@ -25,6 +25,10 @@ class AppPaths:
         return self.root / "chrome-profile"
 
     @property
+    def browsers_dir(self) -> Path:
+        return self.root / "browsers"
+
+    @property
     def legacy_roots(self) -> tuple[Path, ...]:
         return tuple(self._home / name for name in LEGACY_APP_DIR_NAMES)
 

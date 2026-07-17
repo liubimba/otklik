@@ -107,9 +107,14 @@ def run(port: int = 8001, host: str = "127.0.0.1") -> None:
 
 def main() -> None:
     import argparse
+    import os
+
+    from otklik_backend.browser.chromium_gate import ChromiumGate
+    from otklik_backend.paths import AppPaths
 
     parser = argparse.ArgumentParser(prog="otklik-backend")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
+    os.environ.update(ChromiumGate(browsers_dir=AppPaths().browsers_dir).driver_env())
     run(port=args.port, host=args.host)

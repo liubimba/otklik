@@ -303,6 +303,7 @@ export type SetupState = {
 	local_model: string;
 	cloud_model: string;
 	claude_available: boolean;
+	chromium_installed: boolean;
 };
 
 export type ClaudeCodeState = "not_installed" | "not_authed" | "ready";

@@ -181,6 +181,16 @@ async function* streamPull(): AsyncGenerator<PullProgress> {
 	}
 }
 
+async function* streamChromium(): AsyncGenerator<PullProgress> {
+	const url = `http://${await backendOrigin()}/api/v1/setup/chromium`;
+	for await (const frame of streamSSE<PullFrame>(url, { method: "POST" })) {
+		if ("type" in frame && frame.type === "error") {
+			throw new APIError(500, frame.detail);
+		}
+		yield frame as PullProgress;
+	}
+}
+
 export const API = {
 	auth: {
 		status: () => api<AuthStatus>("auth/status"),
@@ -300,6 +310,7 @@ export const API = {
 		claude: () => api<ClaudeSetupState>("setup/claude"),
 		cloudModels: () => api<CloudModelOption[]>("setup/cloud-models"),
 		pull: () => streamPull(),
+		chromium: () => streamChromium(),
 		trial: (deployment: LLMDeploymentWrite, deadlineSec: number) =>
 			api<BenchmarkResult>("setup/trial", {
 				method: "POST",

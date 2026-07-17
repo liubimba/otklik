@@ -288,6 +288,7 @@
 	"setup_done_continue": "Начать поиск",
 	"setup_progress_label": "Прогресс загрузки модели",
 	"browser_setup_title": "Готовим браузер",
+	"browser_setup_header": "Браузер, который откликается",
 	"browser_setup_subtitle": "Otklik откликается за вас в настоящем браузере — его нужно скачать один раз. Около 380 МБ.",
 	"browser_setup_checking": "Проверяем браузер…",
 	"browser_setup_progress": "Загружено {percent}%",

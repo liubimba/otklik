@@ -1,4 +1,5 @@
 <script lang="ts">
+import { page } from "$app/state";
 import { createEventSync } from "$lib/api/event-sync";
 import { EventsWebSocket } from "$lib/api/events";
 import AppSidebar from "$lib/components/app-sidebar.svelte";
@@ -17,6 +18,8 @@ import UpdateDialog from "$lib/components/update-dialog.svelte";
 import { updater } from "$lib/stores/updater.svelte";
 
 const { children }: LayoutProps = $props();
+
+const isOnboarding = $derived(page.url.pathname.startsWith("/onboarding"));
 
 const dark = $derived(mode.current === "dark");
 
@@ -66,7 +69,9 @@ onMount(() => {
         <div class="relative flex min-h-0 flex-1">
             <DottedBackground {dark}/>
 
-            <AppSidebar/>
+            {#if !isOnboarding}
+                <AppSidebar/>
+            {/if}
 
             <main class="relative min-w-0 flex-1 overflow-y-auto">
                 {@render children()}

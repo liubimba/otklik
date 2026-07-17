@@ -39,7 +39,7 @@ $effect(() => {
 <div class="container mx-auto flex min-h-full max-w-xl flex-col justify-center gap-6 p-6">
     <header class="flex items-center justify-between gap-3">
         <p class="text-muted-foreground font-mono text-xs uppercase tracking-wide">
-            {m.setup_title()}
+            {m.browser_setup_header()}
         </p>
     </header>
 

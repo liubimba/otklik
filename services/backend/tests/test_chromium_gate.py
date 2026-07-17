@@ -11,13 +11,24 @@ def test_reports_missing_when_the_directory_is_empty(tmp_path: Path) -> None:
     assert ChromiumGate(browsers_dir=tmp_path).is_installed() is False
 
 
-def test_reports_installed_when_a_chromium_directory_exists(tmp_path: Path) -> None:
-    (tmp_path / "chromium-1223").mkdir()
+def test_reports_installed_when_a_chromium_directory_is_marked_complete(
+    tmp_path: Path,
+) -> None:
+    browser = tmp_path / "chromium-1223"
+    browser.mkdir()
+    (browser / "INSTALLATION_COMPLETE").touch()
     assert ChromiumGate(browsers_dir=tmp_path).is_installed() is True
 
 
+def test_a_half_extracted_download_does_not_count_as_installed(tmp_path: Path) -> None:
+    (tmp_path / "chromium-1223").mkdir()
+    assert ChromiumGate(browsers_dir=tmp_path).is_installed() is False
+
+
 def test_headless_shell_alone_does_not_count_as_installed(tmp_path: Path) -> None:
-    (tmp_path / "chromium_headless_shell-1223").mkdir()
+    shell = tmp_path / "chromium_headless_shell-1223"
+    shell.mkdir()
+    (shell / "INSTALLATION_COMPLETE").touch()
     assert ChromiumGate(browsers_dir=tmp_path).is_installed() is False
 
 

@@ -9,6 +9,7 @@ from otklik_backend.core.progress import PullProgress
 from otklik_backend.log import get_logger
 
 PROGRESS_LINE = re.compile(r"\|\s*(\d+)%\s+of\s+([\d.]+)\s*MiB")
+INSTALL_MARKER = "INSTALLATION_COMPLETE"
 
 
 class ChromiumInstallError(Exception): ...
@@ -23,7 +24,8 @@ class ChromiumGate:
         if not self._browsers_dir.is_dir():
             return False
         return any(
-            entry.name.startswith("chromium-") for entry in self._browsers_dir.iterdir()
+            entry.name.startswith("chromium-") and (entry / INSTALL_MARKER).exists()
+            for entry in self._browsers_dir.iterdir()
         )
 
     def driver_env(self) -> dict[str, str]:

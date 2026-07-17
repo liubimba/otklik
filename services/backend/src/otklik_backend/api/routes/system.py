@@ -24,6 +24,11 @@ from otklik_backend.db.repositories.settings import SettingsRepository
 system_router = APIRouter(prefix="/system", tags=["system"])
 
 
+@system_router.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @system_router.get("/rate-limits")
 async def rate_limits(session: SessionDep) -> RateLimitsBudgetAPISchema:
     settings: SettingsAPISchema = settings_to_schema(

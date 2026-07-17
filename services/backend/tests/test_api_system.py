@@ -5,6 +5,12 @@ from otklik_backend.secrets.store import SecretStorageMode
 from tests.conftest import FakeSecretStore
 
 
+def test_health_answers_without_any_dependency(client: TestClient) -> None:
+    response: Response = client.get("/api/v1/system/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_secret_storage_reports_the_injected_fakes_mode(
     client: TestClient, fake_secret_store: FakeSecretStore
 ) -> None:

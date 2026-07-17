@@ -2,7 +2,6 @@ from otklik_backend.ai.deployment import LLMDeployment
 
 
 def test_is_usable_local_deployment_without_key() -> None:
-    """Локальная модель (задан api_base — адрес Ollama) ключа не просит."""
     deployment = LLMDeployment(
         model="ollama_chat/qwen2.5:7b", api_base="http://localhost:11434"
     )
@@ -10,7 +9,6 @@ def test_is_usable_local_deployment_without_key() -> None:
 
 
 def test_is_usable_cloud_deployment_without_key() -> None:
-    """Облачный пресет без ключа — заготовка, а не рабочий deployment."""
     assert LLMDeployment(model="gigachat/GigaChat-2").is_usable() is False
 
 
@@ -21,13 +19,10 @@ def test_is_usable_cloud_deployment_with_key() -> None:
 
 
 def test_is_usable_claude_code_deployment_without_key_or_base() -> None:
-    """Подписочный Claude: auth в CLI, ни api_base, ни ключа нет."""
     assert LLMDeployment(model="claude-code/sonnet").is_usable() is True
 
 
 def test_id_is_stable_and_unique_per_instance() -> None:
-    """id — опознавательный знак записи, а не производная от полей: он же станет
-    именем аккаунта в связке ключей."""
     a = LLMDeployment(model="gigachat/GigaChat-2")
     b = LLMDeployment(model="gigachat/GigaChat-2")
     assert a.id != b.id
@@ -36,11 +31,10 @@ def test_id_is_stable_and_unique_per_instance() -> None:
 
 
 def test_matches_ignores_the_key_and_the_id() -> None:
-    """Ротация ключа не должна плодить дубль: «тот же deployment» — это модель+адрес."""
     a = LLMDeployment(model="gigachat/GigaChat-2", has_api_key=True)
     b = LLMDeployment(model="gigachat/GigaChat-2", has_api_key=False)
     assert a.matches(b) is True
-    assert a.id != b.id  # разные записи, но одна и та же «точка подключения»
+    assert a.id != b.id
 
 
 def test_matches_distinguishes_model_and_base() -> None:
@@ -56,15 +50,10 @@ def test_matches_distinguishes_model_and_base() -> None:
 
 
 def test_deployment_model_cannot_carry_a_secret() -> None:
-    """Структурная гарантия, ради которой всё и затевалось: у персистентной
-    модели нет поля под ключ, поэтому process_bind_param (model_dump) физически
-    не может записать секрет в SQLite. Лишние поля pydantic v2 игнорирует —
-    поэтому даже подсунутый api_key не долетит до колонки."""
     deployment = LLMDeployment(model="gigachat/GigaChat-2", has_api_key=True)
     assert "api_key" not in deployment.model_dump(mode="json")
     assert not hasattr(deployment, "api_key")
 
-    # Даже если кто-то попробует протащить ключ через конструктор — его там не будет.
     sneaky = LLMDeployment(
         model="gigachat/GigaChat-2", has_api_key=True, api_key="sk-should-vanish"
     )  # type: ignore[call-arg]

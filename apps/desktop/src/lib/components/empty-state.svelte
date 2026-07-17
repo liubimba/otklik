@@ -6,7 +6,6 @@ interface Props {
 	icon?: LucideIcon;
 	title: string;
 	description?: string;
-	/** Optional call-to-action rendered below the copy. */
 	children?: Snippet;
 }
 

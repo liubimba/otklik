@@ -7,18 +7,12 @@ DEFAULT_CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
 
 
 class ClaudeCodeState(str, Enum):
-    NOT_INSTALLED = "not_installed"  # бинарник `claude` не найден
-    NOT_AUTHED = "not_authed"  # бинарник есть, но файла кредов нет
-    READY = "ready"  # бинарник + файл кредов на месте
+    NOT_INSTALLED = "not_installed"
+    NOT_AUTHED = "not_authed"
+    READY = "ready"
 
 
 class ClaudeCodeGate:
-    """Дешёвый детект того, что CLI Claude Code пригоден к работе.
-
-    Содержимое файла кредов НЕ читаем — сам факт его наличия и есть сигнал
-    «залогинен». Реальную валидность токена (протухание) доказывает уже
-    генерация-триал, а не этот гейт."""
-
     def __init__(self, credentials_file: Path = DEFAULT_CREDENTIALS_FILE) -> None:
         self._credentials_file = credentials_file
 
@@ -30,6 +24,4 @@ class ClaudeCodeGate:
         return ClaudeCodeState.READY
 
     def credentials_present(self) -> bool:
-        """Сигнал видимости карточки для /setup/state: существует ли файл
-        кредов вообще (независимо от бинарника CLI)."""
         return self._credentials_file.exists()

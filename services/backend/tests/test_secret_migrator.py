@@ -1,11 +1,3 @@
-"""SecretMigrator переносит легаси-ключи из открытой JSON-колонки в хранилище
-и вычищает их из БД. Живёт в коде приложения, не в Alembic: `alembic upgrade
-head` в этом проекте не запускается нигде.
-
-test_scrubbed_key_is_gone_from_the_database_file — главный тест задачи: UPDATE
-колонки не стирает плейнтекст с диска (WAL, свободные страницы). Без
-wal_checkpoint(TRUNCATE) + VACUUM ключ находится обычным grep по файлу."""
-
 import json
 from pathlib import Path
 
@@ -27,7 +19,6 @@ LEGACY_KEY = "sk-legacy-must-not-survive"
 async def _seed_legacy_row(
     session_maker: async_sessionmaker[AsyncSession], entries: list[dict]
 ) -> None:
-    """Пишем строку настроек сырым SQL: фикстура test_database даёт пустую БД."""
     async with session_maker() as session:
         await session.execute(
             text(
@@ -50,9 +41,6 @@ async def _raw_column(session_maker: async_sessionmaker[AsyncSession]) -> str:
 
 
 class _BrokenSecretStore:
-    """Хранилище, у которого set() всегда падает: диск полон, прав нет —
-    неважно что именно, важно что ключ должен остаться на месте."""
-
     @property
     def mode(self) -> SecretStorageMode:
         return SecretStorageMode.FILE
@@ -91,8 +79,6 @@ async def test_migrates_legacy_key_into_the_store(
 async def test_scrubbed_key_is_gone_from_the_database_file(
     test_database: DbHandle, fake_secret_store: FakeSecretStore
 ) -> None:
-    """ГЛАВНЫЙ тест задачи: затереть колонку мало — WAL и свободные страницы
-    хранят старый плейнтекст. Падает без wal_checkpoint(TRUNCATE) + VACUUM."""
     await _seed_legacy_row(
         test_database.session_maker,
         [{"model": "gigachat/GigaChat-2", "api_key": LEGACY_KEY, "api_base": None}],
@@ -127,14 +113,13 @@ async def test_is_idempotent(
     first = json.loads(await _raw_column(test_database.session_maker))
     await migrator.migrate()
     second = json.loads(await _raw_column(test_database.session_maker))
-    assert first == second  # id не перештамповался, ключ не тронут
+    assert first == second
     assert fake_secret_store.items[account_for(first[0]["id"])] == LEGACY_KEY
 
 
 async def test_stamps_id_and_flag_for_a_keyless_row(
     test_database: DbHandle, fake_secret_store: FakeSecretStore
 ) -> None:
-    """Локальная модель без ключа: id проштамповать надо, в хранилище — ничего."""
     await _seed_legacy_row(
         test_database.session_maker,
         [{"model": "ollama_chat/qwen2.5:7b", "api_base": "http://localhost:11434"}],
@@ -155,7 +140,6 @@ async def test_stamps_id_and_flag_for_a_keyless_row(
 async def test_store_failure_leaves_the_column_untouched(
     test_database: DbHandle,
 ) -> None:
-    """Хранилище упало (нет места/прав) — ключ НЕ теряем, ретраим на следующем старте."""
     await _seed_legacy_row(
         test_database.session_maker,
         [{"model": "gigachat/GigaChat-2", "api_key": LEGACY_KEY, "api_base": None}],
@@ -173,10 +157,6 @@ async def test_store_failure_leaves_the_column_untouched(
 
 
 class _PartiallyBrokenSecretStore:
-    """set() успевает для первого аккаунта и падает на втором — хранилище
-    недоступно. Проверяет, что миграция не пишет колонку частично: либо все
-    ключи перенесены и колонка вычищена, либо ни один и колонка нетронута."""
-
     def __init__(self) -> None:
         self.items: dict[str, str] = {}
 
@@ -199,15 +179,6 @@ class _PartiallyBrokenSecretStore:
 async def test_multi_deployment_failure_keeps_every_key_in_the_column(
     test_database: DbHandle,
 ) -> None:
-    """Атомарность на несколько записей: первая ушла в store, вторая упала —
-    ни один ключ не должен пропасть из колонки (никакой частичной зачистки).
-
-    Раньше тест требовал колонку байт-в-байт исходной. Это оказалось слишком
-    сильным требованием: проштамповать id НУЖНО до переноса ключей, иначе
-    упавший проход терял бы id вместе с памятью и следующий старт копил бы
-    сирот в связке (см. test_failed_store_write_persists_ids_so_the_retry_
-    reuses_the_account). Инвариант, который здесь на самом деле защищается, —
-    не «колонка не изменилась», а «ключ не потерян»."""
     entries = [
         {"model": "gigachat/GigaChat-2", "api_key": LEGACY_KEY, "api_base": None},
         {
@@ -227,20 +198,11 @@ async def test_multi_deployment_failure_keeps_every_key_in_the_column(
     await migrator.migrate()
 
     column = json.loads(await _raw_column(test_database.session_maker))
-    # Оба ключа на месте: тот, что успел уехать в store, — тоже (дубликат
-    # безвреден, зачистка будет только когда доедут все).
     assert column[0]["api_key"] == LEGACY_KEY
     assert column[1]["api_key"] == "sk-second-must-not-vanish"
 
 
 class _FlakySecretStore(FakeSecretStore):
-    """Падает ровно на втором set() за всю жизнь, дальше работает.
-
-    Такая форма нужна, чтобы сироту вообще можно было воспроизвести: она
-    появляется только если первый проход успел записать ЧАСТЬ ключей и упал.
-    Хранилище, падающее сразу, сирот не оставляет — по нему тест был бы
-    зелёным при любой реализации."""
-
     def __init__(self) -> None:
         super().__init__(mode=SecretStorageMode.FILE)
         self.calls = 0
@@ -255,18 +217,6 @@ class _FlakySecretStore(FakeSecretStore):
 async def test_partial_failure_then_retry_does_not_orphan_accounts(
     test_database: DbHandle,
 ) -> None:
-    """Сбой хранилища не должен плодить сирот в связке.
-
-    id — это имя аккаунта. Если штамповать его только в памяти, упавший проход
-    терял бы id вместе с ней: следующий старт сминтил бы новый uuid, положил
-    ключ под новым аккаунтом, а запись под старым осталась бы в связке
-    навсегда — по сироте за каждую неудачную загрузку. Поэтому id уезжает в
-    колонку ДО переноса ключей, и повтор пишет в те же аккаунты.
-
-    Сценарий: две записи, первый старт переносит первую и падает на второй,
-    второй старт доводит дело до конца. В связке должно остаться РОВНО два
-    аккаунта. Без персистентного id их было бы три — первый ключ лежал бы ещё
-    и под осиротевшим uuid первого прогона."""
     await _seed_legacy_row(
         test_database.session_maker,
         [
@@ -276,7 +226,6 @@ async def test_partial_failure_then_retry_does_not_orphan_accounts(
     )
     store = _FlakySecretStore()
 
-    # Первый старт: первый ключ уехал, второй упал.
     await SecretMigrator(
         session_maker=test_database.session_maker,
         engine=test_database.engine,
@@ -284,14 +233,11 @@ async def test_partial_failure_then_retry_does_not_orphan_accounts(
     ).migrate()
 
     after_failure = json.loads(await _raw_column(test_database.session_maker))
-    # Ключи никуда не делись — терять их нельзя.
     assert after_failure[0]["api_key"] == LEGACY_KEY
     assert after_failure[1]["api_key"] == "sk-second"
-    # ...но id уже проштампованы и переживут перезапуск.
     stamped_ids = [entry["id"] for entry in after_failure]
     assert all(len(i) == 32 for i in stamped_ids)
 
-    # Второй старт: то же хранилище, уже здоровое.
     await SecretMigrator(
         session_maker=test_database.session_maker,
         engine=test_database.engine,
@@ -299,9 +245,8 @@ async def test_partial_failure_then_retry_does_not_orphan_accounts(
     ).migrate()
 
     after_retry = json.loads(await _raw_column(test_database.session_maker))
-    assert [e["id"] for e in after_retry] == stamped_ids  # те же id, не новые
+    assert [e["id"] for e in after_retry] == stamped_ids
     assert all("api_key" not in entry for entry in after_retry)
-    # Ровно два аккаунта: сироты первого прогона нет.
     assert store.items == {
         account_for(stamped_ids[0]): LEGACY_KEY,
         account_for(stamped_ids[1]): "sk-second",

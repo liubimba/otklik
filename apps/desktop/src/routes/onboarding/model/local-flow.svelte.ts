@@ -21,13 +21,6 @@ export type LocalScreen =
 	| "too-slow"
 	| "error";
 
-/**
- * Машина состояний локального пути онбординга: проверка Ollama → выбор из
- * уже стянутых моделей ИЛИ загрузка рекомендованной → замер → deployment.
- * Deployment пишется только после успешного замера (или явного «остаться»
- * с экрана too-slow) — провал по дедлайну оставляет развилку, ничего не
- * записывая (см. Task 6: POST /setup/deployment primary-first).
- */
 export class LocalFlow {
 	#state = $state<LocalSetupState | null>(null);
 	#screen = $state<LocalScreen>("checking");
@@ -58,8 +51,6 @@ export class LocalFlow {
 	get errorMessage(): string | null {
 		return this.#error;
 	}
-	/** Идёт ли сейчас загрузка модели — кнопка «Установить модель» смотрит сюда,
-	 * чтобы не дать запустить вторую параллельную загрузку. */
 	get isPulling(): boolean {
 		return this.#isPulling;
 	}
@@ -70,7 +61,6 @@ export class LocalFlow {
 		return this.#state?.recommended_tag ?? "";
 	}
 
-	/** Перечитать состояние с бэкенда — «Проверить снова». */
 	async refresh(): Promise<void> {
 		this.#screen = "checking";
 		this.#error = null;
@@ -83,15 +73,13 @@ export class LocalFlow {
 		}
 	}
 
-	/** Замер уже стянутой модели, выбранной пользователем из списка. */
 	async selectInstalled(tag: string): Promise<void> {
 		this.#chosenTag = tag;
 		await this.#benchmark(`ollama_chat/${tag}`);
 	}
 
-	/** Загрузка рекомендованной модели + автоматический переход к замеру. */
 	async installRecommended(): Promise<void> {
-		if (this.#isPulling) return; // вторая загрузка поверх первой не запускается
+		if (this.#isPulling) return;
 		this.#chosenTag = this.recommendedTag;
 		this.#screen = "pull";
 		this.#percent = 0;
@@ -102,15 +90,12 @@ export class LocalFlow {
 			}
 			await this.#benchmark(`ollama_chat/${this.#chosenTag}`);
 		} catch (error) {
-			// Провал стрима не имеет права оставить полосу прогресса висящей
-			// на последнем проценте — это отдельное явное состояние ошибки.
 			this.#fail(error);
 		} finally {
 			this.#isPulling = false;
 		}
 	}
 
-	/** Замер провалился («too-slow»), но пользователь готов ждать. */
 	async keepLocal(): Promise<void> {
 		try {
 			await this.#writeDeployment();
@@ -135,15 +120,9 @@ export class LocalFlow {
 			this.#letter = result.letter;
 			if (!result.passed) {
 				if (result.failure_reason === "model_error") {
-					// Модель не ответила вовсе — это не про скорость, показывать
-					// «медленно» здесь нельзя: пользователь нажмёт «остаться на
-					// локальной» и мы запишем deployment, который ни разу не
-					// сработал. Это настоящая ошибка — экран error, не развилка.
 					this.#fail(result.error ?? "model_error");
 					return;
 				}
-				// Провал по времени — это НЕ ошибка, а развилка с выбором:
-				// deployment не пишем, пока пользователь не решит сам.
 				this.#screen = "too-slow";
 				return;
 			}

@@ -1,14 +1,6 @@
 import type { QueryClient } from "@tanstack/svelte-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * `createMutation` is Svelte-context bound (it opens a `Query` subscription
- * against the QueryClient stored in Svelte context). We intercept it at the
- * module boundary and record every config the action factory hands it — the
- * meaningful surface of an action file *is* those configs (mutationFn +
- * onSuccess). Nothing to test in the createMutation return value itself.
- */
-
 interface MutationConfig<T, V> {
 	mutationFn: (vars: V) => Promise<T>;
 	onSuccess?: (data: T, vars: V, ctx: unknown) => void | Promise<void>;
@@ -41,8 +33,6 @@ vi.mock("$lib/log", () => ({
 	}),
 }));
 
-// API mocks — each mutationFn calls into $lib/api/client, so stub the
-// endpoints we care about.
 vi.mock("$lib/api/client", () => ({
 	API: {
 		application: {
@@ -160,7 +150,6 @@ describe("onSuccess invalidates the application + history caches", () => {
 	});
 
 	it("save → invalidates using params.vacancyId (not the whole params object)", async () => {
-		// save is the second config registered (generate=0, save=1).
 		const client = await runOnSuccessOf(1, { vacancyId: 3, text: "x" }, {});
 		const invalidate = vi.mocked(client.invalidateQueries);
 		expect(invalidate).toHaveBeenCalledWith({

@@ -31,39 +31,16 @@ interface Props {
 const { form }: Props = $props();
 const { form: formData } = form;
 
-// Режим хранения решается бэкендом один раз при старте (staleTime: Infinity
-// в самом query) — предупреждение показываем только когда системной связки
-// ключей нет и секреты лежат в файле.
 const secretStorage = query.secret_storage.create();
 const insecureStorage = $derived(secretStorage.data?.mode === "file");
 
-// Та же кэш-запись, что читает /settings (staleTime: Infinity, тот же
-// queryKey) — не отдельный запрос, а подписка на уже загруженные данные,
-// нужная только чтобы поймать момент, когда ../routes/settings/+page.svelte
-// перезаписывает кэш свежим (без ключей) ответом после Save.
 const settings = query.settings.create();
 
 let openItems = $state<string[]>([]);
 
-// «Пользователь нажал Заменить» — состояние, которое не выразить через
-// has_api_key/api_key/clear_api_key: буфер пуст и там, и в состоянии
-// «ключ сохранён, не трогали» (см. keyFieldState ниже). Ключ карты — id
-// deployment'а, тот же, что у visibleKeys раньше.
 const replacingKey = $state<Record<string, boolean>>({});
 
 $effect(() => {
-	// Новые данные с бэкенда — первая загрузка или setQueryData после
-	// успешного Save — закрывают режим «печатаем новый ключ» для всех строк.
-	// Иначе после сохранения поле продолжало бы показывать (уже пустой)
-	// инпут вместо «Ключ сохранён».
-	//
-	// Читать и писать replacingKey нужно вне трекинга: без untrack этот
-	// эффект сам себя цепляет за Object.keys(replacingKey) как зависимость,
-	// и тогда startReplacing() (который лишь добавляет id в карту) сразу же
-	// перезапускает эффект и стирает только что поставленный флаг — кнопка
-	// «Заменить» переставала открывать поле ввода. untrack оставляет
-	// единственной зависимостью settings.data, как и задумано комментарием
-	// выше.
 	settings.data;
 	untrack(() => {
 		for (const id of Object.keys(replacingKey)) {
@@ -207,17 +184,6 @@ function deploymentBadge(index: number): string {
 					{m.settings_ai_deployments_hint()}
 				</p>
 			</div>
-			<!--
-				Тот же мастер, что и при первом онбординге (/onboarding/model).
-				Он распознаёт не просто присутствие deployment'а в списке, а
-				то, что им можно пользоваться (см. LLMDeployment.is_usable на
-				бэкенде) — и в этом случае сразу схлопывается в экран «Готово»
-				без путей назад. Возвращаться сюда имеет смысл, только пока шаг
-				не завершён (например, облачный пресет записан с пустым
-				ключом): сменить уже рабочий deployment или дописать к нему
-				ключ через мастер нельзя — ключ вставляется прямо здесь, в
-				форме ниже.
-			-->
 			<Button
 				type="button"
 				variant="outline"
@@ -329,9 +295,6 @@ function deploymentBadge(index: number): string {
 														{m.settings_ai_deployment_api_key_hint()}
 													</Form.Description>
 													{#if keyFieldState(deployment) === "stored"}
-														<!-- Бэкенд ключи больше не отдаёт — раскрывать
-															 нечего, поэтому вместо Eye/EyeOff тут
-															 статус и явные действия. -->
 														<div
 															class="flex items-center justify-between gap-2 rounded-md border p-3"
 														>

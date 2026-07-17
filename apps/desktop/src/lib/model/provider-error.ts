@@ -1,32 +1,13 @@
 import { m } from "$lib/paraglide/messages";
 
-/**
- * До Task 2 перед каждой генерацией письма приложение пинговало модель, и
- * при мёртвой модели пользователь видел общее «ai layer is not ready».
- * Пинг убрали — он удваивал стоимость генерации (+59с на локальной модели).
- * Теперь наружу выходит сырой текст ошибки провайдера (`connection refused`,
- * `401 invalid api key`, `timeout`) — точнее, но нечитаемо для пользователя.
- *
- * Четыре частых случая переводим в понятную подсказку с следующим шагом.
- * Всё остальное показываем как есть — лучше сырой текст, чем ложная
- * уверенность за общей фразой.
- */
 const HINTS: ReadonlyArray<[RegExp, () => string]> = [
 	[
 		/connection refused|ECONNREFUSED|Failed to connect/i,
 		m.error_model_unreachable,
 	],
 	[/401|403|api key|unauthorized/i, m.error_model_bad_key],
-	// Deployment записан вовсе без ключа (например, пресет GigaChat из
-	// онбординга — connectCloud пишет его с api_key: null). Провайдеры
-	// сообщают об этом не через 401/"api key", а собственным текстом:
-	// GigaChat — "credentials not provided" плюс "GIGACHAT_API_KEY" через
-	// подчёркивание, которое не подходит под хинт выше.
 	[/credentials not provided/i, m.error_model_missing_credentials],
 	[/timeout|timed out/i, m.error_model_timeout],
-	// "Настрою позже" на онбординге оставляет пользователя без единого
-	// deployment'а — первая же генерация письма падает с этим техническим
-	// текстом (otklik_backend.ai.layer.GenerationCoverLetterError).
 	[/no deployments configured/i, m.error_model_not_configured],
 ];
 

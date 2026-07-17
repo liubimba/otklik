@@ -2,30 +2,21 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { platform } from "@tauri-apps/plugin-os";
 
-// Dropping the native frame (decorations: false) also drops the OS resize
-// borders on Linux/GTK and Windows, so we restore them with thin edge/corner
-// grips that hand the drag back to the compositor. macOS keeps its native
-// frame, so no grips there.
 const isMac = platform() === "macos";
 const appWindow = getCurrentWindow();
 
-// `ResizeDirection` isn't exported from the window module, so derive it from
-// the method signature instead of restating the union.
 type ResizeDirection = Parameters<typeof appWindow.startResizeDragging>[0];
 
 function resize(direction: ResizeDirection) {
 	return (e: MouseEvent) => {
-		if (e.button !== 0) return; // left button only
+		if (e.button !== 0) return;
 		appWindow.startResizeDragging(direction);
 	};
 }
 </script>
 
 {#if !isMac}
-	<!-- Transparent overlay: only the grips catch the pointer; everything else
-	     (titlebar drag region, content) stays clickable through it. -->
 	<div class="pointer-events-none fixed inset-0 z-30" aria-hidden="true">
-		<!-- edges -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="pointer-events-auto absolute inset-x-2 top-0 h-1 cursor-ns-resize"
@@ -46,7 +37,6 @@ function resize(direction: ResizeDirection) {
 			class="pointer-events-auto absolute inset-y-2 right-0 w-1 cursor-ew-resize"
 			onmousedown={resize("East")}
 		></div>
-		<!-- corners -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="pointer-events-auto absolute top-0 left-0 size-2 cursor-nwse-resize"

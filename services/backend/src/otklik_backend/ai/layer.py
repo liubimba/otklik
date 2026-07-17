@@ -22,8 +22,6 @@ from otklik_backend.log import get_logger
 
 class AILayer:
     def __init__(self, deployments: list[ResolvedDeployment] = []) -> None:
-        # Регистрируем провайдер claude-code, чтобы Router умел маршрутизировать
-        # model='claude-code/...' в CLI `claude -p`. Идемпотентно.
         register_claude_code_provider()
         self._prompt_builder = PromptBuilder()
         self._cleaner = LetterCleaner()
@@ -43,12 +41,6 @@ class AILayer:
             len(resume),
             style,
         )
-        # Раньше здесь был health-ping — отдельный полный вызов модели перед
-        # каждой генерацией (по результатам замера моделей — отчёт вне
-        # репозитория: +59с на локальной модели, и это ещё не считая второго
-        # пинга из вызывающего сервиса). Мёртвая модель роняет acompletion
-        # ниже и превращается в GenerationCoverLetterError — ping не добавлял
-        # информации, только цену.
         if len(self._deployments) == 0:
             self._log.error(
                 "Failed to generate cover letter: no deployments configured"
@@ -101,14 +93,6 @@ class AILayer:
         user_message: str,
         system_prompt: str | None = None,
     ) -> AsyncIterator[str]:
-        """Stream a conversational letter-editing turn token-by-token.
-
-        The model replies with a JSON object `{reply, letter}` (JSON mode), so
-        the caller parses the stream into the reply and the (optional) revised
-        letter without depending on a fragile in-band text marker.
-        """
-        # Та же логика, что в generate_cover_letter — бесплатная проверка вместо
-        # платного health-ping'а.
         if len(self._deployments) == 0:
             self._log.error("Cannot start letter chat: no deployments configured")
             raise GenerationCoverLetterError("no deployments configured")
@@ -125,11 +109,6 @@ class AILayer:
                 system_prompt=system_prompt,
             )
         )
-        # NB: no `response_format=json_object` — on some providers (Groq) that
-        # buffers the whole completion and kills token-by-token streaming. The
-        # prompt asks for a bare JSON object and StreamingJsonChatParser is
-        # tolerant (anchors on the field keys, skips any fences), so we keep the
-        # live stream and still parse structurally.
         stream: CustomStreamWrapper = cast(
             CustomStreamWrapper,
             await self._router.acompletion(

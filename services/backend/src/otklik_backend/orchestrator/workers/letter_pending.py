@@ -86,7 +86,6 @@ class LetterPendingWorker(Worker):
                 self._log.warning("Application missing", application_id=application_id)
                 return
             if app.status != ProcessingState.LETTER_PENDING:
-                # Something advanced it out from under us (recovery race).
                 self._log.warning(
                     "Skipping application not in LETTER_PENDING",
                     application_id=application_id,

@@ -63,8 +63,6 @@ def test_get_history_empty_returns_empty_list(client: TestClient) -> None:
 async def seeded_history(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Two finished runs with explicit, distinct started_at so the
-    newest-first ordering is deterministic."""
     base = datetime(2026, 1, 1, 12, 0, 0)
     async with session_factory() as session:
         session.add(
@@ -103,7 +101,6 @@ def test_get_history_returns_rows_newest_first(
     assert response.status_code == 200
     payload = response.json()
     assert [row["id"] for row in payload] == ["newer", "older"]
-    # Every row conforms to the response contract.
     for item in payload:
         SearchHistoryAPISchema.model_validate(item)
     assert payload[0]["error"] == "boom"

@@ -15,8 +15,6 @@ from otklik_backend.sites.hh_ru.selectors import Selectors
 from otklik_backend.api.schemas import VacancyAPISchema
 from otklik_backend.log import get_logger
 
-# A hh.ru search result may link through an ad-tracking redirect instead of
-# the vacancy itself; these markers locate the real URL on the SERP card.
 _AD_HREF_PREFIX = "https://adsrv.hh.ru"
 
 
@@ -35,12 +33,6 @@ class HHRUParser:
 
     async def parse(self, search_page: BrowserPage) -> AsyncIterator[VacancyAPISchema]:
         selectors = self._selectors
-        """Stream every vacancy from an open hh.ru search page, page by page.
-
-        The caller hands over a search page with filters already applied and
-        caps the stream by breaking out of the iteration. A second tab for
-        vacancy details is opened lazily and closed once the stream ends.
-        """
         self._logger.info(f"Start parsing search page: {search_page.get_url()}")
 
         parsed_links: set[str] = set()
@@ -92,7 +84,6 @@ class HHRUParser:
     def _resolve_href_of_vacancy(
         self, vacancy_link: Node, selectors: Selectors
     ) -> str | None:
-        """Return the vacancy URL of a SERP link, unwrapping ad redirects."""
         href = vacancy_link.attributes.get("href")
         if href is None:
             self._logger.error(f"Vacancy link has no 'href': {vacancy_link}")
@@ -105,11 +96,6 @@ class HHRUParser:
     def _normalize_ad_href(
         self, vacancy_link: Node, selectors: Selectors
     ) -> str | None:
-        """Recover the canonical vacancy URL hidden behind an adsrv.hh.ru link.
-
-        Walks up to the SERP card and reads the vacancy id from its response
-        link. Returns None when the card or the id cannot be found.
-        """
         node: Node | None = vacancy_link.parent
         while node is not None:
             if node.css_matches(selector=selectors.search.vacancy_card):
@@ -138,7 +124,6 @@ class HHRUParser:
         return None
 
     def _check_href_of_vacancy(self, href: str | None, parsed_links: set[str]) -> bool:
-        """Return True for a new, parseable href and record it as seen."""
         if href is None:
             self._logger.error("Vacancy link has no href, skipping")
             return False
@@ -151,7 +136,6 @@ class HHRUParser:
     async def _open_href_on_vacancy_page(
         self, href: str | None, vacancy_page: BrowserPage | None
     ) -> BrowserPage | None:
-        """Open href in the detail tab, creating that tab on first use."""
         if href is None:
             return None
         if vacancy_page is None:
@@ -169,11 +153,9 @@ class HHRUParser:
         href: str | None,
         selectors: Selectors,
     ) -> VacancyAPISchema | None:
-        """Parse a single vacancy detail page into a VacancyAPISchema."""
         if vacancy_page is None or href is None:
             return None
 
-        # title and description gate rendering — wait for them explicitly.
         title_element = await vacancy_page.wait_for_selector(
             selector=selectors.vacancy.title, timeout=self._timeout_ms
         )
@@ -192,7 +174,6 @@ class HHRUParser:
             self._logger.error(f"No title/description for {href}, skipping vacancy")
             return None
 
-        # The remaining fields are optional — read them in one selectolax pass.
         page_parser = HTMLParser(html=await vacancy_page.content())
         work_format_text = self._extract_text(
             page_parser, selectors.vacancy.work_format
@@ -230,17 +211,12 @@ class HHRUParser:
         )
 
     def _extract_text(self, parser: HTMLParser, selector: str | None) -> str | None:
-        """Return the text of the first node matching selector, or None.
-
-        Tolerates a None selector — an optional field with no selector yet.
-        """
         if selector is None:
             return None
         node = parser.css_first(selector)
         return node.text() if node is not None else None
 
     async def _sleep_before_next_parse(self) -> None:
-        """Sleep a short randomized delay to avoid a regular request cadence."""
         sleep_for = self._delay_sec + random.uniform(0, self._jitter_ms) / 1_000
         self._logger.info(f"Sleeping {sleep_for:.2f}s before next vacancy")
         await sleep(sleep_for)

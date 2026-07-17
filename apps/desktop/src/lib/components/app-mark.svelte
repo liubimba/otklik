@@ -1,7 +1,4 @@
 <script lang="ts">
-// App mark — a crosshair reticle ("head·hunter" → targeting) with a square
-// pixel centre. Renders the glyph in `currentColor`; place it inside a tinted
-// tile (see the sidebar header). The full app icon lives at static/icon.svg.
 const { class: className = "size-6" }: { class?: string } = $props();
 </script>
 

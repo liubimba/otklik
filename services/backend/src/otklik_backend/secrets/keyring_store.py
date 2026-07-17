@@ -13,13 +13,6 @@ from otklik_backend.secrets.store import (
 
 
 class KeyringSecretStore:
-    """Системная связка: Keychain (macOS), Credential Manager (Windows),
-    SecretService/kwallet (Linux).
-
-    Бэкенд инжектится, а не берётся глобальным keyring.set_keyring(): так тесты
-    не трогают настоящую связку (на CI её нет — ubuntu под xvfb-run без D-Bus).
-    """
-
     def __init__(self, backend: KeyringBackend | None = None) -> None:
         self._backend: KeyringBackend = backend or keyring.get_keyring()
         self._log = get_logger(self.__class__.__name__)
@@ -50,7 +43,6 @@ class KeyringSecretStore:
                 self._backend.delete_password, SERVICE_NAME, account
             )
         except (PasswordDeleteError, KeyError):
-            # Секрета и так нет — это ровно то состояние, которого мы добивались.
             return
         except KeyringError as error:
             raise self._unavailable(error) from error

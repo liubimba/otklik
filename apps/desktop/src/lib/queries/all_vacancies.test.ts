@@ -9,8 +9,6 @@ import { vacanciesQueryKey } from "./vacancies";
 
 describe("allVacanciesQueryKey", () => {
 	it("does not collide with the queue's ['vacancies'] key", () => {
-		// applyVacancyEvent rewrites ["vacancies"] in place (prepend + dedupe).
-		// The archive holds a paginated envelope and must never share that key.
 		expect(allVacanciesQueryKey[0]).not.toBe(vacanciesQueryKey[0]);
 	});
 

@@ -16,10 +16,6 @@ export interface Consent {
 
 const CONSENT_DIR = ".otklik";
 const CONSENT_FILE = `${CONSENT_DIR}/consent.json`;
-// Installs predating the rename kept consent in ~/.headhunter_ai. The backend
-// adopts that whole directory on its next start, but the UI boots alongside it
-// and may look first — read the old file so nobody is asked to accept the terms
-// twice. Drop this once the rename is far enough behind us.
 const LEGACY_CONSENT_FILE = ".headhunter_ai/consent.json";
 const HOME = {
 	baseDir: BaseDirectory.Home,

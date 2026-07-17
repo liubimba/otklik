@@ -7,10 +7,6 @@ import {
 	vacanciesQueryKey,
 } from "./vacancies";
 
-/**
- * Fake QueryClient that records the state seeded before each call and
- * captures the payload written by the updater callback.
- */
 function makeFakeQueryClient() {
 	let seeded: Vacancy[] | undefined;
 	const setQueryData = vi.fn(

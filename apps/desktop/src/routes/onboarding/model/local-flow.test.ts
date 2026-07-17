@@ -127,9 +127,6 @@ describe("LocalFlow", () => {
 	});
 
 	it("routes a model error to the error screen, not the 'too slow' fork", async () => {
-		// P0: a model that never answered (crash/OOM/refused connection) must
-		// not be offered as "slow but keepable" — the user would pick "keep
-		// local" on a deployment that has never once produced a letter.
 		vi.mocked(API.setup.local).mockResolvedValue(local());
 		vi.mocked(API.setup.trial).mockResolvedValue({
 			passed: false,
@@ -147,8 +144,6 @@ describe("LocalFlow", () => {
 	});
 
 	it("never gets a chance to write a deployment for a model that never answered", async () => {
-		// selectInstalled()/installRecommended() must never land on "too-slow"
-		// for a model_error — only a real deadline failure is a keepable fork.
 		vi.mocked(API.setup.local).mockResolvedValue(local());
 		vi.mocked(API.setup.trial).mockResolvedValue({
 			passed: false,

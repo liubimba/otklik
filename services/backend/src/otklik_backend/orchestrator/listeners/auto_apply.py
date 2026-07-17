@@ -15,13 +15,6 @@ from otklik_backend.orchestrator.state_service import StateTransitionService
 
 
 class AutoApplyListener:
-    """Turn a freshly parsed VacancyWSEvent into a PARSED → LETTER_PENDING
-    application when auto_submit is enabled. The rest of the cascade
-    (LLM generation, review, submit) is driven by LetterPendingWorker,
-    AutoSubmitListener and LetterSendingWorker via the ApplicationWSEvent
-    subscription chain — this listener only owns the initial hand-off.
-    """
-
     def __init__(
         self,
         session_maker: async_sessionmaker[AsyncSession],

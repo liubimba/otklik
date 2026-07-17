@@ -14,15 +14,6 @@ from otklik_backend.orchestrator.state_machine import (
 
 logger = get_logger(__name__)
 
-# Состояния, в которых мяч на стороне пользователя: письмо готово и ждёт
-# решения, письмо открыто на ревью, или обработка упала. LETTER_PENDING и
-# LETTER_SENDING сюда не входят — там работает система, а не человек.
-#
-# Совпадает значениями с CHAT_EDITABLE_STATES (orchestrator/letter_chat_service.py),
-# но это разные вопросы: там — «письмо можно править через AI-чат», здесь — «нужно
-# решение пользователя». Совпадение случайное и временное: captcha-пауза (задача 2.5)
-# требует действий пользователя, но чата в ней нет. Списки намеренно не объединены —
-# менять их следует независимо.
 NEEDS_ATTENTION_STATES: tuple[ProcessingState, ...] = (
     ProcessingState.LETTER_READY,
     ProcessingState.LETTER_REVIEWING,
@@ -75,10 +66,6 @@ class ApplicationRepository:
         state_machine.send(to_state.value)
         application.status = ProcessingState(state_machine.current_state_value)
         application.error_message = error_message
-        # Domain follows the event mechanically — FAIL is always an LLM
-        # failure, SUBMISSION_FAILED is always an hh.ru failure. Every other
-        # event clears it, matching error_message's own reset-on-transition
-        # behaviour above.
         application.error_domain = ERROR_DOMAIN_BY_EVENT.get(to_state)
         await session.commit()
         logger.info(
@@ -122,12 +109,6 @@ class ApplicationRepository:
     async def count_needs_attention(
         cls, session: AsyncSession, search_id: str | None = None
     ) -> int:
-        """Applications waiting on the user.
-
-        `search_id` scopes the count to a single search. «Очередь вакансий» only
-        ever lists the latest search, so a global number on that row would point
-        at work the screen does not show.
-        """
         stmt = (
             select(func.count())
             .select_from(ApplicationORM)

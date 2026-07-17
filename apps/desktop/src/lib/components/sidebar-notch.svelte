@@ -1,12 +1,4 @@
 <script lang="ts">
-/**
- * Фон сайдбара — не div, а SVG-путь. В правом крае выгрызена ниша за активной
- * строкой: карточка там отсутствует, и сквозь неё виден точечный холст. Контент
- * лежит на том же холсте, поэтому активная строка визуально сливается с ним.
- *
- * Компонент НИЧЕГО не измеряет — геометрию считает владелец и передаёт пропсами.
- * Так вся математика остаётся в одном месте, а этот файл занят только формой.
- */
 type Notch = { top: number; h: number; left: number };
 
 const {
@@ -15,9 +7,9 @@ const {
 	notch,
 }: { width: number; height: number; notch: Notch | null } = $props();
 
-const CR = 18; // внешнее скругление карточки
-const NR = 14; // скругление ниши
-const PAD = 4; // зазор холста вокруг активной строки
+const CR = 18;
+const NR = 14;
+const PAD = 4;
 
 function roundedRect(w: number, h: number): string {
 	return `M ${CR},0 L ${w - CR},0 Q ${w},0 ${w},${CR} L ${w},${h - CR} Q ${w},${h} ${w - CR},${h} L ${CR},${h} Q 0,${h} 0,${h - CR} L 0,${CR} Q 0,0 ${CR},0 Z`;
@@ -32,7 +24,6 @@ const d = $derived.by(() => {
 	const nt = Math.max(CR + NR, notch.top - PAD);
 	const nb = Math.min(h - CR - NR, notch.top + notch.h + PAD);
 	const nl = Math.max(CR, notch.left - PAD);
-	// Ниша ниже двух своих скруглений вырождается в кашу — рисуем прямоугольник.
 	if (nb - nt < NR * 2 + 2) return roundedRect(w, h);
 
 	return [
@@ -65,10 +56,6 @@ const d = $derived.by(() => {
 	style="filter: drop-shadow(0 8px 18px var(--elevation-2-shadow-2)) drop-shadow(0 2px 5px var(--elevation-2-shadow-1));"
 	aria-hidden="true"
 >
-	<!--
-		Единственный момент движения во всём приложении: при смене раздела ниша
-		едет к новой строке. Под prefers-reduced-motion она перескакивает.
-	-->
 	<path
 		{d}
 		class="fill-sidebar stroke-1 stroke-border [transition:d_220ms_cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"

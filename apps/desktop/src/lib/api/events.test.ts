@@ -11,11 +11,6 @@ vi.mock("$lib/log", () => ({
 
 const { EventsWebSocket } = await import("./events");
 
-/**
- * Fake WebSocket that captures constructor URL, and exposes triggers for
- * onopen/onclose/onmessage/onerror so tests can drive the state machine
- * synchronously.
- */
 class FakeWebSocket {
 	static instances: FakeWebSocket[] = [];
 	static reset(): void {
@@ -43,7 +38,6 @@ class FakeWebSocket {
 		this.closed = true;
 	}
 
-	// helpers to drive lifecycle
 	fireOpen(): void {
 		this.onopen?.(new Event("open"));
 	}
@@ -85,7 +79,6 @@ describe("EventsWebSocket — connection URL + lifecycle", () => {
 		ws.close();
 		FakeWebSocket.last().fireClose();
 		vi.runAllTimers();
-		// No second WebSocket should have been created after close.
 		expect(FakeWebSocket.instances.length).toBe(1);
 	});
 
@@ -94,7 +87,7 @@ describe("EventsWebSocket — connection URL + lifecycle", () => {
 			initialDelay: 1_000,
 		});
 		ws.connect();
-		FakeWebSocket.last().fireClose(); // schedules reconnect
+		FakeWebSocket.last().fireClose();
 		ws.close();
 		vi.advanceTimersByTime(5_000);
 		expect(FakeWebSocket.instances.length).toBe(1);
@@ -155,19 +148,16 @@ describe("EventsWebSocket — reconnect backoff", () => {
 		});
 		ws.connect();
 
-		// First reconnect after 100 ms
 		FakeWebSocket.last().fireClose();
 		vi.advanceTimersByTime(100);
 		expect(FakeWebSocket.instances.length).toBe(2);
 
-		// Second reconnect after 200 ms (100 * 2)
 		FakeWebSocket.last().fireClose();
 		vi.advanceTimersByTime(199);
 		expect(FakeWebSocket.instances.length).toBe(2);
 		vi.advanceTimersByTime(1);
 		expect(FakeWebSocket.instances.length).toBe(3);
 
-		// Third reconnect after 400 ms (200 * 2)
 		FakeWebSocket.last().fireClose();
 		vi.advanceTimersByTime(399);
 		expect(FakeWebSocket.instances.length).toBe(3);
@@ -183,7 +173,6 @@ describe("EventsWebSocket — reconnect backoff", () => {
 		});
 		ws.connect();
 
-		// 100 ms → 500 (capped, was going to be 1_000) → 500 (still capped)
 		FakeWebSocket.last().fireClose();
 		vi.advanceTimersByTime(100);
 		FakeWebSocket.last().fireClose();
@@ -200,12 +189,11 @@ describe("EventsWebSocket — reconnect backoff", () => {
 		});
 		ws.connect();
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(100); // reconnect #2
+		vi.advanceTimersByTime(100);
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(200); // reconnect #3, delay doubled to 200
-		FakeWebSocket.last().fireOpen(); // success — reset
+		vi.advanceTimersByTime(200);
+		FakeWebSocket.last().fireOpen();
 		FakeWebSocket.last().fireClose();
-		// After reset, next reconnect should fire at initialDelay again.
 		vi.advanceTimersByTime(99);
 		const before = FakeWebSocket.instances.length;
 		vi.advanceTimersByTime(1);
@@ -221,10 +209,10 @@ describe("EventsWebSocket — reconnect backoff", () => {
 		ws.connect();
 
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(10); // attempt #2 socket created
+		vi.advanceTimersByTime(10);
 
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(20); // attempt #3 would fire here
+		vi.advanceTimersByTime(20);
 
 		FakeWebSocket.last().fireClose();
 		vi.runAllTimers();
@@ -263,8 +251,6 @@ describe("EventsWebSocket — open hook", () => {
 		FakeWebSocket.last().fireOpen();
 		expect(onOpen).toHaveBeenCalledTimes(1);
 
-		// Socket drops and reconnects — this is the "may have missed events"
-		// case the hook exists for (WS gap / boot race in the bug report).
 		FakeWebSocket.last().fireClose(1006, false);
 		vi.advanceTimersByTime(100);
 		FakeWebSocket.last().fireOpen();
@@ -289,7 +275,7 @@ describe("EventsWebSocket — disconnect hook", () => {
 		const ws = withDisconnect(onDisconnect, { initialDelay: 100 });
 		ws.connect();
 		FakeWebSocket.last().fireOpen();
-		FakeWebSocket.last().fireClose(1006, false); // abnormal drop → backend gone
+		FakeWebSocket.last().fireClose(1006, false);
 		expect(onDisconnect).toHaveBeenCalledTimes(1);
 	});
 
@@ -331,17 +317,6 @@ describe("EventsWebSocket — error hook", () => {
 });
 
 describe("EventsWebSocket — a bad URL must not take the app down", () => {
-	/**
-	 * Regression. `connect()` is called from an `$effect` in the root layout. When
-	 * VITE_BACKEND_IP/PORT are missing the URL becomes `ws://undefined:undefined/...`
-	 * and the WebSocket constructor throws a SyntaxError — inside the mount flush.
-	 * Svelte's scheduler then aborts: onMount never runs, reactivity stops flushing,
-	 * and SvelteKit's router never initialises, so every link falls back to a full
-	 * page load. The app renders, looks alive, and is quietly dead — the theme
-	 * button does nothing and each tab switch reloads the document (white flash).
-	 *
-	 * A connection we cannot open is a degraded backend, not a reason to kill the UI.
-	 */
 	it("does not throw when the WebSocket constructor rejects the url", () => {
 		vi.stubGlobal(
 			"WebSocket",

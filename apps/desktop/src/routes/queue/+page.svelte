@@ -4,7 +4,6 @@ import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ListSkeleton from "$lib/components/list-skeleton.svelte";
 import LiveStatus from "$lib/components/live-status.svelte";
-// noinspection ES6UnusedImports
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Button } from "$lib/components/ui/button";
 import VacancyCard from "$lib/components/vacancy-card.svelte";
@@ -28,8 +27,6 @@ const searchQuery = query.search.vacancies.create();
 const model = createSearchPageViewModel(searchQuery);
 const view = createSearchPageView(searchQuery, actions, model);
 
-// Everything a sighted user reads off the picker panel and the header counters,
-// collapsed into one sentence for the screen reader. Announced via <LiveStatus>.
 const liveStatus = $derived.by(() => {
 	const picker = store.search.filter.state;
 	switch (picker.status) {

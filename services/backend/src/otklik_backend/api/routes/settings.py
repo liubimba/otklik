@@ -29,10 +29,6 @@ async def update_settings_api(
     deployments, plan = secrets.plan(
         current=current.llm_deployments, incoming=new_settings.llm.deployments
     )
-    # Хранилище пишем ДО коммита строки: оно — ненадёжная сторона (связка может
-    # быть заблокирована и упасть 503). Упав здесь, мы не тронем БД, и юзер
-    # просто повторит. Обратный порядок оставил бы строку с has_api_key=true и
-    # без ключа — молча сломанная генерация.
     await secrets.commit(plan=plan)
     settings: SettingsORM = await SettingsRepository.update(
         session=session,

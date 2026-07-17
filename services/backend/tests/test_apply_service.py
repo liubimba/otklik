@@ -80,7 +80,6 @@ async def test_skips_when_vacancy_not_in_db(
     await _enable_auto_submit(session_factory)
     service, broadcaster = await _make_service(session_factory)
 
-    # publish without seeding vacancy in DB
     await broadcaster.publish(event=VacancyWSEvent(data=vacancy_model))
     await _drain(broadcaster)
 
@@ -107,9 +106,6 @@ async def test_happy_path_creates_application_and_enqueues_for_letter(
             session=session, vacancy_id=vacancy_id
         )
         assert application is not None
-        # apply_service hands off to LetterPendingWorker via the LETTER_PENDING
-        # ApplicationWSEvent — no LLM call here. Post-refactor apply_service
-        # only owns PARSED → LETTER_PENDING.
         assert application.status == ProcessingState.LETTER_PENDING
 
 
@@ -125,7 +121,6 @@ async def test_silently_skips_when_application_already_exists(
 
     service, broadcaster = await _make_service(session_factory)
 
-    # Should not raise — second create_application would hit UNIQUE(vacancy_id).
     await broadcaster.publish(event=VacancyWSEvent(data=vacancy_model))
     await _drain(broadcaster)
 
@@ -135,7 +130,6 @@ async def test_silently_skips_when_application_already_exists(
         ) = await ApplicationRepository.get_by_vacancy_id(
             session=session, vacancy_id=vacancy_id
         )
-        # Existing application untouched, status still PARSED (from create_application).
         assert application is not None
         assert application.status == ProcessingState.PARSED
 

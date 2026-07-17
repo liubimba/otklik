@@ -15,8 +15,6 @@ from otklik_backend.log import get_logger
 
 logger = get_logger(__name__)
 
-# Columns a free-text query is matched against. Description is included on
-# purpose — it is where the tech stack lives.
 _SEARCHABLE_COLUMNS = (
     VacancyORM.title,
     VacancyORM.company_name,
@@ -25,8 +23,6 @@ _SEARCHABLE_COLUMNS = (
 
 
 def _like_pattern(term: str) -> str:
-    """A contains-pattern with LIKE metacharacters neutralised, so a user typing
-    `100%` searches for the literal text rather than matching everything."""
     escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
 
@@ -44,8 +40,6 @@ class VacancyRepository:
     async def upsert(
         cls, session: AsyncSession, vacancy: VacancyAPISchema
     ) -> VacancyORM:
-        # id is excluded so SQLite autoincrement assigns it on insert and the
-        # on_conflict_do_update path never touches the primary key.
         values = vacancy.model_dump(mode="json", exclude={"id"})
         stmt = sqlite_insert(VacancyORM).values(**values)
         stmt = stmt.on_conflict_do_update(
@@ -109,9 +103,6 @@ class VacancyRepository:
 
     @staticmethod
     def _search_conditions(search: str) -> list[ColumnElement[bool]]:
-        """One condition per whitespace-separated word; each word must appear in
-        at least one searchable column. ANDing the words means «python москва»
-        narrows rather than widens."""
         conditions: list[ColumnElement[bool]] = []
         for word in search.split():
             pattern = _like_pattern(word.lower())
@@ -135,9 +126,6 @@ class VacancyRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[Sequence[tuple[VacancyORM, ProcessingState | None]], int]:
-        """Every vacancy in the DB with its application status attached, newest
-        first. Returns the requested page plus the total row count matching the
-        filter, so the caller can tell whether more pages exist."""
         logger.info(
             "List vacancies with status",
             statuses=statuses,
@@ -147,17 +135,12 @@ class VacancyRepository:
             offset=offset,
         )
 
-        # LEFT JOIN, not inner: a vacancy that was never applied to has no
-        # `applications` row and must still show up. ApplicationORM.vacancy_id is
-        # unique, so the join is 1:1 and cannot fan rows out.
         join_on = ApplicationORM.vacancy_id == VacancyORM.id
 
-        # The status chips are checkboxes: any of the ticked ones matches.
         status_conditions: list[ColumnElement[bool]] = []
         if statuses:
             status_conditions.append(ApplicationORM.status.in_(statuses))
         if include_unapplied:
-            # "No application yet" is both shapes that draw no badge.
             status_conditions.append(
                 or_(
                     ApplicationORM.status.is_(None),
@@ -165,8 +148,6 @@ class VacancyRepository:
                 )
             )
 
-        # Status and text are two independent narrowings, so they AND together:
-        # ticking «Готово» and typing «python» means both, not either.
         filters: list[ColumnElement[bool]] = []
         if status_conditions:
             filters.append(or_(*status_conditions))
@@ -187,12 +168,8 @@ class VacancyRepository:
 
         total: int = (await session.execute(count_stmt)).scalar_one()
 
-        # VacancyORM has no created_at; the autoincrement id is the only
-        # insertion-order proxy available. It is NOT published_at.
         page_stmt = page_stmt.order_by(VacancyORM.id.desc()).limit(limit).offset(offset)
 
-        # Two-column select — rows are (VacancyORM, status | None) tuples, so
-        # .all() rather than .scalars().all().
         rows = (await session.execute(page_stmt)).all()
         return [(row[0], row[1]) for row in rows], total
 
@@ -200,7 +177,6 @@ class VacancyRepository:
     async def link_to_search(
         cls, session: AsyncSession, search_id: str, vacancy_id: int
     ) -> None:
-        # Idempotently attach a vacancy to a search (M2M).
         stmt = (
             sqlite_insert(search_vacancies_table)
             .values(search_id=search_id, vacancy_id=vacancy_id)

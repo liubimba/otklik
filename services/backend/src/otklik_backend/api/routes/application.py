@@ -37,8 +37,6 @@ application_router = APIRouter(
 )
 log = get_logger(__name__)
 
-# Сводка глобальная, а не по одной вакансии, поэтому у неё свой префикс —
-# `application_router` живёт под /vacancies/{vacancy_id}/application.
 applications_router = APIRouter(prefix="/applications", tags=["applications"])
 
 
@@ -51,15 +49,11 @@ async def summary(
         "search), or a search UUID. Mirrors GET /vacancies/.",
     ),
 ) -> ApplicationsSummaryAPISchema:
-    # Same vocabulary as GET /vacancies/ on purpose: the badge on «Очередь
-    # вакансий» must count exactly what that screen lists, and that screen
-    # defaults to the latest search.
     if search_id == "all":
         scope: str | None = None
     elif search_id == "latest":
         latest = await SearchHistoryRepository.get_latest_id(session=session)
         if latest is None:
-            # Nothing has ever been searched — nothing to act on.
             return ApplicationsSummaryAPISchema(needs_attention=0)
         scope = latest
     else:
@@ -146,21 +140,6 @@ async def generate(
     session: SessionDep,
     state_service: StateServiceDep,
 ) -> ApplicationDetailAPISchema:
-    """Kick off async letter generation.
-
-    Auto-creates the Application if needed, then fires the REGENERATE
-    event so the state machine lands in LETTER_PENDING. That transition
-    publishes an ApplicationWSEvent which LetterPendingWorker picks up
-    to run the LLM — the handler does NOT wait for the LLM. Returns the
-    ApplicationDetail with status=LETTER_PENDING, so the UI can render a
-    durable spinner keyed on the state machine (backend is the source
-    of truth, frontend just displays it) until letter_ready arrives.
-
-    Prior implementation blocked here for the full LLM span and returned
-    status=LETTER_READY directly; the transient LETTER_PENDING was too
-    short-lived to catch a WS refetch, so the spinner never appeared
-    (regression reported 2026-07-02).
-    """
     await _load_or_404(session, vacancy_id)
     application = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
@@ -170,10 +149,6 @@ async def generate(
             session=session, vacancy_id=vacancy_id
         )
     if application.status == ProcessingState.LETTER_PENDING:
-        # Idempotent: an earlier /generate is already being processed by
-        # LetterPendingWorker. Return current state without firing the
-        # transition again (would be a no-op arc anyway, but avoids a
-        # duplicate WS event that would re-enqueue the same application).
         return await _build_detail(session=session, application=application)
     try:
         application = await state_service.transition(
@@ -182,9 +157,6 @@ async def generate(
             event=ApplicationEvent.REGENERATE,
         )
     except TransitionNotAllowed as e:
-        # Terminal/in-flight states have no arc into LETTER_PENDING:
-        # LETTER_SENDING, LETTER_SENT, SKIPPED. 409 with the cause so
-        # the UI surfaces it via toast instead of hanging.
         raise HTTPException(status_code=409, detail=f"Cannot regenerate letter: {e}")
     return await _build_detail(session=session, application=application)
 
@@ -195,9 +167,6 @@ async def save(
     letter: CoverLetterRequestAPISchema,
     session: SessionDep,
 ) -> CoverLetterAPISchema:
-    """Save a draft version of the letter. Pure content write — does NOT drive
-    the state machine (unlike the removed POST /cover_letter which secretly
-    transitioned LETTER_PENDING → LETTER_GENERATED)."""
     await _load_or_404(session, vacancy_id)
     application = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
@@ -225,8 +194,6 @@ async def submit(
     state_service: StateServiceDep,
     orchestrator: OrchestratorDep,
 ) -> ApplicationDetailAPISchema:
-    """Submit the application to hh.ru. If `text` is provided, saves it as a
-    new letter version first (atomic dirty-submit)."""
     await _load_or_404(session, vacancy_id)
     application = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
@@ -235,15 +202,6 @@ async def submit(
         raise HTTPException(
             status_code=409, detail="Application does not exist for this vacancy"
         )
-    # Refuse SUBMIT when the letter-sending worker is paused: the state
-    # machine would happily accept ERROR → LETTER_SENDING (or the two
-    # other SUBMIT arcs), but the worker is blocked on `_resume_event`,
-    # so the application would just sit in LETTER_SENDING with no
-    # progress until the pause is lifted (which for NOT_AUTHORIZED
-    # requires an AuthWSEvent(authorized) — precisely the condition the
-    # user cannot satisfy while their session is broken). Surface the
-    # pause reason so the UI can prompt for re-auth / captcha resolution
-    # instead of showing an infinite spinner.
     if orchestrator.is_paused():
         reason = orchestrator.get_pause_reason() or "unknown"
         raise HTTPException(
@@ -317,7 +275,6 @@ async def retry(
 async def chat_history(
     vacancy_id: int, session: SessionDep
 ) -> Sequence[ChatMessageAPISchema]:
-    """The persisted letter-editing conversation for this application."""
     await _load_or_404(session, vacancy_id)
     application = await ApplicationRepository.get_by_vacancy_id(
         session=session, vacancy_id=vacancy_id
@@ -345,15 +302,6 @@ async def chat(
     body: LetterChatRequestAPISchema,
     chat_service: LetterChatServiceDep,
 ) -> StreamingResponse:
-    """Stream one letter-editing turn as SSE.
-
-    Emits `reply`/`letter` delta events, then a `done` event carrying the new
-    letter version (or null for a pure answer). Because the response has
-    already committed 200 once streaming starts, domain errors (not editable,
-    AI unhealthy, …) are delivered in-band as an `error` event rather than an
-    HTTP status.
-    """
-
     async def event_stream() -> AsyncIterator[str]:
         try:
             async for event in chat_service.stream_turn(vacancy_id, body.message):
@@ -361,7 +309,7 @@ async def chat(
         except DomainError as exc:
             log.warning("Letter chat rejected", detail=exc.detail)
             yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
-        except Exception as exc:  # noqa: BLE001 — surface any failure to the UI
+        except Exception as exc:  # noqa: BLE001
             log.error("Letter chat failed", error=str(exc))
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Chat failed'})}\n\n"
 

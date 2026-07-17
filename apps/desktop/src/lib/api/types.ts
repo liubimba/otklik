@@ -28,12 +28,6 @@ export type ProcessingState =
 	| "error"
 	| "skipped";
 
-// Which subsystem produced ApplicationDetail/ApplicationData.reason — set by
-// the backend at the transition that landed the application in "error"
-// (FAIL vs SUBMISSION_FAILED), never inferred from the reason text on this
-// side. null outside "error". Gates explainProviderError() in
-// letter-review-sheet.viewmodel.svelte.ts: only "model" reasons go through
-// it, so an hh.ru submission failure is never explained as a dead LLM.
 export type ErrorDomain = "model" | "submission";
 
 export type SearchStatus =
@@ -60,9 +54,6 @@ export type Vacancy = {
 	work_experience: string | null;
 };
 
-// Chip values accepted by GET /vacancies/all?status=. "none" is not a
-// ProcessingState — it selects the vacancies that draw no badge: those with no
-// application row at all, plus those still in `parsed`.
 export type VacancyStatusFilter =
 	| "none"
 	| "letter_pending"
@@ -73,8 +64,6 @@ export type VacancyStatusFilter =
 	| "error"
 	| "skipped";
 
-// A vacancy from the archive listing, with its application status joined in.
-// `status: null` means no application row exists yet.
 export type VacancyWithStatus = Vacancy & {
 	status: ProcessingState | null;
 };
@@ -91,9 +80,6 @@ export type SearchData = {
 	status: SearchStatus;
 };
 
-// A persisted past search run (backend `SearchHistoryAPISchema`). Carries the
-// confirmed filter `url` plus the limits, which is everything needed to
-// re-launch the run via POST /search/parse/start.
 export type SearchHistory = {
 	id: string;
 	url: string;
@@ -212,7 +198,6 @@ export const TERMINAL_SEARCH_STATUSES = new Set<SearchData["status"]>([
 	"interrupted",
 ]);
 
-// Исходящая форма: ключа нет и не будет. has_api_key — только факт наличия.
 export type LLMDeployment = {
 	id: string;
 	model: string;
@@ -220,8 +205,6 @@ export type LLMDeployment = {
 	has_api_key: boolean;
 };
 
-// Входящая форма — единственная, где ключ вообще есть.
-// api_key: null/отсутствует — не трогать сохранённый; "" — удалить; строка — записать.
 export type LLMDeploymentWrite = {
 	id?: string | null;
 	model: string;
@@ -229,13 +212,9 @@ export type LLMDeploymentWrite = {
 	api_key?: string | null;
 };
 
-// Где бэкенд держит ключи. "file" — связки в системе нет, ключи в
-// ~/.otklik/secrets.json (0600): менее безопасно, UI обязан предупредить.
 export type SecretStorageMode = "keychain" | "file";
 export type SecretStorage = { mode: SecretStorageMode };
 
-// Онбординг «облачная модель»: один пункт каталога облачных провайдеров,
-// с прямой ссылкой на страницу получения ключа для этого провайдера.
 export type CloudModelOption = {
 	model: string;
 	label: string;
@@ -281,10 +260,6 @@ export type ChatMessage = {
 	created_at: string;
 };
 
-// SSE events streamed from POST .../application/chat. `reply` deltas fill the
-// assistant bubble; `letter` deltas stream the revised letter into the editor;
-// `done` carries the new version (null for a pure answer); `error` is an
-// in-band failure (the HTTP response already committed 200).
 export type ChatStreamEvent =
 	| { type: "reply"; delta: string }
 	| { type: "letter"; delta: string }
@@ -295,11 +270,6 @@ export type ApplicationsSummary = {
 	needs_attention: number;
 };
 
-/**
- * Same vocabulary as the vacancies list: "all" is the whole database (what «Все
- * вакансии» shows), "latest" is the current search (what «Очередь вакансий»
- * shows — and only that).
- */
 export type SummaryScope = "all" | "latest";
 
 export type AICoverLetterResponse = {
@@ -312,17 +282,12 @@ export type AICoverLetterResponse = {
 	cost_usd: number | null;
 };
 
-// Онбординг «локальная модель»: состояние Ollama на машине пользователя.
-// "model_missing" — Ollama установлена и запущена, но тег модели ещё не
-// стянут — отличается от "not_running", где не запущен сам демон.
 export type OllamaState =
 	| "not_installed"
 	| "not_running"
 	| "model_missing"
 	| "ready";
 
-// "weak" не блокирует установку — просто ведёт мимо загрузки модели прямо к
-// облачному деплойменту, минуя замер.
 export type HardwareTier = "capable" | "weak";
 
 export type HardwareSpecs = {
@@ -340,14 +305,11 @@ export type SetupState = {
 	claude_available: boolean;
 };
 
-// Онбординг «Claude по подписке»: состояние CLI Claude Code на машине.
-// not_installed — бинарник не найден; not_authed — есть, но не залогинен;
-// ready — есть и залогинен. Валидность токена проверяет уже пробное письмо.
 export type ClaudeCodeState = "not_installed" | "not_authed" | "ready";
 
 export type ClaudeModelOption = {
-	model: string; // строка для бэкенда, напр. "claude-code/sonnet"
-	label: string; // подпись, напр. "Claude Sonnet"
+	model: string;
+	label: string;
 };
 
 export type ClaudeSetupState = {
@@ -356,10 +318,6 @@ export type ClaudeSetupState = {
 	model_options: ClaudeModelOption[];
 };
 
-// Онбординг «локальная модель»: снимок состояния Ollama на машине пользователя
-// плюс список того, что уже стянуто. recommended_installed отделяет «модель
-// стянута» от «стянута именно рекомендованная» — с других тегов recommended
-// всё равно нужно предлагать docker pull.
 export type LocalSetupState = {
 	ollama_state: OllamaState;
 	installed_models: string[];
@@ -375,19 +333,12 @@ export type PullProgress = {
 	done: boolean;
 };
 
-// Почему passed=false — см. BenchmarkFailureReason на бэкенде
-// (services/backend/.../setup/benchmark.py). DEADLINE: модель ответила, но не
-// уложилась в дедлайн — честная развилка «остаться на локальной / уйти в
-// облако». MODEL_ERROR: модель не ответила вовсе — это не про скорость,
-// показывать «медленно» здесь нельзя.
 export type BenchmarkFailureReason = "deadline" | "model_error";
 
 export type BenchmarkResult = {
 	passed: boolean;
 	seconds: number;
 	letter: string | null;
-	// null когда passed=true. Иначе — "deadline" или "model_error".
 	failure_reason: BenchmarkFailureReason | null;
-	// Текст исключения — только при failure_reason="model_error".
 	error: string | null;
 };

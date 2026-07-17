@@ -42,9 +42,6 @@ class TestDataDirMigrator:
         assert not legacy.exists()
 
     def test_merges_into_a_dir_the_ui_already_created(self, tmp_path: Path) -> None:
-        # The UI writes consent.json on its own, so ~/.otklik can exist before
-        # the backend ever starts. A whole-dir rename would refuse to run here
-        # and strand the database; the migration has to merge entry by entry.
         legacy = tmp_path / ".headhunter_ai"
         legacy.mkdir()
         (legacy / "db.sqlite").write_text("sqlite")
@@ -73,8 +70,6 @@ class TestDataDirMigrator:
 
         assert moved == []
         assert (root / "db.sqlite").read_text() == "current"
-        # Nothing was clobbered, so the legacy dir is kept around rather than
-        # silently deleted with the user's old database still inside it.
         assert (legacy / "db.sqlite").read_text() == "stale"
 
     def test_is_idempotent(self, tmp_path: Path) -> None:

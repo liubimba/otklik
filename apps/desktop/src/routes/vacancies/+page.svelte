@@ -15,12 +15,8 @@ import SearchX from "@lucide/svelte/icons/search-x";
 import X from "@lucide/svelte/icons/x";
 
 const PAGE_SIZE = 50;
-// Long enough that a typed word doesn't fire a request per keystroke, short
-// enough that the list feels attached to the box.
 const SEARCH_DEBOUNCE_MS = 300;
 
-// One chip per badge the card can draw, plus «Без отклика» for the two shapes
-// that draw none (no application row, or still `parsed`).
 const FILTERS: { value: VacancyStatusFilter; label: () => string }[] = [
 	{ value: "none", label: m.vacancies_filter_none },
 	{ value: "letter_pending", label: m.card_status_letter_pending },
@@ -32,7 +28,6 @@ const FILTERS: { value: VacancyStatusFilter; label: () => string }[] = [
 	{ value: "skipped", label: m.card_status_skipped },
 ];
 
-// Chips are checkboxes: an empty set means «Все» and matches everything.
 let activeFilters = $state<VacancyStatusFilter[]>([]);
 let searchInput = $state("");
 let search = $state("");
@@ -57,8 +52,6 @@ const vacanciesQuery = query.all_vacancies.create(
 const items = $derived(vacanciesQuery.data?.items ?? []);
 const total = $derived(vacanciesQuery.data?.total ?? 0);
 const hasMore = $derived(items.length < total);
-// `keepPreviousData` keeps the old page rendered while a wider one loads, so
-// isFetching (not isPending) is what "Показать ещё" should reflect.
 const loadingMore = $derived(vacanciesQuery.isFetching && items.length > 0);
 const isFiltered = $derived(activeFilters.length > 0 || search.trim() !== "");
 
@@ -66,7 +59,6 @@ function toggle(value: VacancyStatusFilter) {
 	activeFilters = activeFilters.includes(value)
 		? activeFilters.filter((filter) => filter !== value)
 		: [...activeFilters, value];
-	// A changed filter makes the already-loaded page length meaningless.
 	limit = PAGE_SIZE;
 }
 
@@ -82,7 +74,6 @@ function clearSearch() {
 	limit = PAGE_SIZE;
 }
 
-// Both narrowings at once — what the "ничего не найдено" empty state offers.
 function clearAll() {
 	activeFilters = [];
 	clearSearch();

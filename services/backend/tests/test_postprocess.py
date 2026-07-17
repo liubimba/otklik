@@ -41,9 +41,7 @@ def test_drops_orphaned_salutation(cleaner: LetterCleaner) -> None:
 def test_removes_placeholders_inline(cleaner: LetterCleaner) -> None:
     result = cleaner.clean(f"{BODY} Свяжитесь со мной: [телефон].")
     assert "[" not in result and "]" not in result
-    assert (
-        result.endswith("Свяжитесь со мной: .") is False
-    )  # пробел перед точкой съеден
+    assert result.endswith("Свяжитесь со мной: .") is False
     assert "Свяжитесь со мной:." in result
 
 
@@ -59,8 +57,6 @@ def test_idempotent_on_clean_letter(cleaner: LetterCleaner) -> None:
 def test_returns_original_when_cleaning_would_gut_the_letter(
     cleaner: LetterCleaner,
 ) -> None:
-    # Письмо целиком в скобках — чистка съела бы всё. Лучше вернуть как есть,
-    # чем отдать пользователю пустоту.
     letter = "С уважением, [Ваше имя]"
     assert cleaner.clean(letter) == letter
 
@@ -71,14 +67,11 @@ def test_keeps_parenthesis_inside_body(cleaner: LetterCleaner) -> None:
 
 
 def test_keeps_legitimate_trailing_parenthesis(cleaner: LetterCleaner) -> None:
-    # Письмо может заканчиваться легитимной скобочной строкой.
-    # Она должна пройти чистку без потерь.
     letter = f"{BODY}\n\n(P.S. буду ждать звонка)"
     assert cleaner.clean(letter) == letter
 
 
 def test_removes_long_placeholder(cleaner: LetterCleaner) -> None:
-    # Заглушка длиннее 60 символов должна вычищаться.
     long_placeholder = "[" + "x" * 65 + "]"
     result = cleaner.clean(f"{BODY} {long_placeholder} конец.")
     assert "[" not in result

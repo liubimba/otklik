@@ -6,9 +6,6 @@
 		variants: {
 			variant: {
 				default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-				// Terminal, successful states. Red is the brand accent and the danger
-				// colour; it must not also mean "done". A monochrome inverted chip
-				// reads as a stamp and needs no new hue.
 				success: "bg-foreground text-background [a]:hover:bg-foreground/80",
 				secondary: "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
 				destructive: "bg-destructive/10 [a]:hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 text-destructive dark:bg-destructive/20",

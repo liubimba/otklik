@@ -14,7 +14,6 @@ class ApplicationData(BaseModel):
     application_id: int
     status: ProcessingState
     reason: str | None = None
-    # See core.state.ErrorDomain — None outside ERROR.
     error_domain: ErrorDomain | None = None
 
 

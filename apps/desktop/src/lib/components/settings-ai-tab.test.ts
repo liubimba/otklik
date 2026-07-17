@@ -2,11 +2,6 @@ import { render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-// SettingsAiTab reads two TanStack queries directly (secret_storage for the
-// insecure-storage banner, settings for the "reset replacingKey on fresh
-// data" effect under test). Stubbing the module — same pattern as
-// src/routes/vacancies/page.test.ts — avoids standing up a real
-// QueryClientProvider just to control settings.data's identity.
 vi.mock("$lib/queries", () => ({
 	query: {
 		settings: {
@@ -37,8 +32,6 @@ function renderStoredDeployment() {
 	});
 }
 
-// Accordion.Content isn't mounted until its item is expanded — every test
-// needs to open the row before it can see the key-field affordances.
 async function openDeploymentRow(): Promise<
 	ReturnType<typeof userEvent.setup>
 > {
@@ -60,10 +53,6 @@ describe("<SettingsAiTab> — API key field for a stored deployment", () => {
 		).not.toBeInTheDocument();
 	});
 
-	// This is the exact regression from the review: the reset $effect read
-	// AND wrote `replacingKey` in the same run, so setting the flag
-	// immediately triggered the effect to clear it again — «Заменить» was a
-	// no-op and a stored key could never be rotated from Settings.
 	it("(b) clicking «Заменить» renders a password input (fails without the untrack fix)", async () => {
 		renderStoredDeployment();
 		const user = await openDeploymentRow();

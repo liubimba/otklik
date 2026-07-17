@@ -8,12 +8,6 @@ interface Props {
 const { rows = 3 }: Props = $props();
 </script>
 
-<!--
-	Mirrors vacancy-card's geometry (border + p-4 + a left column of three
-	stacked lines and a right rail), so the real list drops into exactly the
-	space the skeleton held. Swapping a bare `<p>Загрузка…</p>` for this is what
-	removes the layout jump on queue / vacancies / history.
--->
 <ul class="space-y-3" aria-hidden="true">
     {#each Array.from({ length: rows }, (_, index) => index) as row (row)}
         <li class="bg-card flex items-start gap-4 rounded-lg border p-4">

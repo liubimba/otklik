@@ -40,8 +40,6 @@ def _vacancy() -> VacancyAPISchema:
 
 
 async def test_ailayer_routes_claude_deployment_through_adapter() -> None:
-    """Полный путь: AILayer с реальным Router (не мок) и claude-code-моделью
-    должен уйти в ClaudeCodeLLM, а тот — в поддельный `claude -p`."""
     layer = AILayer(
         deployments=[
             ResolvedDeployment(deployment=LLMDeployment(model="claude-code/sonnet"))
@@ -81,7 +79,6 @@ async def test_ailayer_routes_claude_deployment_through_adapter() -> None:
 
 
 async def test_claude_deployment_receives_model_alias_without_prefix() -> None:
-    """`claude -p --model` должен получить `sonnet`, а не `claude-code/sonnet`."""
     layer = AILayer(
         deployments=[
             ResolvedDeployment(deployment=LLMDeployment(model="claude-code/opus"))

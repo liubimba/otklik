@@ -18,15 +18,6 @@ from otklik_backend.setup.fixtures import (
 
 
 class BenchmarkFailureReason(str, Enum):
-    """Почему `passed=False` — фронтенду нужно различать, а не только знать факт провала.
-
-    DEADLINE: модель ответила, но не уложилась в дедлайн — «машина медленная»,
-    честная развилка (оставаться на локальной / уйти в облако).
-    MODEL_ERROR: модель не ответила вовсе (упала, OOM, соединение отвалилось) —
-    это не про скорость, показывать «медленно» здесь нельзя: пользователь
-    решит остаться на модели, которая ни разу не сработала.
-    """
-
     DEADLINE = "deadline"
     MODEL_ERROR = "model_error"
 
@@ -35,24 +26,11 @@ class BenchmarkResult(BaseModel):
     passed: bool
     seconds: float
     letter: str | None = None
-    # None когда passed=True. Иначе — DEADLINE или MODEL_ERROR (см. выше).
     failure_reason: BenchmarkFailureReason | None = None
-    # Текст исключения — только при MODEL_ERROR, для диагностики на экране.
     error: str | None = None
 
 
 class BenchmarkRunner:
-    """Пишет одно настоящее письмо с дедлайном и решает, тянет ли машина модель.
-
-    Порог гейта (≤45 с на письмо) и таймаут запроса — одно и то же число: мы
-    измеряем ровно то, что пользователь будет чувствовать, и ровно тем
-    критерием, которым задан порог. Никаких экстраполяций, которые потом
-    пришлось бы защищать.
-
-    Это же и есть проверка готовности перед «Готово» (P0-5): успешный замер
-    доказывает, что модель отвечает, — отдельный health-ping не нужен.
-    """
-
     def __init__(
         self,
         deadline_sec: float = BENCHMARK_DEADLINE_SEC,
@@ -66,9 +44,6 @@ class BenchmarkRunner:
         self, deployment: ResolvedDeployment, deadline_sec: float | None = None
     ) -> BenchmarkResult:
         deadline = deadline_sec if deadline_sec is not None else self._deadline_sec
-        # Ровно один deployment: с несколькими LiteLLM-роутер построит
-        # кросс-продукт фолбэков и может втихую подменить модель — тогда мы
-        # замерим не то, что думаем.
         layer = self._layer_factory([deployment])
         started = time.monotonic()
         try:

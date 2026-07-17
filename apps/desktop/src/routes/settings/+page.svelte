@@ -3,7 +3,6 @@ import { API } from "$lib/api/client";
 import ErrorState from "$lib/components/error-state.svelte";
 import SettingsAiTab from "$lib/components/settings-ai-tab.svelte";
 import { Button } from "$lib/components/ui/button";
-// noinspection ES6UnusedImports
 import * as Form from "$lib/components/ui/form";
 import { Input } from "$lib/components/ui/input";
 import { Separator } from "$lib/components/ui/separator";
@@ -57,12 +56,6 @@ const form = superForm(defaults(zod4(zform.settings.schema)), {
 });
 const { form: formData, enhance, submitting } = form;
 
-// Тот же эффект отрабатывает и после Save: onUpdate пишет ответ бэкенда
-// (без ключей) в кэш через queryClient.setQueryData(query.settings.key, saved),
-// settings.data меняется, и apiDeploymentToForm обнуляет буферы —
-// api_key: "", clear_api_key: false, has_api_key из свежего ответа. Так
-// повторный Save не переотправляет уже сохранённый ключ, а «Удалить» не
-// остаётся навсегда отмеченным.
 $effect(() => {
 	if (!settings.data) return;
 	const deployments = settings.data.llm.deployments.map(apiDeploymentToForm);

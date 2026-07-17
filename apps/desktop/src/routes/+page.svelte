@@ -4,11 +4,6 @@ import { Button } from "$lib/components/ui/button";
 import * as m from "$lib/paraglide/messages";
 </script>
 
-<!--
-	Landing. The animated dotted canvas now lives in the layout and backs every
-	screen, so this section stays transparent and lets it show through.
-	Not a <main>: +layout.svelte already renders one around {@render children()}.
--->
 <section
 	class="flex min-h-full flex-col items-center justify-center gap-6 p-6 text-center"
 >

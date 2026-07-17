@@ -2,9 +2,6 @@ import { render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Capture the getters the page hands to createAllVacanciesQuery. Calling them
-// after an interaction tells us exactly what the query would have requested,
-// without standing up a QueryClient.
 const stub = vi.hoisted(() => ({
 	getStatuses: null as (() => readonly string[] | undefined) | null,
 	getSearch: null as (() => string | undefined) | null,
@@ -67,7 +64,6 @@ describe("/vacancies — search box", () => {
 		render(VacanciesPage);
 
 		await user.type(searchBox(), "go");
-		// Still inside the debounce window — the query must not have moved yet.
 		expect(stub.getSearch?.()).toBeFalsy();
 
 		await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS);

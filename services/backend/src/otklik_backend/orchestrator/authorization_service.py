@@ -21,10 +21,6 @@ class AuthorizationService:
         authorizing = AuthStatusAPISchema.authorizing()
         self._task = asyncio.create_task(self._wait_and_announce())
         await self._broadcaster.publish(event=AuthWSEvent(data=authorizing))
-        # Report the state we just entered — auth is now in-flight. The
-        # real browser status is still `unauthorized` until
-        # `_wait_and_announce` completes, but the HTTP caller (and the WS
-        # event above) must see `authorizing` so the UI can show progress.
         return authorizing
 
     async def unauthorize(self) -> AuthStatusAPISchema:

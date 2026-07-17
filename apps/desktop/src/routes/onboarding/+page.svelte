@@ -15,9 +15,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { error, info } from "@tauri-apps/plugin-log";
 
 let saving = $state(false);
-// The dialog is modal and covers the toaster, so a failed save reports here
-// rather than through sonner. Previously it only reached the Tauri log and the
-// user saw the button simply re-enable.
 let saveError = $state<string | null>(null);
 
 async function accept() {
@@ -28,8 +25,6 @@ async function accept() {
 		info("Saving user consent...");
 		await saveConsent(true);
 		info("Consent saved successfully. Navigating to the model setup step.");
-		// Согласие — не финиш онбординга: без настроенной модели первая же
-		// генерация письма падает, поэтому ведём на шаг выбора модели.
 		await goto("/onboarding/model");
 	} catch (err) {
 		error(`Error saving consent: ${err}`);

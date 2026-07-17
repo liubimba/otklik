@@ -24,9 +24,6 @@ async def test_recover_picks_up_letter_sending_only(
     fake_orchestrator: LetterSendingWorker,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """LetterSendingWorker.recover() must enqueue only apps whose status matches
-    handled_status (LETTER_SENDING). Apps stuck in other statuses belong to a
-    different worker's recover() and must be ignored here."""
     picked: list[int] = []
     async with session_factory() as session:
         for index in range(4):
@@ -72,7 +69,6 @@ async def test_enqueue_then_get_next(fake_orchestrator: LetterSendingWorker) -> 
     assert fake_orchestrator.qsize() == 0
 
 
-# ─ хелпер: вакансия + заявка сразу в LETTER_SENDING + письмо ─────────
 async def seed_app_in_letter_sending(
     session_factory: async_sessionmaker[AsyncSession],
     apply_link: str = "https://hh.ru/vacancy/1",
@@ -97,10 +93,9 @@ async def seed_app_in_letter_sending(
         return app.id
 
 
-# ─ хелпер: стартовать run() как фоновую задачу ───────────────────
 async def start_consumer(
     orchestrator: LetterSendingWorker,
-    writer: FakeWriter,  # kept in signature so callsites don't have to change
+    writer: FakeWriter,
     browser: FakeBrowser,
     broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
@@ -116,9 +111,6 @@ async def stop_consumer(task: asyncio.Task) -> None:
         pass
 
 
-# ─ Тесты ─────────────────────────────────────────────────────────────
-
-
 async def test_writer_receives_vacancy_apply_link_as_url(
     fake_orchestrator: LetterSendingWorker,
     fake_writer: FakeWriter,
@@ -126,15 +118,6 @@ async def test_writer_receives_vacancy_apply_link_as_url(
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Regression: the worker used to read a separate `response_link`
-    column that the parser filled with the respond button's *text*
-    ("Откликнуться"), then hand it to Playwright as vacancy_url — which
-    crashed with "Cannot navigate to invalid URL" (reported 2026-07-02).
-    Column deleted in migration c1e5b8f92a04; worker now uses apply_link,
-    which is NOT NULL and always a valid detail-page URL. Locks that
-    behaviour so a future refactor doesn't reintroduce a stringly-typed
-    URL field.
-    """
     apply_url = "https://hh.ru/vacancy/12345"
     app_id = await seed_app_in_letter_sending(session_factory, apply_link=apply_url)
 
@@ -182,14 +165,12 @@ async def test_consume_submitted_transitions_and_logs(
 
         await wait_until(status_is_sent)
 
-        # log_submission записал строку в rate_limits
         async with session_factory() as s:
             count = (
                 await s.execute(select(func.count(RateLimitEventORM.id)))
             ).scalar_one()
             assert count == 1
 
-        # событие SubmissionEvent(succeeded=True)
         submissions = [
             e for e in recording_broadcaster.events if isinstance(e, ApplicationWSEvent)
         ]
@@ -236,10 +217,6 @@ async def test_consume_failed_transitions_to_error(
         assert submissions[0].data.status is ProcessingState.ERROR
         assert submissions[0].data.reason == "boom"
 
-        # Regression: _fail() passed reason= (live WS event only) but not
-        # error_message= (persisted column), so the banner text survived
-        # exactly until the next refetch and then read back as null. The
-        # reason must also be readable from the DB, not just the socket.
         async with session_factory() as s:
             app = await ApplicationRepository.get_by_id(
                 session=s, application_id=app_id
@@ -270,14 +247,11 @@ async def test_consume_captcha_pauses_and_reenqueues(
     try:
         await fake_orchestrator.enqueue(application_id=app_id)
 
-        # ждём пока writer успеет быть вызван
         await asyncio.wait_for(fake_writer.invoked.wait(), timeout=2.0)
-        # дать consumer'у дойти до pause() + re-enqueue
         await wait_until(
             lambda: fake_orchestrator.is_paused() and fake_orchestrator.qsize() == 1
         )
 
-        # статус заявки НЕ изменился (всё ещё LETTER_SENDING)
         async with session_factory() as s:
             app = await ApplicationRepository.get_by_id(
                 session=s, application_id=app_id
@@ -298,15 +272,6 @@ async def test_worker_auto_resumes_on_authorized_ws_event(
     fake_orchestrator: LetterSendingWorker,
     recording_broadcaster: RecordingBroadcaster,
 ) -> None:
-    """Regression: after a NOT_AUTHORIZED gate result the worker paused
-    itself and stayed paused until the user hit /system/orchestrator/resume
-    by hand — a hidden step. Now the worker listens for AuthWSEvent and
-    auto-resumes when auth is restored.
-
-    Drive the pause + event flow directly (no session/queue seeding) —
-    this test asserts the listener wiring in isolation. Because the
-    broadcaster delivers events fire-and-forget via asyncio.create_task
-    the assertion is wrapped in `wait_until`."""
     from otklik_backend.api.schemas import AuthStatusAPISchema
     from otklik_backend.core.events import AuthWSEvent
 
@@ -329,8 +294,6 @@ async def test_worker_does_not_auto_resume_when_still_unauthorized(
     fake_orchestrator: LetterSendingWorker,
     recording_broadcaster: RecordingBroadcaster,
 ) -> None:
-    """AuthWSEvent(unauthorized) or (authorizing) must not touch the pause
-    state — only a successful re-auth clears the block."""
     from otklik_backend.api.schemas import AuthStatusAPISchema
     from otklik_backend.core.events import AuthWSEvent
 
@@ -342,7 +305,6 @@ async def test_worker_does_not_auto_resume_when_still_unauthorized(
             AuthStatusAPISchema.authorizing(),
         ):
             await recording_broadcaster.publish(event=AuthWSEvent(data=status))
-        # Give delivery tasks a chance to run.
         await asyncio.sleep(0.05)
         assert fake_orchestrator.is_paused()
     finally:
@@ -353,8 +315,6 @@ async def test_worker_does_not_auto_resume_when_paused_for_other_reason(
     fake_orchestrator: LetterSendingWorker,
     recording_broadcaster: RecordingBroadcaster,
 ) -> None:
-    """Captcha pauses (and any future pause reasons) must not be lifted by
-    the auth listener — they need their own resume path."""
     from otklik_backend.api.schemas import AuthStatusAPISchema
     from otklik_backend.core.events import AuthWSEvent
 
@@ -375,8 +335,6 @@ async def test_worker_auth_event_is_a_no_op_when_not_paused(
     fake_orchestrator: LetterSendingWorker,
     recording_broadcaster: RecordingBroadcaster,
 ) -> None:
-    """Sanity: incoming AuthWSEvent while the worker is running normally
-    shouldn't call resume() and shouldn't panic."""
     from otklik_backend.api.schemas import AuthStatusAPISchema
     from otklik_backend.core.events import AuthWSEvent
 
@@ -399,7 +357,6 @@ async def test_consume_not_authorized_fails(
     recording_broadcaster,
     session_factory,
 ) -> None:
-    # fake_browser остаётся unauthorized
     app_id = await seed_app_in_letter_sending(session_factory)
 
     task = await start_consumer(
@@ -421,7 +378,6 @@ async def test_consume_not_authorized_fails(
 
         await wait_until(status_is_error)
 
-        # Writer не должен был вызываться
         assert fake_writer.calls == []
         submissions = [
             e for e in recording_broadcaster.events if isinstance(e, ApplicationWSEvent)
@@ -441,7 +397,6 @@ async def test_consume_rate_limit_reenqueues_without_calling_writer(
 ) -> None:
     app_id = await seed_app_in_letter_sending(session_factory)
 
-    # Забить hourly-лимит (default 5).
     async with session_factory() as s:
         for _ in range(5):
             s.add(RateLimitEventORM())
@@ -536,7 +491,6 @@ async def test_pause_blocks_processing_until_resume(
     try:
         await fake_orchestrator.enqueue(application_id=app_id)
         await asyncio.sleep(0.1)
-        # consumer стоит на _resume_event.wait()
         assert fake_writer.calls == []
 
         fake_orchestrator.resume()

@@ -24,8 +24,6 @@ def test_reply_and_letter_are_separated() -> None:
 
 
 def test_letter_never_leaks_into_reply() -> None:
-    # The exact failure mode of the old delimiter approach: a whole letter in
-    # the response must not end up in the reply channel.
     letter = "Полностью переписанное письмо с деталями."
     payload = f'{{"reply": "Готово.", "letter": "{letter}"}}'
     p = _run(_chunked(payload, 3))
@@ -44,7 +42,6 @@ def test_question_has_null_letter() -> None:
 
 
 def test_json_escapes_are_decoded() -> None:
-    # \n -> newline, \" -> quote inside the letter body.
     payload = '{"reply": "ok", "letter": "Строка один\\nСтрока \\"два\\""}'
     p = _run(_chunked(payload, 2))
     assert p.letter == 'Строка один\nСтрока "два"'
@@ -52,7 +49,6 @@ def test_json_escapes_are_decoded() -> None:
 
 def test_escape_split_across_chunk_boundary_is_not_half_emitted() -> None:
     payload = '{"reply": "ok", "letter": "a\\nb"}'
-    # Force the backslash and the "n" into separate feeds.
     parser = StreamingJsonChatParser()
     emitted: list[tuple[str, str]] = []
     boundary = payload.index("\\n")
@@ -78,7 +74,6 @@ def test_reply_deltas_stream_before_letter_deltas() -> None:
     for ch in payload:
         for channel, _ in parser.feed(ch):
             channels.append(channel)
-    # every reply delta comes before any letter delta
     assert "reply" in channels and "letter" in channels
     assert channels.index("letter") > channels.index("reply")
     last_reply = len(channels) - 1 - channels[::-1].index("reply")

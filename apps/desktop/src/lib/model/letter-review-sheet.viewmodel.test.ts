@@ -1,17 +1,3 @@
-/**
- * Viewmodel is a Svelte 5 class that uses `$derived` for its read-only
- * properties. In tests we drive it by:
- *
- *  - Constructing the viewmodel with a plain-object query stub (the .data /
- *    .isPending / .isError fields), a fake QueryClient, and a real
- *    LetterReviewStore (also runes-based, tested separately).
- *  - Reading the derived fields — they re-evaluate on each get.
- *
- * Reactivity across multiple mutations of the same stub is not observed
- * here (that would require $state on the stub itself). Each scenario
- * instantiates a fresh viewmodel with the specific fixture it needs.
- */
-
 import type {
 	ApplicationDetail,
 	CoverLetter,
@@ -108,10 +94,6 @@ describe("LetterReviewSheetViewModel — isOpen", () => {
 });
 
 describe("Chat — canChat gating", () => {
-	// Regression: ERROR was made actionable on 2026-07-01 (canSubmit /
-	// canRegenerate / isEditable all allow it), but canChat kept gating chat
-	// out of the error state, so the "send to AI" button stayed disabled after
-	// a failed letter — the user could edit and re-submit but not ask the AI.
 	it("allows chatting in the error state", () => {
 		const vm = makeVM({
 			data: detail({ status: "error" }),
@@ -224,10 +206,6 @@ describe("Review — derived state from ApplicationQuery", () => {
 		expect(vm.review.error).toBe("captcha");
 	});
 
-	// canSubmit mirrors the SUBMIT arcs on the backend state machine
-	// (letter_ready, letter_reviewing, error). The ERROR arc lets the user
-	// re-submit an existing letter after a transient failure without
-	// forcing an LLM regeneration (which is what RETRY does).
 	it.each<[ProcessingState, boolean]>([
 		["letter_ready", true],
 		["letter_reviewing", true],
@@ -255,11 +233,6 @@ describe("Review — derived state from ApplicationQuery", () => {
 		expect(vm.review.canSubmit).toBe(true);
 	});
 
-	// canRegenerate mirrors the LETTER_GENERATED-event arcs that make sense
-	// as a footer button: letter_ready / letter_reviewing / error. The
-	// ERROR arc landed on the backend (commit 9be33fc); the UI needed the
-	// Regenerate button to match so the user isn't stuck taking the
-	// RETRY-via-queue path.
 	it.each<[ProcessingState, boolean]>([
 		["letter_ready", true],
 		["letter_reviewing", true],
@@ -287,13 +260,6 @@ describe("Review — derived state from ApplicationQuery", () => {
 		expect(vm.review.canRegenerate).toBe(true);
 	});
 
-	// Task 12: the ping before every generation call was removed (it doubled
-	// the cost of a letter — +59s on a local model), so the raw provider
-	// error now reaches the UI as `reason`. A dead Ollama, a rejected key or
-	// a slow local model must read as a human sentence with a next step, not
-	// as "connection refused". Translation is gated on error_domain === "model"
-	// (see the CRITICAL-finding fixture below) — these fixtures set it
-	// explicitly since that's what a real LLM failure carries.
 	describe("error explains provider failures in plain language", () => {
 		it("explains a dead local model instead of showing the raw provider error", () => {
 			const vm = makeVM({
@@ -370,16 +336,6 @@ describe("Review — derived state from ApplicationQuery", () => {
 		});
 	});
 
-	// CRITICAL regression (code review of Task 12): `reason` is shared by two
-	// domains — LLM generation failures (LetterPendingWorker → FAIL) and
-	// hh.ru submission failures (LetterSendingWorker → SUBMISSION_FAILED,
-	// e.g. HHRUWriter's "verification timeout" after a Playwright poll times
-	// out waiting for the success phrase). Task 12 ran every `reason`
-	// through explainProviderError() unconditionally, so a user whose
-	// response to hh.ru simply failed to verify saw "Модель не успела
-	// ответить... попробуйте облачный ключ" — a diagnosis for a subsystem
-	// that was never involved. error_domain (stamped by the backend at the
-	// transition, not guessed from text) must gate the translation.
 	describe("error — hh.ru submission failures are never explained as model failures", () => {
 		it("shows a hh.ru verification-timeout reason verbatim, not the model-timeout hint", () => {
 			const vm = makeVM({
@@ -397,9 +353,6 @@ describe("Review — derived state from ApplicationQuery", () => {
 		});
 
 		it("shows a hh.ru reason verbatim even when its text overlaps a model-error pattern", () => {
-			// Playwright's own exception text for the same failure often reads
-			// "Timeout 30000ms exceeded" — which DOES match the /timeout/i hint.
-			// error_domain, not the text, must be what decides.
 			const vm = makeVM({
 				data: detail({
 					status: "error",
@@ -426,10 +379,6 @@ describe("Review — derived state from ApplicationQuery", () => {
 		});
 
 		it("does not translate a reason when error_domain is absent from an older cached payload", () => {
-			// Defensive: only "model" opts in. Anything else (including an
-			// unset/undefined domain from a stale cache shape) stays raw rather
-			// than risk mislabeling — showing the true error text is always
-			// safer than a confident wrong diagnosis.
 			const vm = makeVM({
 				data: detail({ status: "error", reason: "connection refused" }),
 				isPending: false,
@@ -490,10 +439,6 @@ describe("LetterReviewSheetCoverLetter — editability", () => {
 		expect(vm.cover_letter.isEditable).toBe(expected);
 	});
 
-	// The Save button visibility MUST mirror isEditable — otherwise there
-	// are states where the user can type but cannot persist their edits
-	// (the exact regression reported on 2026-07-01: no Save button in ERROR
-	// state after a failed submit).
 	it.each<ProcessingState>([
 		"parsed",
 		"letter_pending",
@@ -703,15 +648,10 @@ describe("LetterReviewSheetCoverLetter — undo / redo", () => {
 
 	it("caps undo history at MAX_HISTORY (drops the oldest entry)", () => {
 		const vm = editable();
-		// Push more than the cap so the oldest entries get evicted.
 		for (let i = 0; i < 505; i++) {
 			vm.cover_letter.setText(String(i));
 		}
-		// Rewind all the way back. If the cap held, we can't reach the empty
-		// initial value (the first ~5 entries were dropped).
-		while (vm.cover_letter.undo()) {
-			/* keep unwinding */
-		}
+		while (vm.cover_letter.undo()) {}
 		expect(vm.cover_letter.localText).not.toBe("");
 		expect(vm.cover_letter.localText).toBe("4");
 	});

@@ -23,13 +23,8 @@ from otklik_backend.paths import AppPaths
 MAX_ATTEMPTS = 3
 RETRY_DELAY = 1
 
-# App window title used to locate the desktop app for placing the browser
-# beside it. Must match the Tauri window title in apps/desktop/tauri.conf.json.
 APP_WINDOW_NAME = "Otklik"
 
-# Launch flags for the headed Chromium: force the X11/XWayland backend so the
-# window is controllable via xdotool, keep the (hidden) window from throttling
-# background work, and start it off-screen so it never flashes before we hide it.
 CHROMIUM_ARGS = [
     "--ozone-platform=x11",
     "--disable-backgrounding-occluded-windows",
@@ -40,11 +35,6 @@ CHROMIUM_ARGS = [
 
 
 class BrowserCore:
-    """Site-agnostic Playwright wrapper: profile-persistent Chromium context,
-    page factory, cookie access. All site-specific concerns (login flow,
-    auth-cookie inspection) live in the corresponding sites/<site>/auth_flow.py.
-    """
-
     def __init__(
         self,
         profile_dir: Path | None = None,
@@ -58,8 +48,6 @@ class BrowserCore:
         self.headless = False
         self._context: BrowserContext | None = None
         self._playwright: Playwright | None = None
-        # Pick the window controller once, at construction — callers only ever
-        # use show_window()/hide_window() and never branch on platform.
         if window is not None:
             self._window = window
         elif X11WindowController.available():
@@ -80,16 +68,12 @@ class BrowserCore:
             no_viewport=True,
             args=CHROMIUM_ARGS,
         )
-        # The browser is only needed for interactive moments (login, filter
-        # tuning); keep it out of sight the rest of the time.
         await self._window.hide()
 
     async def show_window(self) -> None:
-        """Reveal the automation browser beside the app window (login/filter)."""
         await self._window.show_near_app()
 
     async def hide_window(self) -> None:
-        """Hide the automation browser once the interactive moment is over."""
         await self._window.hide()
 
     async def stop(self) -> None:
@@ -115,9 +99,6 @@ class BrowserCore:
             except Exception as e:
                 if page is not None:
                     await page.close()
-                # Only Playwright's own Error is transient (ERR_NETWORK_CHANGED,
-                # ERR_CONNECTION_RESET, …). Anything else is a real bug — let it
-                # surface instead of burning retries on it.
                 if not isinstance(e, Error):
                     raise
                 self.logger.error(

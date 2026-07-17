@@ -3,9 +3,6 @@ import { render, screen, waitFor } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Only the HTTP boundary is faked. The page, the query module and the real
-// QueryClient are all wired together exactly as they are in the app, so this
-// covers the seam that the unit tests each stub out.
 const listAll = vi.hoisted(() => vi.fn());
 
 vi.mock("$lib/api/client", () => ({

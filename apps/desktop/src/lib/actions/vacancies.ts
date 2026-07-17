@@ -2,11 +2,6 @@ import { API } from "$lib/api/client";
 import { applicationQueryKey } from "$lib/queries/applications";
 import { type QueryClient, createMutation } from "@tanstack/svelte-query";
 
-/**
- * Per-vacancy mutations wired to the new /vacancies/{id}/application/*
- * endpoints. Each mutation writes the returned ApplicationDetail straight
- * into the application query cache.
- */
 export const createVacanciesActions = (
 	queryClient: QueryClient,
 	vacancyId: number,

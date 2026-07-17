@@ -43,7 +43,6 @@ async def test_vacancy_crud(
         assert by_id.work_formats == ["remote", "hybrid"]
         assert by_id.employment_types == ["full_time", "part_time"]
 
-        # vacancy_model fixture has no id; the DB row always does.
         expected = vacancy_model.model_dump(exclude={"id"})
         assert vacancy_to_schema(row=by_id).model_dump(exclude={"id"}) == expected
 

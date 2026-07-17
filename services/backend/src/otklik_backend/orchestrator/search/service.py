@@ -43,7 +43,6 @@ class SearchService:
             raise FilterSessionRunningAlreadyError()
 
         self._filter_session = await FilterSession.execute(core=self._core)
-        # Filter tuning is interactive — surface the browser beside the app.
         await self._core.show_window()
         return self._filter_session.id
 
@@ -71,7 +70,6 @@ class SearchService:
     async def open_search_session(
         self, request: VacanciesStartSearchRequestAPISchema
     ) -> SearchSessionTask:
-        # Чистим сессию если поиск уже завершился — чтобы можно было запустить новый
         if self._search_session is not None:
             task = self._search_session.get_search_task()
             if task is None or not task.is_active:

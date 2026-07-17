@@ -21,11 +21,6 @@ export function createVacanciesQuery() {
 	}));
 }
 
-/**
- * A single vacancy, for consumers that cannot assume it sits in the queue's
- * ["vacancies"] list — the letter-review sheet opened from the archive page.
- * Seeded from that list when it is there, so the queue path stays offline.
- */
 export function createVacancyQuery(getVacancyId: () => number | null) {
 	const queryClient = useQueryClient();
 	return createQuery<Vacancy | null>(() => {

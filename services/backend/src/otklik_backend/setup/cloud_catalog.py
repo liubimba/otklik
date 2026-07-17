@@ -3,10 +3,6 @@ from typing import Any
 import litellm
 from pydantic import BaseModel
 
-# Только провайдеры с прямой консолью, где пользователь сам генерирует ключ.
-# Аггрегаторы (fireworks_ai, together_ai) и инфра-провайдеры (bedrock, azure,
-# openrouter, vercel_ai_gateway) исключены: их «получить ключ» — это не поход
-# на developers-сайт, а настройка облака. Словарь — единственное место правды.
 PROVIDER_KEY_URLS: dict[str, str] = {
     "openai": "https://platform.openai.com/api-keys",
     "anthropic": "https://console.anthropic.com/settings/keys",
@@ -23,18 +19,13 @@ PROVIDER_KEY_URLS: dict[str, str] = {
 
 
 class CloudModelOption(BaseModel):
-    model: str  # LiteLLM-строка, напр. "anthropic/claude-3-5-sonnet"
-    label: str  # человекочитаемое имя (часть после "/")
-    provider: str  # litellm_provider
-    key_url: str  # консоль провайдера из PROVIDER_KEY_URLS
+    model: str
+    label: str
+    provider: str
+    key_url: str
 
 
 class CloudCatalog:
-    """Список облачных чат-моделей, которыми реально можно пользоваться с одним
-    вставленным ключом. Источник — каталог LiteLLM, но отфильтрованный до
-    провайдеров с прямой консолью: пробное письмо в конце мастера всё равно
-    докажет работоспособность, а список не тонет в 2000+ инфра-моделей."""
-
     def __init__(self, model_cost: dict[str, Any] | None = None) -> None:
         self._model_cost = model_cost if model_cost is not None else litellm.model_cost
 

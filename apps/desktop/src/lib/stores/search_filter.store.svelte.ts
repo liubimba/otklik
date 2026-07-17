@@ -28,10 +28,6 @@ export class SearchFilterStore {
 		}
 	}
 
-	//
-	// UI helpers
-	//
-
 	public get canOpen(): boolean {
 		return this._state.status === "idle" || this._state.status === "error";
 	}
@@ -56,10 +52,6 @@ export class SearchFilterStore {
 			this._state.status === "canceling"
 		);
 	}
-
-	//
-	// transitions
-	//
 
 	public opening(): void {
 		if (!this.canOpen) {

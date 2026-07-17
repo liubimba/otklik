@@ -83,7 +83,6 @@ describe("settingsFormSchema — coercion + validation", () => {
 
 describe("formDeploymentToAPI", () => {
 	it("untouched key field sends null — «не трогать», не «удалить»", () => {
-		// Это ровно тот регресс, из-за которого сохранение max_pages стирало ключи.
 		const form = {
 			id: "a",
 			model: "m",

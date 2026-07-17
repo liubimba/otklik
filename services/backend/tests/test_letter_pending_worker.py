@@ -1,13 +1,3 @@
-"""Behavioural tests for LetterPendingWorker.
-
-Since the /application/generate endpoint became async on 2026-07-02, the
-LLM run for a fresh LETTER_PENDING is owned solely by this worker. The
-endpoint only fires the state-machine transition; if the worker doesn't
-actually pick up the resulting ApplicationWSEvent and drive it through
-`cover_letter_service.regenerate`, the application would sit forever in
-LETTER_PENDING and the UI spinner would never resolve.
-"""
-
 import asyncio
 
 import pytest
@@ -33,7 +23,6 @@ from otklik_backend.orchestrator.workers.letter_pending import LetterPendingWork
 
 
 async def wait_until(predicate, timeout: float = 2.0, interval: float = 0.02) -> None:
-    """Poll `predicate` (sync or async) until it returns truthy or times out."""
     deadline = asyncio.get_running_loop().time() + timeout
     while asyncio.get_running_loop().time() < deadline:
         result = predicate()
@@ -71,16 +60,6 @@ async def test_worker_picks_up_pending_event_and_completes_generation(
     ai_layer_with_router,
     vacancy_model: VacancyAPISchema,
 ) -> None:
-    """End-to-end: publishing an ApplicationWSEvent(status=letter_pending)
-    causes the worker to run the LLM (via CoverLetterService.regenerate)
-    and drive the application to LETTER_READY, producing a cover letter
-    version.
-
-    This is the async half of the /generate rewrite: /generate only
-    transitions to LETTER_PENDING and publishes the event; the LLM path
-    lives here. If this test fails, the sheet would sit on the spinner
-    forever after the user clicks Regenerate.
-    """
     from tests.test_ai import _fake_model_response
 
     ai_layer_with_router._router.acompletion.return_value = _fake_model_response(
@@ -124,10 +103,6 @@ async def test_worker_picks_up_pending_event_and_completes_generation(
 
         await wait_until(is_ready)
 
-        # LLM was invoked at least once. Exact call count depends on how
-        # many health-check pings ai_layer fires around the generate
-        # call — verifying LETTER_READY landed is a strong-enough signal
-        # that the LLM ran (transition needs the completion result).
         assert ai_layer_with_router._router.acompletion.await_count >= 1
     finally:
         run_task.cancel()

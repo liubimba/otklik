@@ -46,8 +46,6 @@ async def test_fast_machine_passes_and_returns_the_letter() -> None:
 
 
 async def test_slow_machine_fails_on_the_deadline() -> None:
-    """Модель ответила, просто не успела — это DEADLINE, а не ошибка модели.
-    Фронтенд обязан отличать эту ветку от MODEL_ERROR (см. test_model_error_...)."""
     layer = _FakeLayer(delay=10.0)
     runner = BenchmarkRunner(deadline_sec=0.05, layer_factory=lambda _: layer)  # type: ignore[arg-type, return-value]
 
@@ -55,20 +53,12 @@ async def test_slow_machine_fails_on_the_deadline() -> None:
 
     assert result.passed is False
     assert result.letter is None
-    # Не ставим положительный порог на seconds: runner округляет elapsed до
-    # одного знака (round(elapsed, 1)), поэтому любое elapsed < 0.05 c схлопывается
-    # в 0.0, а на грубом таймере Windows дедлайн в 0.05 c именно так и меряется
-    # (проходило на Linux/macOS лишь по удаче тайминга — CI на windows-latest
-    # падал на `0.0 >= 0.05`). Смысл ветки — DEADLINE, а не точная длительность;
-    # его несёт failure_reason ниже. Здесь достаточно, что время неотрицательно.
     assert result.seconds >= 0.0
     assert result.failure_reason is BenchmarkFailureReason.DEADLINE
     assert result.error is None
 
 
 async def test_deadline_actually_cancels_the_request() -> None:
-    """Иначе брошенная генерация продолжит жечь CPU на слабой машине —
-    ровно там, где его и так нет."""
     layer = _FakeLayer(delay=10.0)
     runner = BenchmarkRunner(deadline_sec=0.05, layer_factory=lambda _: layer)  # type: ignore[arg-type, return-value]
 
@@ -97,11 +87,6 @@ async def test_run_honors_per_call_deadline_override():
 
 
 async def test_model_error_fails_the_benchmark() -> None:
-    """Модель вообще не ответила (упала, OOM, обрыв соединения) — это
-    MODEL_ERROR с текстом причины, а не «машина медленная». Смешивание этих
-    двух исходов раньше вело к записи deployment'а на модель, которая ни разу
-    не ответила."""
-
     class _BrokenLayer:
         async def generate_cover_letter(self, **_: object) -> AICoverLetterResult:
             raise RuntimeError("connection refused")

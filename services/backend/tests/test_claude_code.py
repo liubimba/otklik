@@ -17,8 +17,6 @@ from otklik_backend.ai.claude_code import (
 
 
 class _FakeProc:
-    """Подделка asyncio subprocess: отдаёт заранее заданный stdout/stderr/код."""
-
     def __init__(self, stdout: bytes = b"", stderr: bytes = b"", returncode: int = 0):
         self._stdout = stdout
         self._stderr = stderr
@@ -168,7 +166,7 @@ async def test_acompletion_raises_and_kills_process_on_timeout() -> None:
     proc = _FakeProc()
 
     async def _fake_wait_for(coro, timeout):
-        coro.close()  # avoid "coroutine was never awaited" warning
+        coro.close()
         raise asyncio.TimeoutError
 
     with (
@@ -228,8 +226,6 @@ def test_resolve_binary_returns_none_without_install() -> None:
 
 
 class _FakeAsyncReader:
-    """Подделка asyncio.StreamReader: одноразовый async `read()`."""
-
     def __init__(self, data: bytes = b""):
         self._data = data
 
@@ -238,8 +234,6 @@ class _FakeAsyncReader:
 
 
 class _FakeStdout:
-    """Подделка asyncio.StreamReader: `readline()` по списку, затем EOF (b"")."""
-
     def __init__(self, lines: list[bytes]):
         self._lines = list(lines)
 
@@ -250,8 +244,6 @@ class _FakeStdout:
 
 
 class _FakeStreamProc:
-    """Подделка процесса со stdout-строками stream-json."""
-
     def __init__(
         self,
         lines: list[bytes],
@@ -328,14 +320,10 @@ async def test_astreaming_yields_deltas_then_terminal_chunk() -> None:
     assert chunks[-1]["is_finished"] is True
     assert chunks[-1]["finish_reason"] == "stop"
     assert chunks[-1]["usage"]["completion_tokens"] == 2
-    # промежуточные дельты не финальные
     assert all(c["is_finished"] is False for c in chunks[:-1])
 
 
 async def test_astreaming_raises_on_mid_stream_death_without_result() -> None:
-    """`claude -p` умирает/обрывается до строки "result" — стрим должен
-    поднять ClaudeCodeError, а не молча выдать терминальный чанк успеха
-    (иначе letter-edit chat подсунет пользователю обрезанное письмо)."""
     llm = ClaudeCodeLLM()
     delta_line = (
         json.dumps(
@@ -374,17 +362,14 @@ async def test_astreaming_raises_on_mid_stream_death_without_result() -> None:
 
 
 async def test_astreaming_raises_and_kills_process_on_idle_timeout() -> None:
-    """`claude -p` (stream) перестаёт писать в stdout, но не завершается —
-    цикл чтения должен оборваться по дедлайну бездействия между чанками, а
-    не повиснуть навечно (иначе letter-edit chat зависает без ответа)."""
     llm = ClaudeCodeLLM()
-    proc = _FakeStreamProc([], returncode=None)  # ещё "жив" — не вышел
+    proc = _FakeStreamProc([], returncode=None)
 
     async def _fake_exec(*args, **kwargs):
         return proc
 
     async def _fake_wait_for(coro, timeout):
-        coro.close()  # avoid "coroutine was never awaited" warning
+        coro.close()
         raise asyncio.TimeoutError
 
     with (
@@ -408,7 +393,7 @@ async def test_astreaming_raises_and_kills_process_on_idle_timeout() -> None:
                 model_response=ModelResponse(),
             ):
                 pass
-    assert proc.returncode == -9  # killed & reaped in `finally`
+    assert proc.returncode == -9
 
 
 def test_clean_env_strips_api_key_and_auth_token() -> None:

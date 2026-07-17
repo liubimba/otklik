@@ -30,8 +30,6 @@ const {
 	onCancel: () => void;
 } = $props();
 
-// Статус словами — вся суть переделки. Старая кнопка показывала иконку и
-// шеврон и не сообщала ни площадку, ни состояние.
 const statusLabel = $derived(
 	{
 		loading: "",
@@ -42,20 +40,11 @@ const statusLabel = $derived(
 	}[status],
 );
 
-// `unauthorized`/`authorizing` still act on a single click — both are safe
-// and reversible (sign-in just opens hh.ru's own login flow; cancel aborts
-// it). `authorized` is deliberately NOT handled here: signing out drops the
-// persistent browser session and forces the whole re-auth flow, so it must
-// go through an explicit menu item («Выйти»), never a bare click on the
-// cell. See the DropdownMenu branch below.
 function activate() {
 	if (status === "unauthorized") onSignIn();
 	else if (status === "authorizing") onCancel();
 }
 
-// The accessible name must say what activation does — "hh.ru, Подключён"
-// tells a screen-reader user nothing about the fact that clicking used to
-// sign them out. Each state gets a label naming its actual effect.
 const ariaLabel = $derived(
 	{
 		loading: "",
@@ -75,10 +64,6 @@ const ariaLabel = $derived(
 			<LoaderCircle class="size-[15px] animate-spin text-muted-foreground" />
 		{:else}
 			<User class="size-[15px] text-muted-foreground" />
-			<!--
-				Точка статуса монохромная: в палитре нет зелёного, и заводить
-				его ради одного индикатора нельзя.
-			-->
 			<span
 				class="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar {status ===
 				'authorized'
@@ -101,7 +86,6 @@ const ariaLabel = $derived(
 {/snippet}
 
 {#if status === "loading"}
-	<!-- Скелетон ровно той же высоты, что и живая ячейка: раскладка не дёргается. -->
 	<div class="flex h-[52px] items-center gap-2.5 rounded-xl border px-2.5">
 		<div class="size-7 shrink-0 animate-pulse rounded-full bg-muted"></div>
 		<div class="flex flex-1 flex-col gap-1.5">
@@ -110,12 +94,6 @@ const ariaLabel = $derived(
 		</div>
 	</div>
 {:else if status === "offline"}
-	<!--
-		Бэкенд недоступен: ячейка статична и без действия (клик всё равно не
-		дошёл бы), приглушена opacity + cursor-default — сигнал «не сейчас».
-		Иконка связи, а не пользователя: проблема в канале, а не в аккаунте.
-		Постоянный баннер сверху объясняет «почему» подробнее.
-	-->
 	<div
 		class="flex h-[52px] items-center gap-2.5 rounded-xl border px-2.5 opacity-70 cursor-default select-none"
 		aria-label={m.account_status_offline()}
@@ -129,12 +107,6 @@ const ariaLabel = $derived(
 	</div>
 
 {:else if status === "authorized"}
-	<!--
-		Signing out is destructive (drops the persistent hh.ru session — the
-		whole sign-in flow has to happen again), so it must NOT fire on a bare
-		click of the cell. The chevron already promises a menu; now it opens
-		one, and «Выйти» is the only thing in it.
-	-->
 	<DropdownMenu>
 		<DropdownMenuTrigger
 			aria-label={ariaLabel}

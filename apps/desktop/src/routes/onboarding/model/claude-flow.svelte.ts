@@ -2,8 +2,6 @@ import { API } from "$lib/api/client";
 import type { ClaudeModelOption, Settings } from "$lib/api/types";
 import { getLogger } from "$lib/log";
 
-// Claude на подписке пишет медленнее локальной болталки, но качество выше —
-// даём вдвое больше времени, чем облаку (60с), чтобы не резать по дедлайну.
 const CLAUDE_TRIAL_DEADLINE_SEC = 90;
 const logger = getLogger("ClaudeFlow");
 
@@ -15,13 +13,6 @@ export type ClaudeScreen =
 	| "trial"
 	| "error";
 
-/**
- * Машина состояний пути «Claude по подписке»: детект CLI → выбор модели →
- * пробное письмо → deployment. Deployment пишется только после успешного
- * trial'а. Ключ не нужен — auth живёт в самом CLI (`claude -p`), мы его не
- * трогаем; deployment у Claude без api_key/api_base (дискриминатор — префикс
- * модели `claude-code/`).
- */
 export class ClaudeFlow {
 	#screen = $state<ClaudeScreen>("checking");
 	#models = $state<ClaudeModelOption[]>([]);
@@ -58,7 +49,6 @@ export class ClaudeFlow {
 		return this.#isSubmitting;
 	}
 
-	/** Спрашивает бэкенд про состояние CLI и приземляется на нужный экран. */
 	async load(): Promise<void> {
 		this.#screen = "checking";
 		this.#error = null;
@@ -82,12 +72,6 @@ export class ClaudeFlow {
 		this.#selected = model;
 	}
 
-	/**
-	 * Пробное письмо на выбранной модели Claude. Успех — пишет deployment и
-	 * зовёт onDeploymentSaved (прогрев кэша Настроек). Провал (любой
-	 * passed=false, в т.ч. протухший токен → model_error) оставляет на
-	 * "select" с сообщением, ничего не записывая.
-	 */
 	async runTrial(): Promise<boolean> {
 		if (this.#selected === null) return false;
 		if (this.#isSubmitting) return false;

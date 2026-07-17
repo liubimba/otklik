@@ -48,9 +48,6 @@ async def find_all(
     return [vacancy_to_schema(row=row) for row in rows]
 
 
-# Must be declared before GET /{vacancy_id}: Starlette matches routes in
-# declaration order, so "/all" would otherwise be captured by the int-typed
-# {vacancy_id} path param and rejected with a 422 rather than falling through.
 @vacancies_router.get(
     "/all",
     status_code=status.HTTP_200_OK,

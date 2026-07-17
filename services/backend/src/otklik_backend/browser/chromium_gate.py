@@ -1,9 +1,9 @@
 import asyncio
-import os
 import re
-import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
+
+from patchright._impl._driver import compute_driver_executable, get_driver_env
 
 from otklik_backend.core.progress import PullProgress
 from otklik_backend.log import get_logger
@@ -47,13 +47,13 @@ class ChromiumGate:
     async def install(self) -> AsyncIterator[PullProgress]:
         self._browsers_dir.mkdir(parents=True, exist_ok=True)
         yield PullProgress(status="starting")
+        node, cli = compute_driver_executable()
         process = await asyncio.create_subprocess_exec(
-            sys.executable,
-            "-m",
-            "patchright",
+            node,
+            cli,
             "install",
             "chromium",
-            env={**os.environ, **self.driver_env()},
+            env={**get_driver_env(), **self.driver_env()},
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )

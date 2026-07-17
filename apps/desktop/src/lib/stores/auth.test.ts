@@ -79,7 +79,7 @@ describe("AuthStore state machine", () => {
 
 	it("canAuthorize gate: only unknown/unauthorized", () => {
 		const s = new AuthStore();
-		expect(s.canAuthorize).toBe(true); // unknown
+		expect(s.canAuthorize).toBe(true);
 		s.unauthorized();
 		expect(s.canAuthorize).toBe(true);
 		s.authorizing();

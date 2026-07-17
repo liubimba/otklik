@@ -12,8 +12,6 @@ import * as m from "$lib/paraglide/messages";
 import { updater } from "$lib/stores/updater.svelte";
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 
-// Reveals itself whenever the shared updater store finds an update — from the
-// startup check or the About screen's button.
 const open = $derived(updater.available !== null);
 </script>
 

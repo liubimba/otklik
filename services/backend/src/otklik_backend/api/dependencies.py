@@ -37,8 +37,6 @@ def get_broadcaster(request: HTTPConnection) -> EventBroadcaster:
 
 
 def get_orchestrator(request: HTTPConnection) -> LetterSendingWorker:
-    # AppContext exposes it as letter_sending_worker; alias name kept for
-    # the /system/orchestrator/* routes that expose queue/pause status.
     return request.app.state.letter_sending_worker  # type: ignore[no-any-return]
 
 
@@ -74,8 +72,6 @@ def get_secret_store(request: HTTPConnection) -> SecretStore:
     return request.app.state.secret_store  # type: ignore[no-any-return]
 
 
-# Три компонента без состояния и без внешних ручек — строим на месте, а не
-# тащим через BackendBuilder/app.state: класть в контекст приложения нечего.
 def get_hardware_probe() -> HardwareProbe:
     return HardwareProbe()
 

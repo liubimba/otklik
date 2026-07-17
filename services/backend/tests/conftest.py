@@ -80,10 +80,6 @@ class RecordingBroadcaster(EventBroadcaster):
 
 
 class FakeBrowser:
-    """Dual-purpose fake: implements the SiteAuthFlow protocol (so tests can
-    inject it as `auth_flow`) while also being a stand-in for a BrowserCore
-    handle. The real code has these split — the test seam does not need to."""
-
     def __init__(self) -> None:
         self._authenticated = AuthStatusAPISchema.unauthorized()
 
@@ -173,9 +169,6 @@ class FakeBenchmarkRunner:
 
 
 class FakeSecretStore:
-    """In-memory хранилище. Настоящую связку тесты не трогают никогда: на CI
-    (ubuntu под xvfb-run) нет ни D-Bus, ни SecretService."""
-
     def __init__(self, mode: SecretStorageMode = SecretStorageMode.KEYCHAIN) -> None:
         self.items: dict[str, str] = {}
         self._mode = mode
@@ -284,11 +277,6 @@ def fake_secret_store() -> FakeSecretStore:
 
 @dataclass
 class DbHandle:
-    """session_factory плюс то, что ему не нужно, но нужно SecretMigrator'у:
-    сам engine (VACUUM не может идти через AsyncSession — он открывает
-    транзакцию неявно) и путь к файлу (байтовый тест читает файл и -wal
-    напрямую)."""
-
     session_maker: async_sessionmaker[AsyncSession]
     engine: AsyncEngine
     db_path: Path

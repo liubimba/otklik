@@ -56,7 +56,6 @@ class AppContext:
         ]
 
     def event_listeners(self) -> list[EventListener]:
-        # Anything with .start()/.stop() that subscribes to the broadcaster.
         return [
             self.letter_sending_worker,
             self.letter_pending_worker,
@@ -77,13 +76,7 @@ class BackendBuilder:
         self._secret_store = secret_store
 
     async def build(self) -> AppContext:
-        # Режим (связка/файл) решается один раз на старте живой пробой связки —
-        # см. SecretStoreFactory. secret_store можно подсунуть готовым (тесты,
-        # будущие вызовы) — тогда пробы не будет.
         secret_store = self._secret_store or await SecretStoreFactory().create()
-        # До всего остального: если в БД остались легаси-ключи в открытом
-        # виде, они должны переехать в хранилище и исчезнуть с диска раньше,
-        # чем что-либо (включая _bootstrap_ai_layer ниже) их прочитает.
         await SecretMigrator(
             session_maker=self._session_maker, engine=self._engine, store=secret_store
         ).migrate()

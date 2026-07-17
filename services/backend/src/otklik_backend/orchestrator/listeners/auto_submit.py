@@ -63,14 +63,6 @@ class AutoSubmitListener:
             settings = await SettingsRepository.get(session=session)
             if not settings.auto_submit:
                 return
-            # Same guard as POST /application/submit: never move an
-            # application into LETTER_SENDING while the sending worker is
-            # paused. Auto-submit reaches here through the fresh
-            # LETTER_READY event, i.e. right when the user just clicked
-            # Regenerate to escape a NOT_AUTHORIZED failure — bypassing
-            # the HTTP guard would land the app in LETTER_SENDING with
-            # no worker to process it (the "infinite letter-sending"
-            # regression via the auto path, reported 2026-07-02).
             if self._letter_sending_worker.is_paused():
                 self._log.info(
                     "Auto-submit skipped — letter-sending worker is paused",
@@ -85,18 +77,10 @@ class AutoSubmitListener:
             )
 
     async def recover(self, session: AsyncSession) -> int:
-        # Crash-after-LETTER_READY orphans: rescan on startup and re-emit SUBMIT
-        # if auto_submit is on. Otherwise the app would sit forever waiting for
-        # the WS event we already missed.
         settings = await SettingsRepository.get(session=session)
         if not settings.auto_submit:
             return 0
         if self._letter_sending_worker.is_paused():
-            # Startup edge case: the persisted browser session came back
-            # already unauthenticated (auth cookies expired between runs).
-            # Auto-resume via AuthWSEvent(authorized) will process these
-            # orphans once the user re-signs-in — publishing SUBMIT now
-            # would just stack them in LETTER_SENDING with no consumer.
             self._log.info(
                 "Auto-submit recover skipped — letter-sending worker is paused",
                 reason=self._letter_sending_worker.get_pause_reason(),

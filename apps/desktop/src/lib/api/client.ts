@@ -48,9 +48,6 @@ type QueryParams = Record<
 	string | number | readonly string[] | undefined
 >;
 
-// Serialise query params onto a path. Arrays become repeated keys
-// (`?status=a&status=b`), which is what FastAPI's `list[...] = Query()` reads.
-// Returns "" for an empty result so callers can append it unconditionally.
 function qs(params: QueryParams): string {
 	const search = new URLSearchParams();
 	for (const [key, value] of Object.entries(params)) {
@@ -85,9 +82,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 		let parsed: APIRequestError = {};
 		try {
 			parsed = JSON.parse(data) as APIRequestError;
-		} catch {
-			/* non-JSON body */
-		}
+		} catch {}
 		throw new APIError(res.status, formatErrorDetail(parsed.detail));
 	}
 	return JSON.parse(data) as T;
@@ -123,20 +118,12 @@ async function apiNullable204<T>(
 		let parsed: APIRequestError = {};
 		try {
 			parsed = JSON.parse(data) as APIRequestError;
-		} catch {
-			/* non-JSON */
-		}
+		} catch {}
 		throw new APIError(res.status, formatErrorDetail(parsed.detail));
 	}
 	return JSON.parse(data) as T;
 }
 
-/**
- * Общий читатель SSE: кадры `data: …\n\n`, буферизуя частичные кадры между
- * чтениями. Вынесен отдельно от streamChat, потому что теперь у формата два
- * потребителя — чат письма и загрузка локальной модели — и разбор кадров не
- * стоит держать в двух копиях.
- */
 async function* streamSSE<T>(
 	url: string,
 	init: RequestInit,
@@ -171,10 +158,6 @@ async function* streamSSE<T>(
 	}
 }
 
-/**
- * Consume the SSE stream from POST .../application/chat, yielding parsed
- * events.
- */
 async function* streamChat(
 	vacancyId: number,
 	message: string,
@@ -187,17 +170,8 @@ async function* streamChat(
 	});
 }
 
-// Кадр прогресса загрузки плюс, возможно, кадр провала — см. streamPull.
 type PullFrame = PullProgress | { type: "error"; detail: string };
 
-/**
- * Загрузка модели: кадры прогресса плюс, возможно, кадр провала.
- *
- * Бэкенд не может отдать HTTP-ошибку посреди стрима — ответ уже ушёл со
- * статусом 200, — поэтому провал (нет места, нет сети) приезжает кадром
- * `{"type":"error"}`. Не распознать его значит навсегда подвесить полосу
- * прогресса на последнем проценте.
- */
 async function* streamPull(): AsyncGenerator<PullProgress> {
 	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/setup/pull`;
 	for await (const frame of streamSSE<PullFrame>(url, { method: "POST" })) {
@@ -254,7 +228,6 @@ export const API = {
 	vacancies: {
 		list: () => api<Vacancy[]>("vacancies/"),
 		get: (vacancyId: number) => api<Vacancy>(`vacancies/${vacancyId}`),
-		// The whole archive, application status joined in, newest first.
 		listAll: (opts?: {
 			statuses?: readonly VacancyStatusFilter[];
 			search?: string;

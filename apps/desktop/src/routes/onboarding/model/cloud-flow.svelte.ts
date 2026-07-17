@@ -7,12 +7,6 @@ const logger = getLogger("CloudFlow");
 
 export type CloudScreen = "select" | "key" | "trial" | "error";
 
-/**
- * Машина состояний облачного пути онбординга: каталог → выбор модели → ключ →
- * пробное письмо → deployment. Deployment пишется только после успешного
- * trial'а — провал оставляет пользователя на экране ключа с ошибкой, ничего
- * не записывая (см. Task 6: POST /setup/deployment primary-first).
- */
 export class CloudFlow {
 	#screen = $state<CloudScreen>("select");
 	#models = $state<CloudModelOption[]>([]);
@@ -49,8 +43,6 @@ export class CloudFlow {
 	get errorMessage(): string | null {
 		return this.#error;
 	}
-	/** Идёт ли сейчас проверка ключа — кнопка «Проверить» смотрит сюда, чтобы
-	 * не отправить POST дважды подряд. */
 	get isSubmitting(): boolean {
 		return this.#isSubmitting;
 	}
@@ -65,7 +57,6 @@ export class CloudFlow {
 		);
 	}
 
-	/** Тянет каталог облачных моделей и приземляется на экран выбора. */
 	async load(): Promise<void> {
 		try {
 			this.#models = await API.setup.cloudModels();
@@ -92,15 +83,9 @@ export class CloudFlow {
 		this.#letter = null;
 	}
 
-	/**
-	 * Прогоняет trial с введённым ключом. Успех — пишет deployment и зовёт
-	 * onDeploymentSaved (прогрев кэша Настроек — см. SetupViewModel). Провал —
-	 * любой `passed=false` это ошибка ключа/модели (failure_reason
-	 * игнорируется), остаёмся на "key" с сообщением.
-	 */
 	async submitKey(key: string): Promise<boolean> {
 		if (this.#selected === null) return false;
-		if (this.#isSubmitting) return false; // второй сабмит поверх первого не запускается
+		if (this.#isSubmitting) return false;
 		this.#isSubmitting = true;
 		this.#screen = "trial";
 		this.#error = null;

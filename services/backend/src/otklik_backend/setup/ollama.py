@@ -11,13 +11,10 @@ from otklik_backend.log import get_logger
 from otklik_backend.setup.constants import LOCAL_MODEL_TAG, OLLAMA_HOST
 
 TAGS_TIMEOUT_SEC = 2.0
-# Загрузка 4.7 ГБ на медленном канале идёт долго — таймаут ставим на паузу
-# между кусками стрима, а не на всю операцию.
 PULL_TIMEOUT_SEC = 60.0
 
 
-class OllamaPullError(Exception):
-    """Ollama сообщила об ошибке загрузки (нет места, нет сети, нет модели)."""
+class OllamaPullError(Exception): ...
 
 
 class PullProgress(BaseModel):
@@ -36,19 +33,6 @@ class OllamaState(str, Enum):
 
 
 class OllamaGate:
-    """Разговор с локальной Ollama по HTTP.
-
-    Состояние определяется по живому ответу сервера, а не по факту установки
-    бинарника: установленная, но не запущенная Ollama так же бесполезна, как
-    отсутствующая, и пользователю надо сказать разное. Различаем их так:
-    сервер молчит + бинарь есть → «не запущена»; сервер молчит и бинаря нет →
-    «не установлена». Сервер, отвечающий без бинаря на хосте (Ollama в Docker),
-    считается работающим.
-
-    Сервис из приложения НЕ поднимаем — это OS-специфично и рискованно
-    (решение зафиксировано в спеке).
-    """
-
     def __init__(
         self, host: str = OLLAMA_HOST, model_tag: str = LOCAL_MODEL_TAG
     ) -> None:
@@ -69,13 +53,9 @@ class OllamaGate:
         )
 
     async def list_models(self) -> list[str]:
-        """Теги всех установленных моделей. Пустой список — если сервер не
-        отвечает или ответил мусором: экран выбора сам покажет «ничего не
-        установлено», а не упадёт."""
         return await self._list_tags() or []
 
     async def _list_tags(self) -> list[str] | None:
-        """Теги установленных моделей, либо None, если сервер не отвечает."""
         try:
             async with httpx.AsyncClient(timeout=TAGS_TIMEOUT_SEC) as client:
                 response = await client.get(f"{self._host}/api/tags")
@@ -88,24 +68,15 @@ class OllamaGate:
         try:
             models = payload.get("models", [])
             if models is None:
-                # {"models": null} — сервер отвечает странно
                 return None
             return [str(model["name"]) for model in models]
         except (TypeError, AttributeError, KeyError) as error:
-            # payload не словарь, или models не список, или элемент без "name"
             self._log.info(
                 "Ollama response has unexpected format on %s: %s", self._host, error
             )
             return None
 
     async def pull(self) -> AsyncIterator[PullProgress]:
-        """Тянет модель, отдавая реальный прогресс из NDJSON-стрима Ollama.
-
-        Ollama шлёт по строке JSON на событие: сначала манифест (без байтов),
-        затем `downloading` с `completed`/`total`, в конце `success`. Мы не
-        придумываем проценты — считаем их из этих двух чисел, поэтому полоса
-        не «висит на нуле».
-        """
         async with httpx.AsyncClient(timeout=PULL_TIMEOUT_SEC) as client:
             async with client.stream(
                 "POST",
@@ -140,8 +111,6 @@ class OllamaGate:
     @staticmethod
     def _to_progress(event: dict[str, Any]) -> PullProgress:
         status = str(event.get("status", ""))
-        # Handle null values: dict.get returns None only if key is absent,
-        # but JSON payload can have null values present. That's an error.
         completed_raw = event.get("completed", 0)
         total_raw = event.get("total", 0)
 

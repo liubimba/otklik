@@ -16,12 +16,6 @@ async function invalidate(queryClient: QueryClient, vacancyId: number) {
 	]);
 }
 
-/**
- * All mutations map 1:1 to the new /vacancies/{id}/application/* endpoints.
- * `generate` is now a single call — the server auto-creates the Application if
- * needed. `submit` accepts an optional draft text so we no longer save then
- * submit in two hops.
- */
 export function createLetterReviewActions(queryClient: QueryClient) {
 	return {
 		generate: createMutation(() => ({

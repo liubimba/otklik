@@ -5,15 +5,10 @@ from otklik_backend.log import get_logger
 
 APP_DIR_NAME = ".otklik"
 
-# The app was called "headhunter_ai" until it grew past hh.ru. Installs from
-# before the rename keep their database, Chromium profile and consent flag in
-# the old directory, so it is adopted on the next startup.
 LEGACY_APP_DIR_NAMES = (".headhunter_ai",)
 
 
 class AppPaths:
-    """Filesystem layout of the app's data directory (`~/.otklik`)."""
-
     def __init__(self, home: Path | None = None) -> None:
         self._home = Path.home() if home is None else home
 
@@ -35,15 +30,6 @@ class AppPaths:
 
 
 class DataDirMigrator:
-    """Adopts the data directory left behind by a previous app name.
-
-    Moves entry by entry instead of renaming the whole directory: the UI writes
-    `consent.json` itself, so `~/.otklik` can already exist by the time the
-    backend starts, and a whole-dir rename would bail out there and strand the
-    database. On a name clash the entry already in the target wins — the legacy
-    copy is left in place rather than overwritten, and its directory is kept.
-    """
-
     def __init__(self, paths: AppPaths | None = None) -> None:
         self._paths = AppPaths() if paths is None else paths
         self.logger = get_logger(self.__class__.__name__)

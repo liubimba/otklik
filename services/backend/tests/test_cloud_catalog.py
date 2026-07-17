@@ -18,14 +18,14 @@ def _catalog() -> CloudCatalog:
 
 def test_keeps_only_chat_models():
     models = {o.model for o in _catalog().options()}
-    assert "openai/whisper-1" not in models  # не chat
+    assert "openai/whisper-1" not in models
     assert "openai/text-embedding-3-small" not in models
     assert "openai/gpt-4o" in models
 
 
 def test_drops_providers_without_a_key_console():
     providers = {o.provider for o in _catalog().options()}
-    assert "bedrock" not in providers  # нет в PROVIDER_KEY_URLS
+    assert "bedrock" not in providers
     assert "anthropic" in providers
 
 
@@ -42,7 +42,6 @@ def test_options_are_sorted_by_provider_then_model():
 
 
 def test_real_catalog_is_non_empty_and_all_have_urls():
-    # без аргумента берёт настоящий litellm.model_cost
     options = CloudCatalog().options()
     assert len(options) > 50
     assert all(o.key_url for o in options)

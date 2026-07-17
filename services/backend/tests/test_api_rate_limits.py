@@ -10,7 +10,6 @@ def test_budget_empty(client) -> None:
     payload = RateLimitsBudgetAPISchema.model_validate(response.json())
     assert payload.hourly.used == 0
     assert payload.daily.used == 0
-    # defaults from SettingsAPISchema()
     assert payload.hourly.limit == 5
     assert payload.daily.limit == 30
 

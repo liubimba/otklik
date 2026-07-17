@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PullProgress, SetupState } from "./types";
 
-// $lib/log pulls in @tauri-apps/plugin-log, which calls window.__TAURI_INTERNALS__
-// on every log line. In Node/jsdom that throws unhandled rejections and pollutes
-// the report. Stub the module before importing the client so its top-level
-// getLogger() gets the noop version.
 vi.mock("$lib/log", () => ({
 	getLogger: () => ({
 		debug: () => {},
@@ -45,9 +41,6 @@ function noContent(): Response {
 
 beforeEach(() => {
 	calls = [];
-	// Stub only fetch — the client reads VITE_BACKEND_IP/PORT from
-	// import.meta.env, which vitest resolves at import time. The URLs asserted
-	// below use `/api/v1/…` — the host prefix is irrelevant to the test.
 	fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
 		calls.push({ url, init });
 		return jsonResponse({});
@@ -72,25 +65,14 @@ function respondWithSequence(...responses: Response[]): void {
 	}
 }
 
-// Тонкая обёртка над respondWith(jsonResponse(...)) — читается на месте
-// вызова как «следующий fetch отдаст этот JSON», без промежуточного имени.
 function mockFetchJson(body: unknown, status = 200): void {
 	respondWith(jsonResponse(body, status));
 }
 
-// Подделывает res.body.getReader() без реального ReadableStream: клиенту
-// достаточно объекта с методом read(), возвращающего один чанк со всеми
-// кадрами `data: …\n\n` разом — streamSSE сам режет буфер на кадры, так что
-// многокадровый чанк для него не отличим от нескольких мелких.
 function mockFetchSSE(lines: string[]): void {
 	mockFetchSSEWithChunks([`${lines.join("\n\n")}\n\n`]);
 }
 
-// Расширенный хелпер для тестирования буферизации: читает SSE в несколько чанков.
-// Каждый элемент chunks — это сырая строка (БЕЗ `\n\n` между ними; кадры уже
-// разбиты нужным образом). Это позволяет проверить, что streamSSE верно собирает
-// кадры, разъехавшиеся между чтениями — даже посередине JSON-тела или прямо на
-// границе `\n\n`.
 function mockFetchSSEWithChunks(chunks: string[]): void {
 	const encoder = new TextEncoder();
 	const encodedChunks = chunks.map((c) => encoder.encode(c));
@@ -116,14 +98,6 @@ function mockFetchSSEWithChunks(chunks: string[]): void {
 	});
 }
 
-/**
- * Split a recorded request URL into its path and parsed query string.
- *
- * Not `new URL(...)`: the client interpolates VITE_BACKEND_IP/PORT, which come
- * from a gitignored .env. Without it the host reads `undefined:undefined`, and
- * a non-numeric port makes the URL parser throw — green locally, red on CI.
- * The host is irrelevant to these assertions anyway.
- */
 function splitUrl(url: string): [string, URLSearchParams] {
 	const [path, query = ""] = url.split("?");
 	return [path, new URLSearchParams(query)];
@@ -188,12 +162,12 @@ describe("API URL construction", () => {
 
 	it("application endpoints route through /vacancies/{id}/application/*", async () => {
 		respondWithSequence(
-			jsonResponse({}), // get
-			jsonResponse([]), // letters
-			jsonResponse({}), // generate
-			jsonResponse({}), // save
-			jsonResponse({}), // skip
-			jsonResponse({}), // retry
+			jsonResponse({}),
+			jsonResponse([]),
+			jsonResponse({}),
+			jsonResponse({}),
+			jsonResponse({}),
+			jsonResponse({}),
 		);
 		await API.application.get(42);
 		await API.application.letters(42);
@@ -210,7 +184,6 @@ describe("API URL construction", () => {
 			expect.stringMatching(/\/api\/v1\/vacancies\/42\/application\/skip$/),
 			expect.stringMatching(/\/api\/v1\/vacancies\/42\/application\/retry$/),
 		]);
-		// save sends the letter in the body
 		expect(bodyOf(calls[3])).toEqual({ text: "hi" });
 	});
 
@@ -233,10 +206,6 @@ describe("API URL construction", () => {
 		expect(calls[3].init?.method).toBe("POST");
 	});
 
-	// The sidebar counter is driven entirely by this path. A typo here would not
-	// throw — it would 404 quietly and the badge would simply never appear.
-	// Note the collection is /applications (global summary), NOT the per-vacancy
-	// /vacancies/{id}/application route.
 	it("applications summary hits GET /api/v1/applications/summary", async () => {
 		respondWithSequence(
 			jsonResponse({ needs_attention: 3 }),
@@ -248,14 +217,10 @@ describe("API URL construction", () => {
 		});
 		await API.applications.summary("latest");
 
-		// Default scope is the whole database — what «Все вакансии» lists.
 		expect(calls[0].url).toMatch(
 			/\/api\/v1\/applications\/summary\?search_id=all$/,
 		);
 		expect(calls[0].init?.method ?? "GET").toBe("GET");
-		// «Очередь вакансий» only lists the latest search, so its badge must ask
-		// for that scope — a global count there would point at rows the screen
-		// does not show.
 		expect(calls[1].url).toMatch(
 			/\/api\/v1\/applications\/summary\?search_id=latest$/,
 		);
@@ -488,10 +453,6 @@ describe("API.setup", () => {
 	});
 
 	it("throws when the stream carries an in-band failure", async () => {
-		// Бэкенд не может отдать HTTP-ошибку посреди стрима: ответ уже ушёл
-		// со статусом 200. Поэтому провал загрузки приезжает кадром
-		// {"type":"error","detail":"…"} — если его не распознать, полоса
-		// прогресса зависнет навсегда.
 		mockFetchSSE([
 			'data: {"status":"downloading","completed_bytes":1,"total_bytes":2,"percent":50,"done":false}',
 			'data: {"type":"error","detail":"no space left on device"}',
@@ -545,7 +506,6 @@ describe("API.setup", () => {
 
 	describe("SSE frame assembly across multiple reads", () => {
 		it("assembles a frame split inside JSON payload", async () => {
-			// Граница куска проходит посередине JSON-тела кадра: `completed_by` `tes`:
 			const payload1 = '{"status":"downloading","completed_by';
 			const payload2 = 'tes":1,"total_bytes":2,"percent":50,"done":false}';
 			const payload3 =
@@ -577,9 +537,6 @@ describe("API.setup", () => {
 		});
 
 		it("assembles frames split on the frame boundary \\n\\n", async () => {
-			// Разделитель кадров `\n\n` разъехался между чтениями:
-			// - чанк 1 заканчивается на первый `\n`
-			// - чанк 2 начинается со второго `\n`
 			mockFetchSSEWithChunks([
 				'data: {"status":"downloading","completed_bytes":1,"total_bytes":2,"percent":50,"done":false}\n',
 				'\ndata: {"status":"success","completed_bytes":2,"total_bytes":2,"percent":100,"done":true}\n\n',
@@ -594,7 +551,6 @@ describe("API.setup", () => {
 		});
 
 		it("assembles frames when the frame boundary is split byte-by-byte", async () => {
-			// Граница между кадрами разбита по байтам (экстремальный случай):
 			mockFetchSSEWithChunks([
 				'data: {"status":"downloading","completed_bytes":1,"total_bytes":2,"percent":50,"done":false}',
 				"\n",

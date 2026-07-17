@@ -32,22 +32,7 @@ class Review {
 	readonly vacancy: Vacancy | null;
 	readonly isGenerating: boolean;
 	readonly isSubmitting: boolean;
-	/**
-	 * Whether the "Отправить" button should be shown in the footer. Mirrors
-	 * the SUBMIT-event arcs on the backend state machine (letter_ready,
-	 * letter_reviewing, error). ERROR was added on 2026-07-01 to let the
-	 * user re-submit an existing letter after a transient failure without
-	 * a forced LLM regeneration (which is what RETRY does).
-	 */
 	readonly canSubmit: boolean;
-	/**
-	 * Whether the "Сгенерировать заново" (Regenerate) button should be
-	 * shown in the footer. Mirrors the LETTER_GENERATED-event arcs on the
-	 * backend state machine that the UI actually surfaces —
-	 * letter_ready / letter_reviewing / error. Excludes letter_pending
-	 * (that IS a regeneration-in-progress; the footer shows a spinner
-	 * instead) and PARSED (which has its own initial-generate button).
-	 */
 	readonly canRegenerate: boolean;
 	readonly error;
 
@@ -69,16 +54,6 @@ class Review {
 		this.isLoading = $derived(this.applicationStatus.isPending);
 
 		this.isError = $derived(this.applicationStatus.isError);
-		// `reason` is shared by two unrelated failure domains: an LLM
-		// provider error (explainProviderError's target, see provider-error.ts)
-		// and an hh.ru submission failure (e.g. "verification timeout" from
-		// HHRUWriter, which reads just as plausibly as a slow model). Only
-		// translate when the backend says the reason actually came from the
-		// model — `error_domain` is stamped at the transition that produced
-		// `reason` (ApplicationEvent.FAIL vs SUBMISSION_FAILED in
-		// state_machine.py), not guessed from the text here. Otherwise a
-		// failed hh.ru response would be shown to the user as "the model
-		// didn't respond in time" — wrong subsystem entirely.
 		this.error = $derived.by(() => {
 			const reason = this.applicationStatus.data?.reason;
 			if (!reason) return reason;
@@ -105,11 +80,6 @@ class Review {
 		this.vacancy = $derived.by((): Vacancy | null => {
 			const id = this.store.vacancyId;
 			if (id === null) return null;
-			// The sheet is opened from the queue (where the vacancy sits in the
-			// ["vacancies"] cache) and from the archive page (where it does not).
-			// The dedicated query covers both — it seeds itself from that same
-			// cache — but keep the direct lookup as a fallback for callers that
-			// construct the viewmodel without one.
 			const fetched = this.vacancyQuery?.data;
 			if (fetched) return fetched;
 			const cached =
@@ -120,11 +90,6 @@ class Review {
 }
 
 class LetterReviewSheetCoverLetter {
-	/**
-	 * Upper bound on undo history size. Every keystroke pushes a snapshot,
-	 * so a long editing session could otherwise grow unbounded. 500 covers
-	 * a full-page rewrite without hitting the cap in practice.
-	 */
 	private static readonly MAX_HISTORY = 500;
 
 	localText = $state("");
@@ -137,14 +102,6 @@ class LetterReviewSheetCoverLetter {
 	readonly latest: CoverLetter | null;
 	readonly isEditable: boolean;
 	readonly isReadOnly: boolean;
-	/**
-	 * Whether the Save button should be rendered in the footer. Mirrors
-	 * `isEditable` on purpose — if the user can type into the textarea,
-	 * they must have a way to persist the edit. Prior to 2026-07-01 the
-	 * template gated Save on `status ∈ {letter_ready, letter_reviewing}`
-	 * only, silently dropping the button in the ERROR state where the
-	 * textarea is still editable (regression noted by the user).
-	 */
 	readonly showSaveButton: boolean;
 	readonly isDirty: boolean;
 	readonly canUndo: boolean;
@@ -177,13 +134,6 @@ class LetterReviewSheetCoverLetter {
 		this.canRedo = $derived(this.redoStack.length > 0);
 	}
 
-	/**
-	 * Single source of truth for changes to `localText`. Every edit records
-	 * the previous value on the undo stack and drops the redo stack (any
-	 * fresh edit invalidates the redo timeline). Server-driven syncs pass
-	 * `pushHistory: false` and pair the call with `clearHistory()` — Ctrl+Z
-	 * must not step past a version-boundary imposed by the server.
-	 */
 	setText(next: string, opts: { pushHistory?: boolean } = {}): void {
 		const pushHistory = opts.pushHistory ?? true;
 		if (pushHistory && this.localText !== next) {
@@ -196,7 +146,6 @@ class LetterReviewSheetCoverLetter {
 		this.localText = next;
 	}
 
-	/** Pop one snapshot off the undo stack and make it the current value. */
 	undo(): boolean {
 		const prev = this.undoStack.pop();
 		if (prev === undefined) return false;
@@ -205,7 +154,6 @@ class LetterReviewSheetCoverLetter {
 		return true;
 	}
 
-	/** Reverse of undo(): pop the redo stack and re-apply. */
 	redo(): boolean {
 		const next = this.redoStack.pop();
 		if (next === undefined) return false;
@@ -219,12 +167,6 @@ class LetterReviewSheetCoverLetter {
 		this.redoStack = [];
 	}
 
-	/**
-	 * Begin streaming a fresh AI-revised letter into the buffer. The model
-	 * emits the full new letter, so we reset first, then append deltas. These
-	 * bypass the undo stack; once the turn commits, the server bumps the
-	 * version and the buffer-sync effect re-seeds `localText` + clears history.
-	 */
 	streamReset(): void {
 		this.localText = "";
 	}
@@ -234,12 +176,6 @@ class LetterReviewSheetCoverLetter {
 	}
 }
 
-/**
- * The letter-editing conversation. Holds the persisted transcript (query) plus
- * the ephemeral in-flight turn — the optimistic user bubble and the assistant
- * reply as it streams. The view orchestrates the SSE stream and pushes deltas
- * here; on completion it appends the finished turn to the query cache.
- */
 class Chat {
 	input = $state("");
 	isStreaming = $state(false);
@@ -254,11 +190,6 @@ class Chat {
 		private readonly review: Review,
 	) {
 		this.messages = $derived(this.chatQuery.data ?? []);
-		// ERROR is chat-editable alongside letter_ready / letter_reviewing —
-		// the same actionable-error set as canSubmit / canRegenerate / isEditable
-		// (added 2026-07-01). Chatting in ERROR lets the user ask the AI to fix a
-		// failed letter instead of only re-submitting or regenerating it. Mirrors
-		// CHAT_EDITABLE_STATES on the backend, which must stay in sync.
 		this.canChat = $derived(
 			(this.review.status === "letter_ready" ||
 				this.review.status === "letter_reviewing" ||

@@ -5,7 +5,6 @@ import type { SearchHistory, SearchStatus } from "$lib/api/types";
 import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ListSkeleton from "$lib/components/list-skeleton.svelte";
-// noinspection ES6UnusedImports
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Badge } from "$lib/components/ui/badge";
 import { Button } from "$lib/components/ui/button";
@@ -19,12 +18,9 @@ import { toast } from "svelte-sonner";
 
 const queryClient = useQueryClient();
 const historyQuery = query.search.history.create();
-// The current active run (null when idle) — decides whether a re-launch needs
-// the replace-confirm dialog.
 const currentSearch = query.search.vacancies.create();
 const actions = createActions(queryClient).search.vacancies;
 
-// The run awaiting replace confirmation, and in-flight guards.
 let pendingRun = $state<SearchHistory | null>(null);
 let dialogOpen = $state(false);
 let relaunchingId = $state<string | null>(null);
@@ -56,8 +52,6 @@ function statusLabel(status: SearchStatus): string {
 function statusVariant(status: SearchStatus): BadgeVariant {
 	switch (status) {
 		case "exited":
-			// Was "default" — i.e. bg-primary, solid red. A search that finished
-			// cleanly looked exactly like one that blew up.
 			return "success";
 		case "failed":
 			return "destructive";
@@ -65,7 +59,6 @@ function statusVariant(status: SearchStatus): BadgeVariant {
 		case "interrupted":
 			return "ghost";
 		default:
-			// pending / running
 			return "secondary";
 	}
 }
@@ -94,8 +87,6 @@ async function doStart(run: SearchHistory) {
 }
 
 function relaunch(run: SearchHistory) {
-	// A search is already running → confirm replacing it, mirroring the
-	// queue page's "Запустить новый поиск?" flow.
 	if (currentSearch.data) {
 		pendingRun = run;
 		dialogOpen = true;

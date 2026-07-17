@@ -13,9 +13,6 @@ AUTHENTICATED_ROLES = frozenset({"applicant", "employer"})
 
 
 class HHRUAuthFlow:
-    """HH.ru-specific login handling. Wraps a generic BrowserCore and inspects
-    the `hhrole` cookie to decide whether the user is authenticated."""
-
     def __init__(self, browser: BrowserCore) -> None:
         self._browser = browser
         self._log = get_logger(self.__class__.__name__)

@@ -104,9 +104,6 @@ class SearchSession:
         if self._search_task is not None:
             raise SearchAlreadyRunningError()
 
-        # Insert before spawning the task: _run()'s first act is to write RUNNING
-        # onto this row, and SearchHistoryRepository.update() silently no-ops on a
-        # missing row. Racing the INSERT left the run stuck at `pending` in the DB.
         async with self._session_maker() as session:
             self._log.info("Inserting search history into database")
             await SearchHistoryRepository.create(
@@ -184,19 +181,12 @@ class SearchSession:
             max_pages=self._max_pages,
             max_vacancies=self._max_vacancies,
         )
-        # RUNNING before the first navigation: opening the page can already fail,
-        # and `failed`/`canceled` are only reachable from RUNNING. Leaving the
-        # transition until after new_page() stranded a dead search in PENDING —
-        # forever `is_active`, so every later start hit SearchAlreadyRunningError.
         task.state_machine.send(SearchStateEvent.RUN.value)
         search_page: BrowserPage | None = None
         error: str | None = None
 
         try:
             await self._update_search_history(task)
-            # Announce the run immediately. Clients (the История tab) refresh off
-            # search_event; without this they only learn a run exists once the
-            # parse loop emits its first vacancy.
             await self._publish_search_event(task)
             search_page = await self._core.new_page(url=url)
             await self._search_loop(task, search_page)
@@ -225,8 +215,6 @@ class SearchSession:
 
     @staticmethod
     def _describe(exc: Exception) -> str:
-        """A message fit for the История tab: domain errors carry a human-readable
-        `detail`, everything else falls back to its own text."""
         if isinstance(exc, DomainError):
             return exc.detail
         return str(exc) or exc.__class__.__name__

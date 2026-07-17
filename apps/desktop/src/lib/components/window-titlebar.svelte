@@ -9,10 +9,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { platform } from "@tauri-apps/plugin-os";
 import { onMount } from "svelte";
 
-// One JS bundle ships to every OS, so the control layout is decided at runtime.
-// macOS keeps its native traffic lights (titleBarStyle: Overlay) — we render
-// only the brand, inset to clear them. Linux/Windows lose the native frame
-// (decorations: false), so we draw our own minimise / maximise / close.
 const isMac = platform() === "macos";
 
 const appWindow = getCurrentWindow();
@@ -27,8 +23,6 @@ onMount(() => {
 		});
 	};
 	sync();
-	// Fires on every resize, including maximise/unmaximise, so the middle
-	// button's icon stays in step with the actual window state.
 	appWindow.onResized(sync).then((fn) => {
 		unlisten = fn;
 	});
@@ -39,12 +33,6 @@ const controlClass =
 	"text-muted-foreground inline-flex h-9 w-11 items-center justify-center transition-colors [&_svg]:size-4";
 </script>
 
-<!--
-	Full-window chrome: in +layout.svelte this sits above the sidebar+content
-	flex row, spanning the whole window. The bar itself is the drag region;
-	the brand and the buttons sit on top of it and keep their own clicks.
-	Double-click on the empty middle toggles maximise (native gesture).
--->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	data-tauri-drag-region

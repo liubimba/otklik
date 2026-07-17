@@ -25,8 +25,6 @@ async def test_browser_core(tmp_path):
 
 @requires_chromium
 async def test_hhru_auth_flow(tmp_path):
-    """HHRUAuthFlow wraps a BrowserCore and reads the `hhrole` cookie to decide
-    authentication. This test drives it end-to-end against a real Chromium."""
     browser_core: BrowserCore = BrowserCore(profile_dir=tmp_path / "test-profile")
     await browser_core.start()
     auth_flow = HHRUAuthFlow(browser=browser_core)
@@ -47,16 +45,7 @@ async def test_hhru_auth_flow(tmp_path):
         await browser_core.stop()
 
 
-# ─ new_page() retry policy ───────────────────────────────────────────
-#
-# `new_page` promises MAX_ATTEMPTS tries against transient Chromium network
-# failures (net::ERR_NETWORK_CHANGED and friends). These tests drive that
-# promise against a fake BrowserContext — no real Chromium involved.
-
-
 class FakePage:
-    """Stands in for a patchright Page: `goto` fails as scripted, then works."""
-
     def __init__(self, failures: list[Exception | None]) -> None:
         self._failures = failures
         self.closed = False
@@ -74,9 +63,6 @@ class FakePage:
 
 
 class FakeContext:
-    """Hands out a fresh FakePage per new_page() call, each with its own verdict
-    taken from `failures` — index N is what the Nth attempt's goto() raises."""
-
     def __init__(self, failures: list[Exception | None]) -> None:
         self._failures = failures
         self.pages: list[FakePage] = []
@@ -102,8 +88,6 @@ def core(tmp_path, monkeypatch) -> BrowserCore:
 
 
 async def test_new_page_retries_after_a_transient_network_error(core) -> None:
-    """A single ERR_NETWORK_CHANGED must not kill the navigation — the second
-    attempt succeeds and the caller gets a live page."""
     context = FakeContext([_network_error(), None])
     core._context = context  # type: ignore[assignment]
 
@@ -126,8 +110,6 @@ async def test_new_page_gives_up_after_max_attempts(core) -> None:
 
 
 async def test_new_page_does_not_retry_non_playwright_errors(core) -> None:
-    """Only Playwright `Error`s are transient. Anything else is a real bug and
-    must surface unchanged instead of being retried and masked."""
     context = FakeContext([ValueError("boom")])
     core._context = context  # type: ignore[assignment]
 

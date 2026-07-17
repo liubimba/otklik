@@ -12,13 +12,6 @@ SECRETS_FILE_NAME = "secrets.json"
 
 
 class FileSecretStore:
-    """Фолбэк, когда системной связки нет (headless Linux без D-Bus/SecretService).
-
-    Файл ~/.otklik/secrets.json с правами 0600. Это заметно лучше плейнтекста в
-    db.sqlite (его прикладывают к баг-репортам), но это НЕ связка — приложение
-    обязано сказать об этом вслух (см. SecretStorageMode.FILE).
-    """
-
     def __init__(self, path: Path | None = None) -> None:
         self._path = path or (AppPaths().root / SECRETS_FILE_NAME)
         self._log = get_logger(self.__class__.__name__)
@@ -58,10 +51,7 @@ class FileSecretStore:
 
     def _write(self, items: dict[str, Any]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        # os.open с 0o600, а не write_text: файл не должен ни на миг существовать
-        # с правами по умолчанию (umask сделал бы его читаемым для всех).
         fd = os.open(self._path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(items, handle, ensure_ascii=False)
-        # Файл мог существовать раньше с другими правами — приводим к 0600.
         os.chmod(self._path, 0o600)

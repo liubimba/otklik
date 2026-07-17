@@ -30,12 +30,6 @@ def test_vacancies_get_by_id_not_found(client):
     assert response.status_code == 404
 
 
-# ─ GET /vacancies/all ────────────────────────────────────────────────
-#
-# The `client` fixture already seeds vacancy id=1 with no application row.
-# `seeded_applications` adds three more, each in a distinct state.
-
-
 @pytest.fixture
 async def seeded_applications(
     session_factory: async_sessionmaker[AsyncSession],
@@ -57,9 +51,6 @@ async def seeded_applications(
                     employment_types=[],
                 )
             )
-        # VacancyORM and ApplicationORM have no relationship() between them —
-        # only a bare ForeignKey — so a single flush gives no ordering guarantee
-        # and the FK would fail. Land the parents first.
         await session.flush()
 
         for i, state in enumerate(states, start=2):
@@ -67,9 +58,9 @@ async def seeded_applications(
         await session.commit()
 
 
-def test_list_all_returns_envelope_and_null_status(client) -> None:
-    """Also guards the route-ordering trap: "/all" must not be captured by the
-    int-typed GET /{vacancy_id}, which would 422."""
+def test_list_all_returns_envelope_and_null_status_and_is_not_shadowed_by_the_int_id_route(
+    client,
+) -> None:
     response: Response = client.get("/api/v1/vacancies/all")
     assert response.status_code == 200
 
@@ -124,8 +115,6 @@ def test_list_all_filters_by_multiple_statuses(
 def test_list_all_none_filter_matches_missing_and_parsed(
     client, seeded_applications: None
 ) -> None:
-    """«Без отклика» — the two shapes that draw no badge: no application row at
-    all (id=1) and one still sitting in `parsed` (id=2)."""
     response: Response = client.get("/api/v1/vacancies/all?status=none")
     page = VacancyListPageAPISchema.model_validate(response.json())
 
@@ -157,9 +146,6 @@ def test_list_all_paginates_while_total_stays_full(
     assert [item.id for item in second_page.items] == [2, 1]
 
 
-# ─ free-text search ──────────────────────────────────────────────────
-
-
 @pytest.fixture
 async def seeded_searchable(
     session_factory: async_sessionmaker[AsyncSession],
@@ -185,11 +171,9 @@ async def seeded_searchable(
         await session.commit()
 
 
-def test_search_matches_title_case_insensitively(
+def test_search_matches_cyrillic_title_case_insensitively_via_the_py_lower_udf(
     client, seeded_searchable: None
 ) -> None:
-    """SQLite's own lower()/LIKE only fold ASCII, so a Cyrillic query is the
-    real test of the py_lower UDF."""
     response: Response = client.get("/api/v1/vacancies/all?q=РАЗРАБОТЧИК")
     page = VacancyListPageAPISchema.model_validate(response.json())
 
@@ -212,7 +196,6 @@ def test_search_matches_company_and_description(
 
 
 def test_search_ands_words_together(client, seeded_searchable: None) -> None:
-    """«python ozon» narrows; it does not union the two words' matches."""
     response: Response = client.get("/api/v1/vacancies/all?q=python+ozon")
     page = VacancyListPageAPISchema.model_validate(response.json())
 
@@ -231,7 +214,6 @@ def test_search_words_may_match_different_columns(
 def test_search_treats_like_metacharacters_literally(
     client, seeded_searchable: None
 ) -> None:
-    """A bare `%` must not match everything."""
     matched = VacancyListPageAPISchema.model_validate(
         client.get("/api/v1/vacancies/all?q=100%25").json()
     )
@@ -247,20 +229,17 @@ def test_blank_search_is_ignored(client, seeded_searchable: None) -> None:
     page = VacancyListPageAPISchema.model_validate(
         client.get("/api/v1/vacancies/all?q=%20%20").json()
     )
-    assert page.total == 4  # 3 seeded + the fixture's vacancy id=1
+    assert page.total == 4
 
 
 def test_search_and_status_filter_narrow_together(
     client, seeded_applications: None, seeded_searchable: None
 ) -> None:
-    """Ticked chips OR among themselves, but AND with the text query."""
     page = VacancyListPageAPISchema.model_validate(
         client.get("/api/v1/vacancies/all?status=none&q=разработчик").json()
     )
-    # Both searchable vacancies are unapplied, so the chip keeps them...
     assert [item.id for item in page.items] == [11, 10]
 
-    # ...while a chip they cannot satisfy empties the result.
     narrowed = VacancyListPageAPISchema.model_validate(
         client.get("/api/v1/vacancies/all?status=error&q=разработчик").json()
     )
@@ -268,7 +247,6 @@ def test_search_and_status_filter_narrow_together(
 
 
 def test_multiple_status_chips_union(client, seeded_applications: None) -> None:
-    """Checkbox semantics: «Готово» + «Пропущено» shows both, not neither."""
     page = VacancyListPageAPISchema.model_validate(
         client.get("/api/v1/vacancies/all?status=letter_ready&status=none").json()
     )

@@ -15,8 +15,6 @@ from otklik_backend.secrets.store import (
 
 
 class _MemoryBackend(KeyringBackend):
-    """Связка в памяти: настоящую на CI трогать нельзя (нет D-Bus/SecretService)."""
-
     priority = 1  # type: ignore[assignment]
 
     def __init__(self) -> None:
@@ -33,8 +31,6 @@ class _MemoryBackend(KeyringBackend):
 
 
 class _BrokenBackend(KeyringBackend):
-    """Система без связки: любой вызов падает KeyringError."""
-
     priority = 1  # type: ignore[assignment]
 
     def get_password(self, service: str, username: str) -> str | None:
@@ -63,7 +59,7 @@ async def test_keyring_store_round_trips() -> None:
 
 async def test_keyring_store_delete_is_idempotent() -> None:
     store = KeyringSecretStore(backend=_MemoryBackend())
-    await store.delete("never-existed")  # не должно бросать
+    await store.delete("never-existed")
 
 
 async def test_keyring_store_translates_backend_failure() -> None:
@@ -79,7 +75,6 @@ async def test_file_store_round_trips_and_is_private(tmp_path: Path) -> None:
     assert await store.get("acct") is None
     await store.set("acct", "sk-secret")
     assert await store.get("acct") == "sk-secret"
-    # 0600 — файл не должен быть читаем никем, кроме владельца.
     assert path.stat().st_mode & 0o777 == 0o600
     await store.delete("acct")
     assert await store.get("acct") is None
@@ -101,7 +96,7 @@ async def test_file_store_missing_file_reads_as_empty(tmp_path: Path) -> None:
 
 async def test_file_store_delete_is_idempotent(tmp_path: Path) -> None:
     store = FileSecretStore(path=tmp_path / "secrets.json")
-    await store.delete("never-existed")  # не должно бросать
+    await store.delete("never-existed")
 
 
 async def test_factory_falls_back_to_file_without_keychain(tmp_path: Path) -> None:

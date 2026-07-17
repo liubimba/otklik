@@ -36,10 +36,6 @@ async def test_broadcast_carries_model_error_domain_on_fail(
     session_factory: async_sessionmaker[AsyncSession],
     vacancy_model: VacancyAPISchema,
 ) -> None:
-    """LetterPendingWorker transitions via ApplicationEvent.FAIL when the LLM
-    call raises — the ApplicationWSEvent the frontend consumes live must
-    already carry error_domain=MODEL, matching what GET /application returns
-    after a refetch (see test_api_application.py)."""
     app_id = await _seed_application(session_factory, vacancy_model)
     broadcaster = EventBroadcaster()
     state_service = StateTransitionService(broadcaster=broadcaster)
@@ -74,12 +70,6 @@ async def test_broadcast_carries_submission_error_domain_on_submission_failed(
     session_factory: async_sessionmaker[AsyncSession],
     vacancy_model: VacancyAPISchema,
 ) -> None:
-    """CRITICAL regression: LetterSendingWorker transitions via
-    ApplicationEvent.SUBMISSION_FAILED for hh.ru failures (e.g. HHRUWriter's
-    "verification timeout"). The broadcast must tag this as the submission
-    domain — never MODEL — so the letter-review-sheet viewmodel doesn't run
-    it through explainProviderError() and tell the user their model didn't
-    respond when the failure was hh.ru not verifying the response."""
     app_id = await _seed_application(session_factory, vacancy_model)
     broadcaster = EventBroadcaster()
     state_service = StateTransitionService(broadcaster=broadcaster)

@@ -104,11 +104,6 @@ class VacancyORM(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
 
     title: Mapped[str]
-    # Canonical detail-page URL — parser extracts this from the SERP card's
-    # <a href>. It's the URL a human clicks on to open the vacancy, and the
-    # only URL the writer needs: from the detail page the writer clicks the
-    # respond link to enter the response form. There is no separate stored
-    # URL for the form itself (deliberately — see migration c1e5b8f92a04).
     apply_link: Mapped[str] = mapped_column(unique=True, index=True)
     description: Mapped[str]
 
@@ -135,9 +130,6 @@ class ApplicationORM(Base):
     status: Mapped[ProcessingState] = mapped_column(Enum(ProcessingState), index=True)
     retry_count: Mapped[int] = mapped_column(default=0, server_default="0")
     error_message: Mapped[str | None]
-    # Which subsystem produced error_message — set alongside it in
-    # ApplicationRepository.transition, derived from the triggering event
-    # (FAIL vs SUBMISSION_FAILED), never from the message text.
     error_domain: Mapped[ErrorDomain | None] = mapped_column(
         Enum(ErrorDomain), nullable=True
     )
@@ -157,19 +149,11 @@ class CoverLetterORM(Base):
     )
     version: Mapped[int] = mapped_column(default=1, server_default="1")
     text: Mapped[str]
-    # Provenance of this version: "generated" (full AI regenerate),
-    # "manual" (user-typed save), or "chat" (AI chat-driven revision).
     source: Mapped[str] = mapped_column(default="generated", server_default="generated")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
 
 class ChatMessageORM(Base):
-    """One turn in the letter-editing conversation for an application.
-
-    Append-only. `produced_version` links an assistant turn to the
-    `cover_letters.version` it generated (null for a pure answer).
-    """
-
     __tablename__ = "chat_messages"
 
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -30,14 +30,6 @@ export class EventsWebSocket {
 		private readonly onOpen?: () => void,
 		private readonly onDisconnect?: () => void,
 	) {
-		// onOpen/onDisconnect intentionally trail `options` (which carries a
-		// default) — every existing call site passes positionally, so re-ordering
-		// would force a churn edit at each one for no behavioural gain.
-		//
-		// onClose vs onDisconnect: onClose fires ONCE, on an intentional close()
-		// (or after giving up). onDisconnect fires on every UNwanted drop while we
-		// keep retrying — it's the "backend just became unreachable" signal the UI
-		// needs, distinct from "we're shutting the socket down on purpose".
 		this.url = `ws://${BASE_IP}:${BASE_PORT}/ws/events`;
 		this.options = {
 			initialDelay: options.initialDelay ?? 1_000,
@@ -66,16 +58,6 @@ export class EventsWebSocket {
 			`Connecting to ${this.url}${this.attempts > 0 ? ` (attempt #${this.attempts + 1})` : ""}`,
 		);
 
-		// The WebSocket constructor THROWS on a malformed url — and `connect()` is
-		// called from an `$effect` in the root layout, so that throw lands inside
-		// Svelte's mount flush and aborts the scheduler: onMount never runs,
-		// reactivity stops flushing, and SvelteKit's router never initialises, so
-		// every link degrades to a full page load. The app renders, looks alive and
-		// is quietly dead. That is exactly what a missing VITE_BACKEND_IP/PORT did
-		// (`ws://undefined:undefined/ws/events`).
-		//
-		// A connection we cannot open is a degraded backend, not a reason to kill
-		// the UI. Report it and let the caller decide.
 		try {
 			this.ws = new WebSocket(this.url);
 		} catch (error) {
@@ -93,10 +75,6 @@ export class EventsWebSocket {
 		this.ws.onopen = () => {
 			this.logger.info("WebSocket connection established for server events");
 			this.resetBackoff();
-			// Every (re)connect is a real "may have missed events" signal — the
-			// server has no replay buffer, so anything published while we were
-			// down (or during the pre-boot connect race) is simply gone. Give
-			// the caller a chance to resync state that only WS events refresh.
 			this.onOpen?.();
 		};
 		this.ws.onclose = (event) => {
@@ -104,8 +82,6 @@ export class EventsWebSocket {
 				`WebSocket connection closed for server events (code = ${event.code}, wasClosing = ${event.wasClean})`,
 			);
 			if (!this.closed) {
-				// Незапланированный обрыв: бэкенд отвалился. Сообщаем UI (баннер
-				// «нет связи») и уходим в переподключение с backoff.
 				this.onDisconnect?.();
 				this.scheduleReconnect();
 			} else {

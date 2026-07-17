@@ -6,8 +6,6 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from otklik_backend.ai.deployment import LLMDeployment
 
-# ProcessingState canonical location is core/state.py; re-exported here for
-# call-site compatibility until every import is migrated (removed in stage 3.2+).
 from otklik_backend.core.state import ErrorDomain as ErrorDomain
 from otklik_backend.core.state import ProcessingState as ProcessingState
 from otklik_backend.secrets.store import SecretStorageMode
@@ -50,10 +48,6 @@ class VacancyAPISchema(BaseModel):
     id: Optional[int] = None
 
     title: str
-    # See db.models.VacancyORM.apply_link — canonical detail-page URL, the
-    # only URL the writer needs. There is no separate response_link field:
-    # the response form is reached by clicking the respond link on the
-    # detail page, not by a pre-computed URL.
     apply_link: str
     description: str
 
@@ -69,10 +63,6 @@ class VacancyAPISchema(BaseModel):
 
 
 class VacancyStatusFilterAPISchema(str, Enum):
-    """Chip values for the «Все вакансии» filter. Mirrors the badges the card can
-    draw, plus NONE for the two states that draw nothing: a vacancy with no
-    `applications` row at all, and one still in `parsed`."""
-
     NONE = "none"
     LETTER_PENDING = "letter_pending"
     LETTER_READY = "letter_ready"
@@ -84,9 +74,6 @@ class VacancyStatusFilterAPISchema(str, Enum):
 
 
 class VacancyWithStatusAPISchema(VacancyAPISchema):
-    # None = no `applications` row yet. Deliberately not collapsed into
-    # ProcessingState.PARSED — that is a real state (application created, letter
-    # not started), and the wire should not lie about which of the two it is.
     status: Optional[ProcessingState] = None
 
 
@@ -168,9 +155,6 @@ class ApplicationDetailAPISchema(BaseModel):
     retry_count: int
     status: ProcessingState
     reason: Optional[str] = None
-    # Which subsystem produced `reason` — set by the backend at the
-    # transition (FAIL vs SUBMISSION_FAILED), not inferred from the text.
-    # None outside ERROR. See core.state.ErrorDomain.
     error_domain: Optional[ErrorDomain] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -183,8 +167,6 @@ class SubmitApplicationRequestAPISchema(BaseModel):
 
 
 class ApplicationsSummaryAPISchema(BaseModel):
-    """Сводка по заявкам для сайдбара. Одно число вместо списка."""
-
     needs_attention: int
 
 
@@ -215,14 +197,9 @@ class LLMSettingsAPISchema(BaseModel):
 
 
 class LLMDeploymentWriteAPISchema(BaseModel):
-    """Входящая форма — единственная, где есть ключ.
-    has_api_key здесь нет намеренно: клиент не должен уметь соврать про наличие
-    ключа, это вычисляет DeploymentSecretsService.plan()."""
-
     id: Optional[str] = None
     model: str
     api_base: Optional[str] = None
-    # None/отсутствует — не трогаем сохранённый ключ; "" — удаляем; иначе — пишем.
     api_key: Optional[str] = None
 
 
@@ -250,9 +227,6 @@ class SettingsAPISchema(BaseModel):
 
 
 class SettingsWriteAPISchema(BaseModel):
-    """Тело PUT /settings. Отличается от SettingsAPISchema только формой
-    deployments: сюда ключ приходит, оттуда — никогда не уходит."""
-
     search: SearchSettingsAPISchema = Field(default_factory=SearchSettingsAPISchema)
     user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
     llm: LLMSettingsWriteAPISchema = Field(default_factory=LLMSettingsWriteAPISchema)
@@ -329,8 +303,8 @@ class LocalSetupStateAPISchema(BaseModel):
 
 
 class ClaudeModelOption(BaseModel):
-    model: str  # строка для LiteLLM, напр. "claude-code/sonnet"
-    label: str  # подпись для UI, напр. "Claude Sonnet"
+    model: str
+    label: str
 
 
 class ClaudeSetupStateAPISchema(BaseModel):

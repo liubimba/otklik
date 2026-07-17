@@ -22,9 +22,6 @@ from otklik_backend.core.events import SearchWSEvent, VacancyWSEvent
 from tests.conftest import RecordingBroadcaster, wait_until
 
 
-# ─ Fakes ─────────────────────────────────────────────────────────────
-
-
 class FakeBrowserPage:
     def __init__(self, url: str) -> None:
         self._url = url
@@ -53,9 +50,6 @@ class FakeBrowserCore:
 
 
 class UnreachableBrowserCore:
-    """`new_page` always fails — what BrowserCore raises once Chromium has burned
-    through its retries (e.g. net::ERR_NETWORK_CHANGED on every attempt)."""
-
     def __init__(self) -> None:
         self.calls = 0
 
@@ -65,8 +59,6 @@ class UnreachableBrowserCore:
 
 
 class FakeParser:
-    """Возвращает разную пачку вакансий на каждом вызове parse() — имитирует страницы."""
-
     def __init__(self, batches: list[list[VacancyAPISchema]]) -> None:
         self._batches = list(batches)
         self.calls = 0
@@ -83,16 +75,11 @@ class FakeParser:
 
 
 class SlowParser:
-    """Зависает навсегда — для тестов cancel/shutdown."""
-
     async def parse(
         self, search_page: FakeBrowserPage
     ) -> AsyncIterator[VacancyAPISchema]:
         await asyncio.sleep(10)
-        yield _vacancy(0)  # никогда не доходит
-
-
-# ─ Helpers ───────────────────────────────────────────────────────────
+        yield _vacancy(0)
 
 
 def _vacancy(i: int) -> VacancyAPISchema:
@@ -132,9 +119,6 @@ def _make_service(
     )
 
 
-# ─ Tests ─────────────────────────────────────────────────────────────
-
-
 async def test_start_search_persists_and_finishes(
     fake_browser_core: FakeBrowserCore,
     recording_broadcaster: RecordingBroadcaster,
@@ -171,9 +155,6 @@ async def test_publishes_vacancy_new_event_per_parsed_vacancy(
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """SearchService must publish a VacancyWSEvent after each upsert_vacancy.
-    Without it AutoApplyListener never gets triggered and UI VacancyList never
-    refreshes live."""
     parser = FakeParser([[_vacancy(1), _vacancy(2)]])
     svc = _make_service(
         fake_browser_core, parser, recording_broadcaster, session_factory
@@ -245,7 +226,6 @@ async def test_cancel_running_search(
     search_task = await svc.open_search_session(request=_filter())
     search_id = search_task.id
 
-    # Дать таску стартануть (state_machine перешёл в RUNNING)
     await wait_until(
         lambda: search_task.state_machine.current_state_value
         == SearchStatusAPISchema.RUNNING
@@ -253,15 +233,11 @@ async def test_cancel_running_search(
 
     cancelled = await svc.cancel_search_session(search_id=search_id)
     assert cancelled is True
-    # CancelledError → state_machine.send(CANCELED) в except-блоке
     await wait_until(
         lambda: search_task.state_machine.current_state_value
         == SearchStatusAPISchema.CANCELED
     )
 
-    # cancel_search_session clears the single active session, so the task
-    # is no longer findable; the CANCELED terminal state was asserted above
-    # on the held search_task ref (and is broadcast via a search_event).
     assert svc.find_search_task(search_id=search_id) is None
     assert (
         search_task.state_machine.current_state_value == SearchStatusAPISchema.CANCELED
@@ -302,8 +278,6 @@ async def test_started_search_is_announced_before_any_vacancy_is_parsed(
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """The История tab refreshes off `search_event`. Publishing the first one
-    only from the parse loop hid brand-new runs until a vacancy showed up."""
     svc = _make_service(
         fake_browser_core, SlowParser(), recording_broadcaster, session_factory
     )
@@ -330,9 +304,6 @@ async def test_running_search_is_persisted_as_running(
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """The history row is inserted before the task is spawned, so the task's very
-    first status write always finds it — otherwise the run stays `pending` in the
-    DB until the first vacancy re-triggers the update."""
     svc = _make_service(
         fake_browser_core, SlowParser(), recording_broadcaster, session_factory
     )
@@ -353,8 +324,6 @@ async def test_search_fails_cleanly_when_the_page_cannot_be_opened(
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A dead first navigation must terminate the run as FAILED — not leave the
-    task stranded in PENDING with the exception escaping the asyncio task."""
     svc = _make_service(
         UnreachableBrowserCore(),  # type: ignore[arg-type]
         FakeParser([]),
@@ -379,8 +348,6 @@ async def test_failed_search_is_persisted_with_its_error(
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """The `searches` row is what the История tab renders — a failed run has to
-    land there as failed, finished, and with a reason."""
     svc = _make_service(
         UnreachableBrowserCore(),  # type: ignore[arg-type]
         FakeParser([]),
@@ -404,8 +371,6 @@ async def test_failed_search_does_not_block_the_next_one(
     recording_broadcaster: RecordingBroadcaster,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """The bug behind «Запустить заново»: after one failed navigation the stale
-    session stayed active forever, so every later start raised 409."""
     svc = _make_service(
         UnreachableBrowserCore(),  # type: ignore[arg-type]
         FakeParser([]),

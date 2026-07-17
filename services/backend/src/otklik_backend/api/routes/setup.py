@@ -87,17 +87,6 @@ async def setup_claude(claude: ClaudeCodeGateDep) -> ClaudeSetupStateAPISchema:
 
 @setup_router.post("/pull")
 async def setup_pull(ollama: OllamaGateDep) -> StreamingResponse:
-    """Стримит прогресс загрузки модели кадрами SSE — тем же форматом, что и
-    чат письма, поэтому фронтенд читает его уже готовым парсером.
-
-    Ответ коммитится со статусом 200 в момент первого кадра, поэтому упавшую
-    на середине загрузку (нет места, нет сети, битый ответ Ollama) нельзя
-    доставить HTTP-статусом — соединение к тому моменту уже открыто.
-    Доставляем такую ошибку отдельным кадром `error` внутри того же стрима,
-    после чего закрываем его штатно, чтобы полоса прогресса на фронтенде не
-    висела вечно.
-    """
-
     async def frames() -> AsyncIterator[str]:
         try:
             async for progress in ollama.pull():
@@ -105,7 +94,7 @@ async def setup_pull(ollama: OllamaGateDep) -> StreamingResponse:
         except OllamaPullError as exc:
             log.warning("Model pull failed", detail=str(exc))
             yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
-        except Exception as exc:  # noqa: BLE001 — surface any failure to the UI
+        except Exception as exc:  # noqa: BLE001
             log.error("Model pull failed unexpectedly", error=str(exc))
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Model pull failed'})}\n\n"
 
@@ -116,9 +105,6 @@ async def setup_pull(ollama: OllamaGateDep) -> StreamingResponse:
 async def setup_trial(
     runner: BenchmarkRunnerDep, request: TrialRequestAPISchema
 ) -> BenchmarkResult:
-    """Ключ едет в теле запроса и живёт только на время замера — рантайм
-    строит ResolvedDeployment прямо тут, минуя и БД, и SecretStore: пробную
-    модель нельзя ни сохранить, ни осиротить в хранилище."""
     resolved = ResolvedDeployment(
         deployment=LLMDeployment(
             model=request.deployment.model, api_base=request.deployment.api_base
@@ -139,25 +125,11 @@ async def setup_deployment(
     secrets: DeploymentSecretsDep,
     deployment: LLMDeploymentWriteAPISchema,
 ) -> SettingsAPISchema:
-    """Пишет deployment в настройки, делая его основным (index 0). Прежние
-    остаются фолбэками. Совпадение по (model, api_base) — как раньше —
-    поднимает существующую запись в основные, заменяя её новой: это же чинит
-    ротацию ключа, переиспользуя id совпавшей записи (иначе новый ключ ушёл бы
-    под новым id, а старый осиротел бы в хранилище).
-
-    Раннего возврата при «список не изменился» тут нарочно нет (был раньше и
-    убран): с задачи 5, когда ключ уйдёт из LLMDeployment, повторный POST той
-    же модели с новым ключом даёт РАВНЫЕ модели — такая проверка молча
-    отбросила бы новый ключ. Перезапись синглтон-записи дёшева, а эта дыра —
-    нет."""
     current: SettingsORM = await SettingsRepository.get(session=session)
     probe = LLMDeployment(model=deployment.model, api_base=deployment.api_base)
     matched = next((d for d in current.llm_deployments if probe.matches(d)), None)
     rest = [d for d in current.llm_deployments if not probe.matches(d)]
     promoted = deployment.model_copy(update={"id": matched.id if matched else None})
-    # Остальные записи идут в plan() как «не трогать ключ» (api_key отсутствует
-    # — сентинел «оставить как было»), со своим настоящим id, иначе их ключи
-    # были бы приняты за исчезнувшие и удалены из хранилища.
     incoming = [promoted] + [
         LLMDeploymentWriteAPISchema(id=d.id, model=d.model, api_base=d.api_base)
         for d in rest

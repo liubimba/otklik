@@ -1,10 +1,3 @@
-"""Пара «вакансия + резюме» для замера.
-
-Своё резюме пользователь на этом шаге может ещё не ввести (это смежный элемент
-онбординга), а замерять надо на нагрузке, похожей на реальную: длинное описание
-вакансии — это стадия prefill, самая дорогая на CPU. Поэтому пара зашита.
-"""
-
 from otklik_backend.api.schemas import EmploymentType, VacancyAPISchema, WorkFormat
 
 BENCHMARK_VACANCY = VacancyAPISchema(

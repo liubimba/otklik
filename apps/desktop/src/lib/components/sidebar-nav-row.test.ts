@@ -5,10 +5,6 @@ import { describe, expect, it } from "vitest";
 import SidebarNavRow from "./sidebar-nav-row.svelte";
 
 describe("<SidebarNavRow>", () => {
-	// Assert the badge ELEMENT is absent, not that some text is missing: Svelte
-	// renders `null` as an empty text node, so a guard regressed to let `null`
-	// through would still show no digits — and a text-based assertion would sail
-	// straight past it.
 	it("does not render the counter when count is 0", () => {
 		render(SidebarNavRow, {
 			href: "/queue",

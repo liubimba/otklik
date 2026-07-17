@@ -18,7 +18,6 @@ class _DummyEvent(BaseModel):
 
 
 async def _drain(broadcaster: EventBroadcaster) -> None:
-    """Wait for all fire-and-forget delivery tasks to finish."""
     while broadcaster._pending:
         pending = list(broadcaster._pending)
         await asyncio.gather(*pending, return_exceptions=True)
@@ -81,11 +80,6 @@ async def test_unregister_stops_delivery() -> None:
 
 
 async def test_publish_does_not_block_on_slow_subscriber() -> None:
-    """A slow subscriber must not delay publish() for other subscribers
-    or the publisher. publish() needs to return quickly even when one
-    subscriber's callback takes seconds — otherwise the parser stalls
-    on every new vacancy while AutoApply runs the AI pipeline.
-    """
     broadcaster = EventBroadcaster()
     fast_received = asyncio.Event()
     slow_started = asyncio.Event()
@@ -107,13 +101,11 @@ async def test_publish_does_not_block_on_slow_subscriber() -> None:
     assert (
         elapsed < 0.2
     ), f"publish() took {elapsed:.2f}s — subscribers must be fire-and-forget"
-    # Slow callback is still running; we only require the fast one ran promptly.
     await asyncio.wait_for(fast_received.wait(), timeout=0.2)
     assert fast_received.is_set()
 
 
 async def test_publish_continues_when_subscriber_raises() -> None:
-    """If one subscriber raises, others must still receive the event."""
     broadcaster = EventBroadcaster()
     other_received: list[BaseModel] = []
 

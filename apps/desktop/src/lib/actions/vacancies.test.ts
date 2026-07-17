@@ -104,8 +104,6 @@ describe("onSuccess side-effects", () => {
 	it("submit.onSuccess writes ApplicationDetail into the cache via setQueryData", async () => {
 		const client = makeFakeClient();
 		createVacanciesActions(client, 42);
-		// submit is registered first in vacancies.ts (order: submit, save,
-		// generate, retry, skip).
 		const submitCfg = capturedConfigs[0];
 		const result = { status: "letter_sending" };
 		await submitCfg.onSuccess?.(result, { text: "x" }, undefined);

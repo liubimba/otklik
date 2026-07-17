@@ -2,15 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-/**
- * Anchors the domain vocabulary for the letter-review sheet. The hh.ru
- * concept for sending an application is "Отклик" — the button labels used
- * to say "Отправить" / "Отправляем…", which the user flagged as visually
- * inconsistent with the surrounding status/toast text ("Отклик поставлен
- * в очередь", "Отклик отправлен", "Отправляем отклик…"). Unifying
- * everything under "Откликнуться" / "Откликаемся…" avoids the
- * "where's the send button" scan failure.
- */
 const ruPath = path.resolve(__dirname, "../../messages/ru.json");
 const ruMessages = JSON.parse(fs.readFileSync(ruPath, "utf-8")) as Record<
 	string,

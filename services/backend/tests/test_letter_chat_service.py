@@ -1,17 +1,3 @@
-"""Regression for the "revised letter leaks into the chat reply" bug.
-
-Reported 2026-07-06: while chatting, the user asked the AI to edit the letter;
-the AI answered in chat with a whole new letter ("вот обновлённое письмо…") but
-the editor's letter never changed and no new version was stored. Root cause: the
-letter/reply split depended on the model emitting an exact `<<<LETTER>>>` marker,
-and when it drifted and omitted the marker, the entire revision fell into the
-reply channel — so `saw_marker` was False and no version was created.
-
-The fix makes the model return a structured object `{reply, letter}`; the letter
-lives in its own field and cannot leak into the reply. These tests feed the
-service that structured stream and assert the revision is applied.
-"""
-
 from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -28,8 +14,6 @@ REVISED_LETTER = (
 
 
 class _FakeAILayer:
-    """Emits a fixed sequence of streamed content chunks."""
-
     def __init__(self, chunks: list[str]) -> None:
         self._chunks = chunks
 
@@ -101,7 +85,6 @@ async def test_revision_is_applied_not_leaked_into_reply(
 ) -> None:
     await _seed_letter_ready(session_factory)
 
-    # The model's structured revision, streamed across chunk boundaries.
     payload = (
         '{"reply": "Добавил больше деталей про ваш опыт.", '
         f'"letter": "{REVISED_LETTER}"}}'
@@ -110,7 +93,6 @@ async def test_revision_is_applied_not_leaked_into_reply(
 
     events = await _run(session_factory, chunks)
 
-    # The revised letter streamed to the editor, not the chat.
     letter_events = [e for e in events if e["type"] == "letter"]
     reply_events = [e for e in events if e["type"] == "reply"]
     assert letter_events, "revised letter must stream on the letter channel"
@@ -120,7 +102,6 @@ async def test_revision_is_applied_not_leaked_into_reply(
     done = next(e for e in events if e["type"] == "done")
     assert done["version"] is not None, "a revision must create a new letter version"
 
-    # Persisted: a new chat-sourced version + assistant message linked to it.
     async with session_factory() as session:
         latest = await CoverLetterRepository.get_latest_by_application_id(
             session=session, application_id=1
@@ -140,10 +121,6 @@ async def test_revision_is_applied_not_leaked_into_reply(
 async def test_chat_allowed_in_error_state(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    # Regression: ERROR was made actionable (submit/regenerate/save) but chat
-    # stayed blocked — CHAT_EDITABLE_STATES excluded ERROR, so stream_turn
-    # raised LetterChatNotAllowedError. A user with a failed letter must be
-    # able to ask the AI to fix it.
     await _seed_error(session_factory)
 
     payload = (
@@ -151,7 +128,6 @@ async def test_chat_allowed_in_error_state(
     )
     chunks = [payload[i : i + 7] for i in range(0, len(payload), 7)]
 
-    # Must not raise LetterChatNotAllowedError while iterating.
     events = await _run(session_factory, chunks)
 
     done = next(e for e in events if e["type"] == "done")
@@ -168,8 +144,6 @@ async def test_chat_allowed_in_error_state(
 async def test_echoed_unchanged_letter_does_not_create_a_version(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    # Answering a question, the model sometimes re-emits the current letter
-    # verbatim in the `letter` field — that must not spawn a spurious version.
     await _seed_letter_ready(session_factory)
     payload = '{"reply": "Подчеркнул ваши навыки.", "letter": "Старое письмо"}'
     chunks = [payload[i : i + 6] for i in range(0, len(payload), 6)]
@@ -181,7 +155,7 @@ async def test_echoed_unchanged_letter_does_not_create_a_version(
         latest = await CoverLetterRepository.get_latest_by_application_id(
             session=session, application_id=1
         )
-        assert latest is not None and latest.version == 1  # unchanged
+        assert latest is not None and latest.version == 1
 
 
 async def test_question_produces_reply_only_no_version(
@@ -202,32 +176,14 @@ async def test_question_produces_reply_only_no_version(
         latest = await CoverLetterRepository.get_latest_by_application_id(
             session=session, application_id=1
         )
-        assert latest is not None and latest.version == 1  # unchanged
+        assert latest is not None and latest.version == 1
 
 
 async def test_signature_the_user_asked_for_is_preserved(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    # Regression: LetterCleaner used to run on the chat path too, so a
-    # signature the user explicitly asked for ("добавь подпись: С уважением,
-    # Иван Петров") got written by the model and immediately cut back out by
-    # the cleaner — the saved letter matched the old one, no new version was
-    # created, and the reply claimed "added the signature" over an unchanged
-    # letter with no way to escape the loop. Chat is a human-in-the-loop
-    # surface — the user drives the text and sees the result, so nothing
-    # auto-cleans it. Cleaning stays on the unattended first-generation path
-    # only (AILayer.generate_cover_letter).
     await _seed_letter_ready(session_factory)
 
-    # Body long enough that, if LetterCleaner ran on this path, stripping
-    # the signature tail would still leave >= MIN_LETTER_CHARS (120) of
-    # text — the "cleanup would gut the letter, keep the original" safety
-    # net in LetterCleaner.clean() would NOT fire, so the signature would
-    # genuinely get cut. REVISED_LETTER (used elsewhere in this file) is
-    # only ~70 chars — short enough that the safety net alone would save
-    # the signature regardless of whether the cleaner runs, which is why
-    # this regression test used to pass even with LetterCleaner wired back
-    # into the chat path.
     body = (
         "Уважаемый работодатель, я внимательно изучил вашу вакансию и хочу "
         "поделиться, почему эта позиция мне подходит: за последние три года "
@@ -259,11 +215,6 @@ async def test_signature_the_user_asked_for_is_preserved(
 async def test_echoed_letter_with_trailing_newline_does_not_create_a_version(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    # Regression: without the caller's own .strip() on the parsed letter, a
-    # trailing newline the model echoes back would look different from
-    # `current_letter.strip()` below and spawn a spurious version — chat has
-    # no cleaner to normalise it away (see
-    # test_signature_the_user_asked_for_is_preserved).
     await _seed_letter_ready(session_factory)
     payload = '{"reply": "Ничего не меняю.", "letter": "Старое письмо\\n"}'
     chunks = [payload[i : i + 6] for i in range(0, len(payload), 6)]
@@ -276,4 +227,4 @@ async def test_echoed_letter_with_trailing_newline_does_not_create_a_version(
         latest = await CoverLetterRepository.get_latest_by_application_id(
             session=session, application_id=1
         )
-        assert latest is not None and latest.version == 1  # unchanged
+        assert latest is not None and latest.version == 1

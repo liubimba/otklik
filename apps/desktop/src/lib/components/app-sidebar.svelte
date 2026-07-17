@@ -31,25 +31,18 @@ type NavItem = {
 	label: string;
 	icon: typeof IconType;
 	group: NavGroup;
-	/** Какую сводку показывать в счётчике. Без неё плашки нет. */
 	scope?: SummaryScope;
 };
 
 const queryClient = useQueryClient();
 const actions = createActions(queryClient);
 
-// Два разных числа, а не одно. «Все вакансии» показывают всю базу — там счётчик
-// глобальный. «Очередь вакансий» показывает ТОЛЬКО текущий поиск, поэтому её
-// счётчик обязан считать в его границах: иначе после нового поиска плашка звала
-// бы к письмам, которых на этом экране уже нет.
 const summaryAll = query.summary.create("all");
 const summaryLatest = query.summary.create("latest");
 const authQuery = query.auth.create();
 
 const activePath = $derived(page.url.pathname);
 
-// `undefined` (запрос ещё грузится) должно стать `null`, а не 0 — иначе
-// счётчик на миг мигнёт нулём до прихода реальных данных.
 const needsAttention: Record<SummaryScope, number | null> = $derived({
 	all: summaryAll.data === undefined ? null : summaryAll.data.needs_attention,
 	latest:
@@ -58,17 +51,12 @@ const needsAttention: Record<SummaryScope, number | null> = $derived({
 			: summaryLatest.data.needs_attention,
 });
 
-// Статус ячейки: офлайн бьёт всё (баг №2), иначе — ответ auth. Логика и её
-// тесты — в app-sidebar.logic.ts. Это же чинит «вечный скелетон» бага №1:
-// отсутствие данных из-за лежавшего бэкенда больше не читается как «грузится».
 const authStatus = $derived(
 	authCellStatus(connection.isOffline, authQuery.data),
 );
 
 const theme = $derived(mode.current === "dark" ? "dark" : "light");
 
-// Действия авторизации ходят в бэкенд; при лежащем бэкенде они раньше падали
-// молча («ничего не происходит», баг №2). Теперь провал доходит тостом.
 const failToast = (message: string) =>
 	toast.error(m.account_action_failed(), { description: message });
 const onSignIn = () =>
@@ -79,7 +67,6 @@ const onCancelAuth = () =>
 	guardedAuthAction(() => actions.auth.cancel.mutateAsync(), failToast);
 
 const items: NavItem[] = $derived([
-	// Каждая строка считает ровно то, что показывает её экран.
 	{
 		href: "/queue",
 		label: m.nav_queue(),
@@ -114,7 +101,7 @@ const groups = $derived([
 	{ key: "config" as const, items: items.filter((i) => i.group === "config") },
 ]);
 
-const W = 224; // w-56
+const W = 224;
 
 // biome-ignore lint/style/useConst: bind:this reassigns this
 let asideEl = $state<HTMLElement | undefined>(undefined);
@@ -122,7 +109,6 @@ let asideEl = $state<HTMLElement | undefined>(undefined);
 let asideH = $state(0);
 let notch = $state<{ top: number; h: number; left: number } | null>(null);
 
-// Вся математика ниши — здесь, в одном месте. SidebarNotch только рисует.
 function measure() {
 	if (!asideEl) return;
 	const active = asideEl.querySelector<HTMLElement>('a[aria-current="page"]');
@@ -136,15 +122,12 @@ function measure() {
 }
 
 $effect(() => {
-	// Пересчёт при смене раздела и при изменении высоты панели.
 	activePath;
 	asideH;
 	const id = requestAnimationFrame(measure);
 	return () => cancelAnimationFrame(id);
 });
 
-// Шрифты грузятся асинхронно, высоты строк меняются уже после первого кадра —
-// без ResizeObserver ниша встанет не туда и останется там.
 $effect(() => {
 	if (!asideEl) return;
 	const ro = new ResizeObserver(() => measure());
@@ -160,11 +143,6 @@ $effect(() => {
 >
 	<SidebarNotch width={W} height={asideH} {notch} />
 
-	<!--
-		No brand block here. The prototype drew one because it has no titlebar;
-		this app does — WindowTitlebar already carries the mark and the name across
-		the full window width, and a second copy one row below it is just a dupe.
-	-->
 	<div class="relative z-10 flex flex-1 flex-col gap-1 p-3">
 		<nav class="flex flex-1 flex-col gap-4">
 			{#each groups as group (group.key)}

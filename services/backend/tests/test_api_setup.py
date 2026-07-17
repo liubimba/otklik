@@ -10,9 +10,6 @@ from otklik_backend.setup.ollama import OllamaPullError, PullProgress
 
 
 class _FailingPullOllamaGate:
-    """Отдаёт пару кадров прогресса, а потом падает — как реальная Ollama,
-    у которой на середине загрузки кончилось место на диске."""
-
     async def pull(self) -> AsyncIterator[PullProgress]:
         yield PullProgress(
             status="downloading", completed_bytes=1, total_bytes=2, percent=50.0
@@ -28,7 +25,7 @@ def test_setup_state(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["hardware"]["tier"] in {"capable", "weak"}
-    assert payload["ollama"] == "ready"  # FakeOllamaGate из conftest
+    assert payload["ollama"] == "ready"
     assert payload["has_deployment"] is False
     assert payload["local_model"] == "ollama_chat/qwen2.5:7b"
     assert payload["cloud_model"] == "gigachat/GigaChat-2"
@@ -49,8 +46,6 @@ def test_setup_trial_generates_a_letter(client):
 
 
 def test_setup_trial_does_not_persist_the_key(client, fake_secret_store):
-    """Ключ в /trial живёт только на время замера: не должен попасть ни в
-    хранилище, ни в строку настроек."""
     response = client.post(
         "/api/v1/setup/trial",
         json={
@@ -74,9 +69,6 @@ def test_setup_pull_streams_progress(client):
 
 
 def test_setup_pull_delivers_failure_in_band(client):
-    """Ответ уже ушёл со статусом 200 к моменту, когда Ollama падает
-    (нет места на диске) — единственный способ сказать фронтенду об этом
-    без обрыва соединения — кадр ошибки внутри того же стрима."""
     app.dependency_overrides[get_ollama_gate] = lambda: _FailingPullOllamaGate()
     try:
         with client.stream("POST", "/api/v1/setup/pull") as response:
@@ -84,8 +76,6 @@ def test_setup_pull_delivers_failure_in_band(client):
             frames = [
                 line for line in response.iter_lines() if line.startswith("data:")
             ]
-        # Соединение должно закрыться штатно (iter_lines завершается без
-        # исключения), а не оборваться на середине.
     finally:
         del app.dependency_overrides[get_ollama_gate]
 
@@ -118,13 +108,10 @@ def test_setup_deployment_is_idempotent(client):
     response: Response = client.post("/api/v1/setup/deployment", json=body)
     assert response.status_code == 200
     settings = SettingsAPISchema.model_validate(response.json())
-    assert len(settings.llm.deployments) == 1  # дубля нет
+    assert len(settings.llm.deployments) == 1
 
 
 def test_setup_state_ignores_cloud_deployment_without_key(client):
-    """Пресет GigaChat пишется с пустым ключом (см. connectCloud на
-    фронтенде) — им нельзя пользоваться, пока ключ не вставлен в
-    настройках, поэтому мастер не должен считать шаг пройденным."""
     client.post(
         "/api/v1/setup/deployment",
         json=LLMDeploymentWriteAPISchema(model="gigachat/GigaChat-2").model_dump(),
@@ -181,7 +168,6 @@ def test_setup_deployment_makes_the_new_one_primary(client):
     )
     assert second.status_code == 200
     deployments = second.json()["llm"]["deployments"]
-    # новый (локальный) — первым, прежний (облачный) — фолбэком
     assert deployments[0]["model"] == "ollama_chat/qwen2.5:7b"
     assert deployments[1]["model"] == "gigachat/GigaChat-2"
 
@@ -193,7 +179,6 @@ def test_setup_deployment_is_idempotent_and_promotes(client):
         "/api/v1/setup/deployment",
         json={"model": "openai/gpt-4o", "api_key": "k2"},
     )
-    # повторно шлём первый — он должен всплыть в основные, без дубля
     again = client.post("/api/v1/setup/deployment", json=payload)
     deployments = again.json()["llm"]["deployments"]
     models = [d["model"] for d in deployments]
@@ -203,11 +188,6 @@ def test_setup_deployment_is_idempotent_and_promotes(client):
 def test_setup_deployment_rotating_key_replaces_not_duplicates(
     client, fake_secret_store
 ):
-    """Регрессия на удалённый эндшпиль-шорткат: тот же (model, api_base) с
-    новым ключом должен заменить запись и её секрет, а не потеряться из-за
-    «список не изменился» (эта проверка сравнивала целые модели — а с задачи
-    5, когда ключ уйдёт из LLMDeployment, такое сравнение было бы всегда
-    равным при ротации, и новый ключ тихо не долетал бы до хранилища)."""
     payload = {"model": "gigachat/GigaChat-2", "api_base": None}
     first = client.post(
         "/api/v1/setup/deployment", json={**payload, "api_key": "sk-old"}
@@ -224,9 +204,9 @@ def test_setup_deployment_rotating_key_replaces_not_duplicates(
     assert second.status_code == 200
     second_settings = SettingsAPISchema.model_validate(second.json())
 
-    assert len(second_settings.llm.deployments) == 1  # не дубль
+    assert len(second_settings.llm.deployments) == 1
     second_id = second_settings.llm.deployments[0].id
-    assert second_id == first_id  # id переиспользован — не сирота в хранилище
+    assert second_id == first_id
     assert fake_secret_store.items[account_for(second_id)] == "sk-new"
 
 

@@ -78,9 +78,6 @@ async def test_ai_generate_cover_letter(
 async def test_ai_generate_raises_when_router_fails(
     make_ai_layer, vacancy_model: VacancyAPISchema
 ) -> None:
-    """Мёртвая модель роняет саму генерацию (health-ping больше не звонит
-    отдельно) — наружу должна выйти реальная ошибка провайдера, обёрнутая
-    в GenerationCoverLetterError."""
     layer: AILayer = make_ai_layer([_resolved()])
     layer._router.acompletion.side_effect = Exception("connection refused")
     with pytest.raises(GenerationCoverLetterError, match="connection refused"):
@@ -93,8 +90,6 @@ async def test_ai_generate_raises_when_router_fails(
 async def test_generate_cover_letter_makes_a_single_model_call(
     make_ai_layer, vacancy_model: VacancyAPISchema
 ) -> None:
-    """Регрессия: раньше перед каждым письмом шёл health-ping — второй полный
-    вызов модели. На локальной модели он стоил +59 с (гейт, итерация 1)."""
     layer: AILayer = make_ai_layer([_resolved()])
     layer._router.acompletion.return_value = _fake_model_response(
         content="Здравствуйте! " + "Меня заинтересовала ваша вакансия. " * 5

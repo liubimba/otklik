@@ -5,7 +5,6 @@ import CircleAlert from "@lucide/svelte/icons/circle-alert";
 
 interface Props {
 	message: string;
-	/** Omit to render a message with no way forward (rarely what you want). */
 	onRetry?: () => void;
 }
 

@@ -51,9 +51,6 @@ class LetterSendingWorker(Worker):
         self._subscriber: CallbackEventSubscriber | None = None
 
     def start(self) -> None:
-        # Subscribe to ApplicationWSEvent — self-enqueue on LETTER_SENDING.
-        # Callback wraps enqueue in try/except so a broadcaster _deliver
-        # failure never unregisters the worker.
         subscriber = CallbackEventSubscriber.from_callback(
             lambda event: self._on_event(event=event)
         )
@@ -65,9 +62,6 @@ class LetterSendingWorker(Worker):
             self._broadcaster.unregister(self._subscriber)
             self._subscriber = None
 
-    # Marker string for the pause reason set on NOT_AUTHORIZED. Kept as a
-    # class-level constant so the AuthWSEvent auto-resume path can compare
-    # against exactly the same value without a magic string.
     PAUSE_REASON_NOT_AUTHORIZED: str = "not authorized"
 
     async def _on_event(self, event: BaseModel) -> None:
@@ -86,20 +80,9 @@ class LetterSendingWorker(Worker):
             )
 
     def _on_auth_event(self, event: AuthWSEvent) -> None:
-        """Auto-resume when the user re-authenticates.
-
-        The worker pauses itself on `auth_gate → NOT_AUTHORIZED` so a burst
-        of pending applications isn't wholesale-failed while the session is
-        broken. Without this hook the user would have to hit
-        `POST /system/orchestrator/resume` by hand after every re-login,
-        even though the fix (an authorized session) is already visible on
-        the broadcaster.
-        """
         if not self.is_paused():
             return
         if self._pause_reason != self.PAUSE_REASON_NOT_AUTHORIZED:
-            # Captcha pauses and any other cause are handled elsewhere —
-            # do not steal them.
             return
         if not event.data.is_authorized():
             return
@@ -217,14 +200,6 @@ class LetterSendingWorker(Worker):
                 )
                 return
 
-            # Navigate to Vacancy.apply_link — the canonical detail page
-            # where the respond link lives. There is no separate stored
-            # URL for the response form: the writer reaches it by
-            # clicking through the detail page, matching human flow
-            # (better for anti-bot). apply_link is NOT NULL by schema,
-            # so no missing-URL guard is needed; a stale vacancy that no
-            # longer accepts responses is caught downstream by
-            # writer.wait_for_selector on the respond link.
             result: SubmissionResult = await self._writer.submit(
                 vacancy_url=vacancy.apply_link,
                 letter_text=letter.text,
@@ -265,11 +240,6 @@ class LetterSendingWorker(Worker):
         reason: str,
     ) -> None:
         try:
-            # error_message персистится в БД (ApplicationRepository.transition),
-            # reason уходит только в сиюминутный WS-эвент. Без error_message
-            # причина отправки живёт лишь до ближайшего рефетча: баннер
-            # показывает текст по сокету, а после перезагрузки читает пустую
-            # error_message из базы.
             await self._state_service.transition(
                 session=session,
                 application_id=application_id,

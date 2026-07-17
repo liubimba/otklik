@@ -15,24 +15,9 @@ const {
 	count?: number | null;
 } = $props();
 
-// Счётчик показывается ТОЛЬКО когда есть что показать. `null` — данные ещё не
-// пришли; `0` — работы нет. В обоих случаях плашка не рисуется: постоянный ноль
-// это шум, который перестают замечать.
 const showCount = $derived(count !== null && count > 0);
 </script>
 
-<!--
-	Активная строка отодвинута от левого края панели (`ml-4` = 16px).
-
-	Величина не произвольная. Вырез считается от геометрии этой строки, а его
-	левый край зажат клампом в SidebarNotch: `nl = max(CR, left - PAD)`, где
-	CR=18, PAD=4. Пока строка стоит ближе 22px, ниша упирается в кламп и не
-	двигается вовсе — меньший отступ только сжимал бы зазор между строкой и краем
-	дыры, не отодвигая саму дыру. С 16px строка встаёт на 28px, ниша — на 24px,
-	и слева остаётся полоса карточки вместо тонкой кромки.
-
-	Отступ едет вместе с нишей; под `prefers-reduced-motion` оба перескакивают.
--->
 <a
 	{href}
 	aria-current={active ? "page" : undefined}
@@ -43,10 +28,6 @@ const showCount = $derived(count !== null && count > 0);
 	<Icon class="size-[18px] shrink-0" />
 	<span class="min-w-0 flex-1 truncate">{label}</span>
 	{#if showCount}
-		<!--
-			Единственный акцент палитры потрачен на единственный сигнал, зовущий
-			к действию. tabular-nums — чтобы плашка не дёргалась при 9 → 10.
-		-->
 		<span
 			data-testid="nav-row-count"
 			class="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 font-mono text-[11px] leading-none font-medium text-primary-foreground tabular-nums"

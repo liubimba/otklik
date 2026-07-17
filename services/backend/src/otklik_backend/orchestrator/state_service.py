@@ -23,9 +23,6 @@ class StateTransitionService:
         error_message: str | None = None,
         reason: str | None = None,
     ) -> ApplicationORM:
-        # Broadcast is fired via asyncio.create_task in EventBroadcaster; if the
-        # process dies between commit and delivery the event is lost. Recovery
-        # scans on startup are the canonical fix, not a retry loop here.
         application = await ApplicationRepository.transition(
             session=session,
             application_id=application_id,

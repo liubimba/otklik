@@ -45,8 +45,6 @@ const coverLettersHistory = createCoverLettersHistoryQuery(
 const chatMessages = createChatMessagesQuery(
 	() => store.letter.review.vacancyId,
 );
-// The sheet also opens from /vacancies, whose list lives under a different
-// cache key, so the vacancy itself has to be resolvable on its own.
 const vacancyQuery = createVacancyQuery(() => store.letter.review.vacancyId);
 
 const model = lifecycle.letter.review.viewmodel(
@@ -64,9 +62,6 @@ const view = lifecycle.letter.review.view(
 	model,
 );
 
-// The sheet reports progress only through a pulsing dot, a badge and a
-// streaming chat bubble — all silent to a screen reader. Collapse the current
-// phase into one sentence for the polite live region.
 const liveStatus = $derived.by(() => {
 	if (model.review.isGenerating) return m.review_generating_title();
 	if (model.review.isSubmitting) return m.review_sending_status();
@@ -76,11 +71,6 @@ const liveStatus = $derived.by(() => {
 	return "";
 });
 
-// Sync the editor buffer from the ApplicationDetail.latest_letter that
-// the server returns on GET /vacancies/{id}/application (one hit instead
-// of a separate cover_letter fetch). Every server-driven sync resets
-// the undo history — Ctrl+Z must not cross a version boundary and
-// reveal a stale text the user did not type.
 $effect(() => {
 	const id = store.letter.review.vacancyId;
 	const latest = applicationStatus.data?.latest_letter ?? null;
@@ -91,9 +81,6 @@ $effect(() => {
 		model.tab = "letter";
 		return;
 	}
-	// Don't reseed mid-stream: a chat turn writes the revised letter into the
-	// buffer live, and only invalidates the application query on `done`. The
-	// follow-up refetch then reseeds from the new version (idempotent).
 	if (model.chat.isStreaming) return;
 	if (latest && latest.version !== model.cover_letter.lastSyncedVersion) {
 		model.cover_letter.setText(latest.text, { pushHistory: false });
@@ -106,7 +93,6 @@ function handleTextareaKeydown(event: KeyboardEvent) {
 	const isMod = event.ctrlKey || event.metaKey;
 	if (!isMod) return;
 	const key = event.key.toLowerCase();
-	// Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y — redo.
 	if ((key === "z" && event.shiftKey) || key === "y") {
 		if (model.cover_letter.canRedo) {
 			event.preventDefault();
@@ -114,9 +100,6 @@ function handleTextareaKeydown(event: KeyboardEvent) {
 		}
 		return;
 	}
-	// Cmd/Ctrl+Z — undo. The browser's built-in undo stack is wiped
-	// on every programmatic value replacement (initial sync, restore
-	// from history), so we keep our own and swallow the event.
 	if (key === "z") {
 		if (model.cover_letter.canUndo) {
 			event.preventDefault();
@@ -125,7 +108,6 @@ function handleTextareaKeydown(event: KeyboardEvent) {
 	}
 }
 
-// Enter sends the chat message; Shift+Enter inserts a newline.
 function handleChatKeydown(event: KeyboardEvent) {
 	if (event.key === "Enter" && !event.shiftKey) {
 		event.preventDefault();
@@ -135,16 +117,11 @@ function handleChatKeydown(event: KeyboardEvent) {
 	}
 }
 
-// Prefill prompts shown in the empty chat state. Clicking one drops its text
-// into the input (and focuses it) so the panel reads as an interactive chat
-// rather than a dead area; the user still reviews and sends it.
 const chatSuggestions = [
 	m.review_chat_suggestion_shorter(),
 	m.review_chat_suggestion_formal(),
 	m.review_chat_suggestion_experience(),
 ];
-// bind:ref writes this, so Svelte wants $state; biome's useConst would then
-// rewrite it to const, which bind:ref forbids — hence the ignore.
 // biome-ignore lint/style/useConst: bind:ref reassigns this; const breaks the binding
 let chatInputEl = $state<HTMLTextAreaElement | null>(null);
 function applyChatSuggestion(text: string) {
@@ -152,12 +129,6 @@ function applyChatSuggestion(text: string) {
 	chatInputEl?.focus();
 }
 
-// Drag-to-resize state. Width is loaded from localStorage on mount
-// (falling back to SHEET_WIDTH_DEFAULT) and persisted on every commit.
-// Viewport width is tracked reactively so the sheet re-clamps when
-// the Tauri window itself is resized — otherwise a saved 900px sheet
-// would keep its width even when the user shrinks the window to
-// 600px and hide the app behind it.
 let width = $state(SHEET_WIDTH_DEFAULT);
 let viewportWidth = $state(SHEET_WIDTH_DEFAULT * 2);
 let isDragging = $state(false);
@@ -174,8 +145,6 @@ $effect(() => {
 });
 
 function onResizePointerDown(event: PointerEvent) {
-	// Only capture primary button drags — right-click, middle-click,
-	// and touch-scroll gestures must not resize the sheet.
 	if (event.button !== 0) return;
 	event.preventDefault();
 	const target = event.currentTarget as HTMLElement;
@@ -185,8 +154,6 @@ function onResizePointerDown(event: PointerEvent) {
 	isDragging = true;
 
 	function onMove(moveEvent: PointerEvent) {
-		// Sheet lives on the right edge, so a leftward drag (clientX
-		// decreasing) grows the width, and rightward shrinks it.
 		const delta = startX - moveEvent.clientX;
 		width = clampSheetWidth(startWidth + delta, window.innerWidth);
 	}
@@ -197,10 +164,6 @@ function onResizePointerDown(event: PointerEvent) {
 		target.removeEventListener("pointerup", onUp);
 		target.removeEventListener("pointercancel", onUp);
 		isDragging = false;
-		// Persist ONCE per drag, on release. A prior `$effect(() =>
-		// persistSheetWidth(width))` fired on every pointermove
-		// (~60 Hz) — a synchronous localStorage.setItem per frame
-		// dropped drag FPS well below the display refresh rate.
 		persistSheetWidth(width);
 	}
 
@@ -209,15 +172,8 @@ function onResizePointerDown(event: PointerEvent) {
 	target.addEventListener("pointercancel", onUp);
 }
 
-// Vertical split between the letter editor and the AI chat panel. The letter
-// gets an explicit height (draggable); the chat fills whatever is left but
-// keeps a min-height, so a tall letter can never squeeze the chat to 0px
-// (reported bug). `letterHeight` is the raw dragged value; `letterPaneHeight`
-// clamps it against the live container height so both panes stay usable.
 const LETTER_MIN_HEIGHT = 120;
 const CHAT_MIN_HEIGHT = 160;
-// Height taken by the status line, toolbar, resize handle and gaps that sit
-// between the two panes — reserved so the clamp leaves room for them.
 const SPLIT_CHROME = 96;
 let letterHeight = $state(260);
 // biome-ignore lint/style/useConst: reassigned by bind:clientHeight below
@@ -274,14 +230,6 @@ function onChatResizePointerDown(event: PointerEvent) {
         class="flex flex-col gap-0 p-0"
         style="width: {width}px; max-width: {viewportWidth}px;"
     >
-        <!--
-            Drag-to-resize handle on the left edge. Absolutely positioned
-            so it doesn't disturb the flex layout of the sheet body.
-            4px wide (comfortable pointer target) with a slight visual
-            hint on hover / active drag. Uses pointer events (not mouse)
-            so pen / touch also work, and Pointer Capture so the drag
-            keeps updating even when the cursor leaves the strip.
-        -->
         <div
             class="absolute inset-y-0 left-0 z-50 w-1 cursor-ew-resize transition-colors hover:bg-border {isDragging
                 ? 'bg-border'
@@ -299,8 +247,6 @@ function onChatResizePointerDown(event: PointerEvent) {
                         `#${store.letter.review.vacancyId ?? ""}`}
                 </Sheet.Title>
                 {#if model.review.vacancy?.apply_link}
-                    <!-- Open the vacancy on hh.ru in the external browser,
-                         mirroring the queue card's ExternalLink action. -->
                     <a
                         href={model.review.vacancy.apply_link}
                         target="_blank"
@@ -415,12 +361,6 @@ function onChatResizePointerDown(event: PointerEvent) {
                         {/if}
 
                         {#if model.review.status === "error"}
-                            <!--
-                                Single error banner rendered right above the
-                                textarea. Prior to 2026-07-01 the template
-                                duplicated this: one banner at the top of the
-                                content block, one after the status area.
-                            -->
                             <div
                                 class="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
                             >
@@ -429,13 +369,6 @@ function onChatResizePointerDown(event: PointerEvent) {
                             </div>
                         {/if}
 
-                        <!--
-                            Letter editor pane. When the chat is present it has
-                            an explicit, drag-resizable height (`letterPaneHeight`)
-                            and does not grow, so the chat below keeps its
-                            min-height. When there's no chat (sent / skipped) it
-                            just fills the area.
-                        -->
                         <div
                             class="flex min-h-0 flex-col {model.review
                                 .canRegenerate
@@ -464,14 +397,6 @@ function onChatResizePointerDown(event: PointerEvent) {
                             />
                         </div>
 
-                        <!--
-                            Textarea toolbar: dirty/clean hint on the left,
-                            letter meta-actions (Regenerate, Save) as icon
-                            buttons on the right. Kept adjacent to the
-                            textarea on purpose — they act on the letter
-                            content, unlike the footer's Skip / Submit which
-                            act on the application flow.
-                        -->
                         <div
                             class="flex min-h-7 items-center justify-between gap-2"
                         >
@@ -510,20 +435,7 @@ function onChatResizePointerDown(event: PointerEvent) {
                             </div>
                         </div>
 
-                        <!--
-                            AI chat panel: talk to the model to refine the
-                            letter. An instruction ("сделай формальнее")
-                            streams the revised letter into the editor above and
-                            lands a new version; a question just gets an answer.
-                            Lives here (letter tab) because it acts on letter
-                            content, like Regenerate / Save.
-                        -->
                         {#if model.review.canRegenerate}
-                            <!--
-                                Drag handle: resizes the letter/chat vertical
-                                split. cursor-row-resize; the clamp keeps both
-                                panes above their min-heights.
-                            -->
                             <div
                                 class="group -my-1 flex h-3 shrink-0 cursor-row-resize items-center justify-center"
                                 role="separator"
@@ -540,7 +452,6 @@ function onChatResizePointerDown(event: PointerEvent) {
                             <div
                                 class="flex min-h-[160px] flex-1 flex-col gap-2"
                             >
-                                <!-- Always-on label so the region reads as a chat. -->
                                 <div
                                     class="text-muted-foreground flex items-center gap-1.5"
                                 >
@@ -553,11 +464,6 @@ function onChatResizePointerDown(event: PointerEvent) {
                                     class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"
                                 >
                                     {#if model.chat.messages.length === 0 && model.chat.pendingUser === null}
-                                        <!--
-                                            Empty chat: make it obvious you can ask
-                                            the AI to revise the letter. Chips prefill
-                                            the input rather than auto-send.
-                                        -->
                                         <div
                                             class="flex h-full flex-col items-center justify-center gap-2 px-4 text-center"
                                         >
@@ -737,16 +643,6 @@ function onChatResizePointerDown(event: PointerEvent) {
                 <div></div>
                 <Button disabled>{m.review_button_generate()}</Button>
             {:else if model.review.status === "letter_ready" || model.review.status === "letter_reviewing" || model.review.status === "error"}
-                <!--
-                    Footer carries only application-flow actions: Skip
-                    (destructive-terminal, ghost, left) and Submit (primary
-                    CTA, filled, right). Letter meta-actions (Regenerate,
-                    Save) live in the textarea toolbar above — same status
-                    ladder, but associated with the letter content rather
-                    than with the sheet's flow. ERROR ends up here on
-                    purpose: the ERROR → LETTER_SENDING arc lets the user
-                    retry Submit without first going through RETRY.
-                -->
                 <Button variant="ghost" onclick={view.skip}>
                     {m.review_button_skip()}
                 </Button>

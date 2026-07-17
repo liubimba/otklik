@@ -28,12 +28,6 @@ def settings_to_orm(
     schema: SettingsAPISchema | SettingsWriteAPISchema,
     deployments: list[LLMDeployment],
 ) -> SettingsORM:
-    """`deployments` приходит параметром, а не из `schema.llm.deployments` —
-    намеренно. Список для колонки должен быть посчитан
-    DeploymentSecretsService.plan() (с ключами, ушедшими в хранилище, и
-    актуальным has_api_key), а не взят из тела запроса напрямую: иначе
-    неполный/сырой список из запроса тихо стёр бы сохранённые ключи (см.
-    test_settings_update_unrelated_field_keeps_api_key)."""
     return SettingsORM(
         letter_style=schema.llm.letter_style,
         resume_text=schema.llm.resume_text,

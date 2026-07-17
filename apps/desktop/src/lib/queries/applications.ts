@@ -17,11 +17,6 @@ export const coverLettersHistoryQueryKey = (vacancyId: number) =>
 export const chatMessagesQueryKey = (vacancyId: number) =>
 	["chat", vacancyId] as const;
 
-/**
- * Combined application state: status + latest_letter + letters_count in one hit.
- * Replaces the old triple (status / cover_letter / cover_letters) — server
- * now returns the compound shape.
- */
 export function createApplicationQuery(getVacancyId: () => number | null) {
 	return createQuery<ApplicationDetail | null>(() => {
 		const id = getVacancyId();
@@ -34,17 +29,6 @@ export function createApplicationQuery(getVacancyId: () => number | null) {
 	});
 }
 
-/**
- * States for which the backend actually changes letter body / letters
- * history / reason during the transition into that state. Only these
- * warrant a refetch — intermediate ones (letter_pending, letter_sending)
- * flip status but leave latest_letter and letters_count untouched.
- *
- * Filtering here matters at perf level: during an auto-submit burst,
- * one vacancy fires 4-6 transitions in <2 s. Invalidating on every
- * event triggered 8-12 refetches per vacancy, which stormed the query
- * cache and the backend. See `PERF_BASELINE.md` scenario 1.
- */
 const LETTER_CHANGING_STATES = new Set<ProcessingState>([
 	"letter_ready",
 	"letter_sent",
@@ -52,27 +36,6 @@ const LETTER_CHANGING_STATES = new Set<ProcessingState>([
 	"skipped",
 ]);
 
-/**
- * Handle a WS application_event.
- *
- * The event carries only `status`, `reason` and `error_domain` — never
- * letter body or version counts. Behaviour depends on the status:
- *
- * 1. **Cache empty** → invalidate applicationQueryKey. The next observer
- *    will refetch the authoritative state from `/application`. This is
- *    the recovery path for a sheet opened before the Application was
- *    created in the DB (initial GET 404'd).
- *
- * 2. **Cache populated + intermediate status** (letter_pending,
- *    letter_sending) → merge status/reason/error_domain only. No refetch:
- *    those transitions don't change letter body or history on the backend.
- *
- * 3. **Cache populated + letter-changing status** (letter_ready,
- *    letter_sent, error, skipped) → merge for immediate UI update, then
- *    invalidate both queries so latest_letter and the History tab pick
- *    up fresh data. Merge alone wouldn't help — the event carries
- *    neither letter body nor version count.
- */
 export function applyApplicationEvent(
 	queryClient: QueryClient,
 	event: ApplicationEvent,
@@ -95,10 +58,6 @@ export function applyApplicationEvent(
 		}
 		return;
 	}
-	// Empty cache: always refetch the application (sheet opened before
-	// the Application existed in the DB). History is only worth
-	// invalidating if the state can actually add letter versions —
-	// otherwise it stays a spurious refetch during intermediate ticks.
 	queryClient.invalidateQueries({ queryKey: key });
 	if (isLetterChanging) {
 		queryClient.invalidateQueries({ queryKey: historyKey });

@@ -16,26 +16,15 @@ from otklik_backend.setup.constants import CLAUDE_CODE_PREFIX, CLAUDE_CODE_PROVI
 
 log = get_logger(__name__)
 
-# Потолок продуктового пути. Онбординг-триал навешивает свой, более жёсткий
-# дедлайн (asyncio.timeout вокруг всего вызова) — этот страхует steady-state.
 DEFAULT_TIMEOUT_SEC = 180.0
 
-# Дедлайн бездействия для стрима: между двумя последовательными чанками от
-# `claude -p`, а НЕ общий таймаут на весь стрим — иначе долгий, но живой
-# ответ (или медленный потребитель) оборвался бы сам по себе. Оборвать нужно
-# только зависший дочерний процесс, который перестал писать в stdout, не
-# выйдя (letter-edit-chat иначе висит вечно).
 STREAM_IDLE_TIMEOUT_SEC = 120.0
 
 
-class ClaudeCodeError(Exception):
-    """`claude -p` не смог выдать ответ: нет бинарника, не залогинен, ненулевой
-    код возврата, таймаут или нераспарсиваемый вывод."""
+class ClaudeCodeError(Exception): ...
 
 
 def resolve_claude_binary() -> str | None:
-    """Абсолютный путь к CLI `claude`, либо None. Бэкенд запускает Tauri —
-    PATH может быть урезанным, поэтому падаем на известные места установки."""
     found = shutil.which("claude")
     if found:
         return found
@@ -50,16 +39,12 @@ def resolve_claude_binary() -> str | None:
 
 
 def _clean_cwd() -> str:
-    """Каталог без проектного CLAUDE.md / .claude/settings.json — чтобы
-    сервер-спавн `claude -p` не подцепил конфиг репозитория."""
     root = AppPaths().root
     root.mkdir(parents=True, exist_ok=True)
     return str(root)
 
 
 def _clean_env() -> dict[str, str]:
-    """Окружение подпроцесса без ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN —
-    auth только из подписки, ни ключ, ни токен не должны увести CLI с неё."""
     env = dict(os.environ)
     env.pop("ANTHROPIC_API_KEY", None)
     env.pop("ANTHROPIC_AUTH_TOKEN", None)
@@ -67,8 +52,6 @@ def _clean_env() -> dict[str, str]:
 
 
 def _text_of(content: Any) -> str:
-    """Контент сообщения LiteLLM — строка (assistant) или список
-    {type:'text', text:...} (user). Оба уплощаем в текст."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -81,9 +64,6 @@ def _text_of(content: Any) -> str:
 
 
 def _messages_to_prompt(messages: list[dict[str, Any]]) -> tuple[str, str]:
-    """Массив сообщений → (system_prompt, user_prompt) для `claude -p`.
-    Все system-роли — в системный промпт; остальные ходы уплощаем в один
-    текст с маркерами ролей (модель stateless — контекст живёт здесь)."""
     system_parts: list[str] = []
     convo_parts: list[str] = []
     for msg in messages:
@@ -105,11 +85,6 @@ def _strip_prefix(model: str) -> str:
 
 
 class ClaudeCodeLLM(CustomLLM):
-    """LiteLLM-провайдер поверх установленного CLI Claude Code (`claude -p`) на
-    подписке пользователя. Зарегистрирован под провайдером `claude-code`, так
-    что deployment `model='claude-code/<alias>'` идёт через обычный Router
-    AILayer — без ветки в AILayer, с единым фолбэком/стримом."""
-
     def _base_args(
         self, binary: str, model: str, system: str, prompt: str
     ) -> list[str]:
@@ -208,18 +183,12 @@ class ClaudeCodeLLM(CustomLLM):
                 f"failed to spawn `claude` binary at {binary!r}: {exc}"
             ) from exc
         assert proc.stdout is not None
-        # Drain stderr concurrently so a chatty child can't deadlock on a full
-        # pipe buffer while we're only reading stdout below.
         stderr_task: asyncio.Task[bytes] | None = None
         if proc.stderr is not None:
             stderr_task = asyncio.create_task(proc.stderr.read())
         final_usage: dict[str, int] | None = None
         try:
             while True:
-                # Дедлайн — только на ожидание СЛЕДУЮЩЕЙ строки. Он стартует
-                # заново на каждой итерации, поэтому время, потраченное
-                # потребителем между нашими yield'ами, в него не попадает —
-                # только фактический простой самого дочернего процесса.
                 try:
                     raw = await asyncio.wait_for(
                         proc.stdout.readline(), STREAM_IDLE_TIMEOUT_SEC
@@ -235,7 +204,7 @@ class ClaudeCodeLLM(CustomLLM):
                         f"{STREAM_IDLE_TIMEOUT_SEC:.0f}s"
                     ) from exc
                 if not raw:
-                    break  # EOF
+                    break
                 line = raw.decode(errors="replace").strip()
                 if not line:
                     continue
@@ -265,9 +234,6 @@ class ClaudeCodeLLM(CustomLLM):
                         "completion_tokens": out_tok,
                         "total_tokens": in_tok + out_tok,
                     }
-            # stdout hit EOF — reap the process and make sure a mid-stream
-            # death (crash/truncation before a "result" line) surfaces as an
-            # error instead of a fake success chunk.
             await proc.wait()
             stderr_tail = ""
             if stderr_task is not None:
@@ -330,20 +296,6 @@ class ClaudeCodeLLM(CustomLLM):
 
 
 def register_claude_code_provider() -> None:
-    """Идемпотентно регистрирует ClaudeCodeLLM под провайдером `claude-code`,
-    чтобы LiteLLM маршрутизировал `model='claude-code/...'` в него.
-
-    Мало добавить запись в `custom_provider_map` — LiteLLM сверяется не с
-    ним напрямую, а с `litellm.provider_list`/`litellm._custom_providers`,
-    которые синхронизируются из `custom_provider_map` только внутри
-    `custom_llm_setup()`. Обычно эта синхронизация — ленивая: она происходит
-    при первом вызове `completion`/`acompletion` изнутри `function_setup()`.
-    Но `Router.__init__` валидирует модели деплойментов через
-    `get_llm_provider` синхронно, при создании — то есть до первого вызова
-    completion. Без явного вызова `custom_llm_setup()` здесь Router не узнаёт
-    провайдер `claude-code` и падает с `BadRequestError: LLM Provider NOT
-    provided` уже на этапе конструирования, а не при обращении к модели.
-    """
     for item in litellm.custom_provider_map:
         if item.get("provider") == CLAUDE_CODE_PROVIDER:
             return

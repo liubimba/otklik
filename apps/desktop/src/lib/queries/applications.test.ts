@@ -7,11 +7,6 @@ import {
 	coverLettersHistoryQueryKey,
 } from "./applications";
 
-/**
- * Minimal QueryClient stand-in: only setQueryData is exercised by the
- * function under test. Using a fake keeps the test focused on merge
- * semantics — no need for the real client's internal state.
- */
 function makeFakeQueryClient(): {
 	client: QueryClient;
 	updater: {
@@ -115,15 +110,10 @@ describe("applyApplicationEvent", () => {
 			status: "letter_sending",
 			reason: "captcha",
 		});
-		// Sanity: latest_letter and letters_count survive the merge.
 		expect(updater.result?.latest_letter).toEqual(baseDetail.latest_letter);
 		expect(updater.result?.letters_count).toBe(3);
 	});
 
-	// error_domain rides alongside reason so the viewmodel can tell an LLM
-	// failure (FAIL) from an hh.ru submission failure (SUBMISSION_FAILED)
-	// without guessing from the reason text — see
-	// letter-review-sheet.viewmodel.svelte.ts.
 	it("merges error_domain alongside reason", () => {
 		const { client, updater, seed } = makeFakeQueryClient();
 		seed(baseDetail);
@@ -138,22 +128,6 @@ describe("applyApplicationEvent", () => {
 	});
 
 	it("also invalidates letter body + history so latest_letter and versions refresh", () => {
-		/**
-		 * Regression 2026-07-02 (second half): after the first fix let
-		 * the sheet track status transitions, the letter textarea and
-		 * the History tab still showed empty. Cause: the merge path
-		 * only overwrote status/reason. If the first successful GET
-		 * /application landed while the app was still in letter_pending
-		 * (latest_letter=null, letters_count=0), the subsequent
-		 * letter_ready → letter_sending → letter_sent events all
-		 * merged over that stale record, so latest_letter stayed null
-		 * and the separate coverLettersHistoryQuery was never
-		 * invalidated at all.
-		 *
-		 * Fix: every event must invalidate both applicationQueryKey
-		 * (to pull fresh latest_letter) and coverLettersHistoryQueryKey
-		 * (to refresh the versions list).
-		 */
 		const { client, invalidations, seed } = makeFakeQueryClient();
 		seed(baseDetail);
 
@@ -168,20 +142,6 @@ describe("applyApplicationEvent", () => {
 	});
 
 	it("invalidates the query when the cache is empty so the next mount refetches fresh state", () => {
-		/**
-		 * Regression: a user opened the letter-review-sheet for a
-		 * vacancy the AutoApplyListener had not yet processed. The
-		 * first GET /application 404'd, the query cached that failure,
-		 * and subsequent application_event WS messages (letter_pending
-		 * → letter_ready → letter_sending → letter_sent) were silently
-		 * dropped by this function because prev == null. The UI then
-		 * showed the "parsed" fallback with a live Generate button —
-		 * clicking it produced a 409 (state machine had already
-		 * moved to LETTER_SENT). Reported 2026-07-02.
-		 *
-		 * Fix: on an empty cache, force an invalidateQueries so the
-		 * next observer refetches the current status from the backend.
-		 */
 		const { client, updater, invalidations, seed } = makeFakeQueryClient();
 		seed(null);
 
@@ -198,9 +158,6 @@ describe("applyApplicationEvent", () => {
 
 	it("routes updates by vacancy_id in the query key", () => {
 		const { client, updater, seed } = makeFakeQueryClient();
-		// Merge path only runs when a cached entry exists — otherwise the
-		// function invalidates instead of writing. Seed so we hit the
-		// setQueryData branch that this test cares about.
 		seed({ ...baseDetail, vacancy_id: 42 });
 
 		applyApplicationEvent(client, eventFor(42, "skipped"));
@@ -208,11 +165,6 @@ describe("applyApplicationEvent", () => {
 		expect(updater.key).toEqual(applicationQueryKey(42));
 	});
 
-	// Perf-driven filtering: intermediate states (letter_pending,
-	// letter_sending) don't change latest_letter or letters_count on the
-	// backend, so invalidating them just multiplies refetches during an
-	// auto-submit burst without changing any UI. Only status/reason
-	// merge — no HTTP roundtrip.
 	it("does NOT invalidate on letter_pending — no letter body change on the backend", () => {
 		const { client, updater, invalidations, seed } = makeFakeQueryClient();
 		seed(baseDetail);

@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { explainProviderError } from "./provider-error";
 
-/**
- * Pure-function coverage of the three provider-error categories from
- * Task 12, plus the "show it as-is" fallback. Real paraglide messages
- * (not mocked) — this is what letter-review-sheet.viewmodel.test.ts and
- * the toasts in letter-review-sheet.view.svelte.ts actually render.
- */
 describe("explainProviderError", () => {
 	it.each([
 		"connection refused",
@@ -41,10 +35,6 @@ describe("explainProviderError", () => {
 	);
 
 	it("explains a real GigaChat missing-credentials blob, pointing at Настройках → AI", () => {
-		// Реальный текст, снятый с живого прогона: GigaChat-пресет пишется с
-		// пустым ключом, и генерация падает этим многострочным блобом
-		// LiteLLM. Ни "401"/"unauthorized" в нём нет, ни "api key" (там
-		// подчёркивание — GIGACHAT_API_KEY) — существующие хинты его не ловят.
 		const raw =
 			"litellm.APIConnectionError: GigachatException - GigaChat credentials not provided. Set GIGACHAT_CREDENTIALS or GIGACHAT_API_KEY environment variable... Received Model Group=gigachat/GigaChat-2 / Available Model Group Fallbacks=[] / Error doing the fallback: ... LiteLLM Retried: 2 times";
 		expect(explainProviderError(raw)).toContain("Настройках");

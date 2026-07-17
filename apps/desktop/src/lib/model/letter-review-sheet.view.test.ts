@@ -23,11 +23,6 @@ const { createLetterReviewSheetView } = await import(
 	"./letter-review-sheet.view.svelte"
 );
 
-/**
- * Minimal test doubles for the two collaborators the view depends on.
- * We intentionally do NOT spin up a real query client + mutations — this
- * suite is about the view's own control flow (guards, wiring, no-ops).
- */
 function makeActions() {
 	const mutations = {
 		generate: { mutateAsync: vi.fn(async () => ({})) },
@@ -77,9 +72,6 @@ function makeVM(overrides: Partial<CoverLetterVM> = {}): {
 let store: LetterReviewStore;
 beforeEach(() => {
 	store = new LetterReviewStore();
-	// Clear module-level vi.mock spies (toast.success/error) between tests
-	// so a success/failure asserted in one test doesn't bleed into
-	// another's `not.toHaveBeenCalled` guard.
 	vi.clearAllMocks();
 });
 
@@ -159,15 +151,6 @@ describe("view.submit — dirty text is forwarded (atomic dirty-submit)", () => 
 });
 
 describe("view.submit — 409 from paused worker is surfaced, not swallowed", () => {
-	/**
-	 * User-observable half of the "infinite Откликаемся…" bug reported
-	 * 2026-07-02. Backend now returns 409 with a "worker paused (not
-	 * authorized)" reason when the letter-sending worker is stuck on a
-	 * broken auth session. The view must fire toast.error so the user
-	 * learns why nothing is happening — silently swallowing the failure
-	 * would leave the sheet visually identical to a successful submit
-	 * (spinner, then… nothing), which is what the user actually saw.
-	 */
 	it("shows an error toast when the submit mutation rejects", async () => {
 		const actions = makeActions();
 		const authError = new Error("worker paused: not authorized");
@@ -189,8 +172,6 @@ describe("view.submit — 409 from paused worker is surfaced, not swallowed", ()
 		expect(toast.error).toHaveBeenCalledTimes(1);
 		const arg = (toast.error as ReturnType<typeof vi.fn>).mock.calls[0][0];
 		expect(arg).toContain("review_submit_failed");
-		// toast.success must NOT fire on a rejected submit — regression guard
-		// against a naïve refactor that awaits before checking the result.
 		expect(toast.success).not.toHaveBeenCalled();
 	});
 });

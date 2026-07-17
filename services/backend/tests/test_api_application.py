@@ -74,7 +74,6 @@ async def test_save_creates_new_version_without_transition(client, session_facto
     assert letter.text == "Edited draft"
     assert letter.version == 2
 
-    # State did not change (still LETTER_READY, not LETTER_GENERATED).
     detail = ApplicationDetailAPISchema.model_validate(
         client.get("/api/v1/vacancies/1/application").json()
     )
@@ -90,10 +89,6 @@ async def test_save_409_no_application(client):
 
 
 async def test_save_works_in_error_state(client, session_factory):
-    """Regression: the UI keeps the textarea editable in ERROR state so the
-    user can polish the draft after a failed submit / LLM error. The save
-    endpoint must accept the write without a status guard — it does not
-    touch the state machine, only appends a new CoverLetter version."""
     app_id = await _seed_letter_ready(session_factory)
     async with session_factory() as session:
         await ApplicationRepository.transition(
@@ -102,7 +97,6 @@ async def test_save_works_in_error_state(client, session_factory):
             to_state=ApplicationEvent.FAIL,
         )
 
-    # Sanity: we are actually in ERROR.
     detail = ApplicationDetailAPISchema.model_validate(
         client.get("/api/v1/vacancies/1/application").json()
     )
@@ -117,7 +111,6 @@ async def test_save_works_in_error_state(client, session_factory):
     assert letter.text == "Repaired draft"
     assert letter.version == 2
 
-    # Status stays ERROR — save does NOT move the state machine.
     after = ApplicationDetailAPISchema.model_validate(
         client.get("/api/v1/vacancies/1/application").json()
     )
@@ -127,10 +120,6 @@ async def test_save_works_in_error_state(client, session_factory):
 
 
 async def test_fail_transition_tags_error_domain_as_model(client, session_factory):
-    """LetterPendingWorker fails an application via ApplicationEvent.FAIL when
-    the LLM call raises. GET /application must report error_domain=MODEL so
-    the frontend knows this `reason` is safe to run through
-    explainProviderError()."""
     app_id = await _seed_letter_ready(session_factory)
     async with session_factory() as session:
         await ApplicationRepository.transition(
@@ -151,16 +140,8 @@ async def test_fail_transition_tags_error_domain_as_model(client, session_factor
 async def test_submission_failed_transition_tags_error_domain_as_submission(
     client, session_factory
 ):
-    """CRITICAL regression (code review of Task 12): LetterSendingWorker
-    fails an application via ApplicationEvent.SUBMISSION_FAILED on an hh.ru
-    submission problem (e.g. HHRUWriter's "verification timeout" after the
-    success-phrase poll times out). GET /application must report
-    error_domain=SUBMISSION — never MODEL — so the letter-review-sheet
-    viewmodel shows the raw hh.ru reason instead of explaining it as a dead
-    LLM (`explainProviderError` is gated on error_domain === "model")."""
     app_id = await _seed_letter_ready(session_factory)
     async with session_factory() as session:
-        # SUBMISSION_FAILED only fires from LETTER_SENDING.
         await ApplicationRepository.transition(
             session=session,
             application_id=app_id,
@@ -184,8 +165,6 @@ async def test_submission_failed_transition_tags_error_domain_as_submission(
 async def test_error_domain_clears_when_recovering_out_of_error(
     client, session_factory
 ):
-    """error_domain must not linger once the application leaves ERROR —
-    otherwise a later, unrelated failure could inherit a stale domain."""
     app_id = await _seed_letter_ready(session_factory)
     async with session_factory() as session:
         await ApplicationRepository.transition(
@@ -246,10 +225,6 @@ async def test_submit_404_when_vacancy_missing(client):
 async def test_submit_from_error_state_transitions_and_saves_text(
     client, session_factory
 ):
-    """The UI collapses the error-state Retry button into Submit — a failed
-    submit should be re-attempted without a forced LLM regeneration. This
-    exercises the ERROR → LETTER_SENDING arc added to the state machine,
-    plus the atomic dirty-submit path (text saved before the transition)."""
     app_id = await _seed_letter_ready(session_factory)
     async with session_factory() as session:
         await ApplicationRepository.transition(
@@ -258,7 +233,6 @@ async def test_submit_from_error_state_transitions_and_saves_text(
             to_state=ApplicationEvent.FAIL,
         )
 
-    # Sanity: we're actually in ERROR.
     detail = ApplicationDetailAPISchema.model_validate(
         client.get("/api/v1/vacancies/1/application").json()
     )
@@ -280,20 +254,6 @@ async def test_submit_from_error_state_transitions_and_saves_text(
 async def test_generate_returns_immediately_with_letter_pending_status(
     client, session_factory, ai_layer_with_router
 ):
-    """Regression 2026-07-02: POST /application/generate used to block on
-    the LLM synchronously (2-3s) and return with status=letter_ready.
-    Because the intermediate LETTER_PENDING transient was too short to
-    catch a WS refetch, the UI never saw it and no spinner was rendered
-    during regeneration — the user reported the sheet stayed on the
-    "letter ready" view even while the LLM was running.
-
-    Fix: the endpoint only fires the state-machine transition to
-    LETTER_PENDING, then returns the ApplicationDetail immediately.
-    LetterPendingWorker picks up the resulting ApplicationWSEvent and
-    runs the LLM in the background. From the client's point of view,
-    the status is LETTER_PENDING durably for the entire generation
-    span, and the spinner is visible until letter_ready arrives.
-    """
     from tests.test_ai import _fake_model_response
 
     ai_layer_with_router._router.acompletion.return_value = _fake_model_response(
@@ -310,24 +270,16 @@ async def test_generate_returns_immediately_with_letter_pending_status(
 
     response: Response = client.post("/api/v1/vacancies/1/application/generate")
 
-    # Response body must be an ApplicationDetail-shaped payload, not the
-    # AICoverLetterResult it used to return.
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["status"] == ProcessingState.LETTER_PENDING.value, body
 
-    # AI Layer must NOT have been driven from the handler — the worker
-    # owns that call now. Guards against a partial refactor that flips
-    # the response type but keeps the sync LLM call.
     assert ai_layer_with_router._router.acompletion.await_count == 0
 
 
 async def test_generate_returns_409_when_application_is_terminal(
     client, session_factory, ai_layer_with_router
 ):
-    """Regression: /generate crashed with 500 on any TransitionNotAllowed.
-    Wrap the call so terminal / in-flight states (LETTER_SENT here) get
-    409 instead of a stack trace."""
     from tests.test_ai import _fake_model_response
 
     ai_layer_with_router._router.acompletion.return_value = _fake_model_response(
@@ -336,7 +288,6 @@ async def test_generate_returns_409_when_application_is_terminal(
 
     app_id = await _seed_letter_ready(session_factory)
     async with session_factory() as session:
-        # Walk the state machine into LETTER_SENT (terminal-ish).
         await ApplicationRepository.transition(
             session=session, application_id=app_id, to_state=ApplicationEvent.SUBMIT
         )
@@ -354,9 +305,6 @@ async def test_generate_returns_409_when_application_is_terminal(
 async def test_submit_from_error_without_text_reuses_existing_letter(
     client, session_factory
 ):
-    """Same transition, but the client did not send `text` — the existing
-    latest letter is used verbatim. Confirms the endpoint doesn't require
-    a body override to move ERROR → LETTER_SENDING."""
     app_id = await _seed_letter_ready(session_factory)
     async with session_factory() as session:
         await ApplicationRepository.transition(
@@ -379,18 +327,6 @@ async def test_submit_from_error_without_text_reuses_existing_letter(
 async def test_submit_returns_409_when_worker_is_paused_for_auth(
     client, session_factory, fake_orchestrator
 ):
-    """Regression: after a first Submit that landed in NOT_AUTHORIZED and
-    paused the LetterSendingWorker, the API used to happily accept a second
-    Submit — the state machine still allowed ERROR → LETTER_SENDING and
-    the endpoint did not know about the worker's pause state. Result: the
-    application sat in LETTER_SENDING forever (the worker was still
-    blocked on `_resume_event.wait()` because no AuthWSEvent(authorized)
-    had arrived yet), which the UI reads as an infinite "Откликаемся…"
-    spinner (reported by user 2026-07-02).
-
-    The fix must propagate the worker pause state to the client via 409
-    so the UI can surface a re-auth prompt instead of hanging.
-    """
     app_id = await _seed_letter_ready(session_factory)
     async with session_factory() as session:
         await ApplicationRepository.transition(
@@ -402,7 +338,6 @@ async def test_submit_returns_409_when_worker_is_paused_for_auth(
         reason=fake_orchestrator.PAUSE_REASON_NOT_AUTHORIZED,
     )
 
-    # Sanity: preconditions of the bug scenario.
     detail_before = ApplicationDetailAPISchema.model_validate(
         client.get("/api/v1/vacancies/1/application").json()
     )
@@ -414,8 +349,6 @@ async def test_submit_returns_409_when_worker_is_paused_for_auth(
         json=SubmitApplicationRequestAPISchema().model_dump(),
     )
 
-    # After fix: request is refused with 409, application stays in ERROR
-    # and the response body carries the pause reason so the UI can react.
     assert response.status_code == 409, response.text
     assert "authorized" in response.json()["detail"].lower()
 

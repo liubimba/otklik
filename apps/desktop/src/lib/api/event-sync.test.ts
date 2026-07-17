@@ -10,7 +10,6 @@ function client(): QueryClient {
 }
 
 beforeEach(() => {
-	// connection — синглтон; вернём в исходное между тестами через реальные переходы.
 	connection.online();
 });
 

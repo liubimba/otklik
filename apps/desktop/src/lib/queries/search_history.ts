@@ -12,10 +12,6 @@ export function createSearchHistoryQuery() {
 	}));
 }
 
-// A running search continuously mutates its `searches` row (status, counts,
-// finished_at), so any `search_event` may have changed the history list —
-// refetch it. Cheap: the list only re-fetches while the /history page keeps
-// the query mounted.
 export function applySearchHistoryEvent(
 	queryClient: QueryClient,
 	_event: SearchEvent,

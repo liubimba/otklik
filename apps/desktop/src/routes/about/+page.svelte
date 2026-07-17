@@ -11,9 +11,6 @@ import { getVersion } from "@tauri-apps/api/app";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
 
-// The running app's version comes from tauri.conf.json via getVersion(). It's
-// only resolvable inside the Tauri runtime, so it's read once on mount and left
-// blank if unavailable (e.g. a plain browser preview).
 let version = $state("");
 onMount(async () => {
 	try {
@@ -33,7 +30,7 @@ const steps = [
 
 async function checkUpdates() {
 	const found = await updater.check();
-	if (found) return; // the update dialog shows itself
+	if (found) return;
 	if (updater.error) {
 		toast.error(m.update_check_failed({ error: updater.error }));
 	} else {
@@ -79,7 +76,6 @@ async function checkUpdates() {
 		</ol>
 	</section>
 
-	<!-- Warning box, reusing the onboarding disclaimer strings. -->
 	<section
 		class="border-destructive/30 bg-destructive/10 space-y-2 rounded-lg border p-5"
 	>

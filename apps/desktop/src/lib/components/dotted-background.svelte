@@ -1,9 +1,6 @@
 <script lang="ts">
 import { onMount } from "svelte";
 
-// Animated dotted canvas. Dots cluster toward the cursor — a "black-hole"
-// gravitational-well effect. Replaces the static `bg-dotted` utility.
-// Dot colour is the existing `--border` token (adapts to the theme).
 const { dark = false }: { dark?: boolean } = $props();
 
 let canvas: HTMLCanvasElement;
@@ -17,20 +14,15 @@ function readDotColor() {
 }
 
 onMount(() => {
-	// Null only when the canvas already holds a different context type, which
-	// cannot happen here — but biome forbids `!`, and bailing out is the honest
-	// response anyway. The re-binding is not ceremony: TypeScript drops the
-	// narrowing inside the hoisted `frame`/`resize` declarations below, so `ctx`
-	// has to *be* non-nullable rather than merely be narrowed.
 	const context = canvas.getContext("2d");
 	if (context === null) return;
 	const ctx: CanvasRenderingContext2D = context;
 
-	const SPACING = 18; // grid step, matches the old bg-dotted
-	const DOT = 1.1; // base dot radius
-	const RADIUS = 190; // cursor influence radius (px)
+	const SPACING = 18;
+	const DOT = 1.1;
+	const RADIUS = 190;
 	const R2 = RADIUS * RADIUS;
-	const PULL = 64; // max displacement toward the cursor (px)
+	const PULL = 64;
 
 	const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 	const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -146,7 +138,6 @@ onMount(() => {
 	};
 });
 
-// Re-read the theme-dependent dot colour when the theme flips.
 $effect(() => {
 	dark;
 	requestAnimationFrame(readDotColor);

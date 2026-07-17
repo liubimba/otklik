@@ -27,8 +27,6 @@ describe("clampSheetWidth", () => {
 	});
 
 	it("clamps floor even when the viewport is smaller than MIN + RESERVED", () => {
-		// Tiny viewport (e.g. Tauri window shrunken to 400px). We still
-		// want the sheet to be usable, so MIN wins over viewport - reserved.
 		expect(clampSheetWidth(600, 500)).toBe(SHEET_WIDTH_MIN);
 	});
 
@@ -64,7 +62,6 @@ describe("readPersistedSheetWidth / persistSheetWidth", () => {
 	});
 
 	it("clamps a persisted width that no longer fits the current viewport", () => {
-		// User saved 900 on a wide monitor, opens on a laptop later.
 		persistSheetWidth(900);
 		expect(readPersistedSheetWidth(800)).toBe(800 - RESERVED_APP_CHROME);
 	});

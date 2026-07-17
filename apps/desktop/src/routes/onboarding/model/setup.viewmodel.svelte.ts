@@ -9,15 +9,6 @@ const logger = getLogger("SetupViewModel");
 
 export type SetupPath = "choose" | "local" | "cloud" | "claude";
 
-/**
- * Верхний уровень онбординга модели: развилка «локальная / облачная». Обе
- * ветки — самостоятельные машины состояний (LocalFlow/CloudFlow); здесь только
- * выбор пути и передача колбэка синхронизации кэша Настроек в обе ветки.
- *
- * Экран выбора показывается всегда — даже когда deployment уже настроен: смена
- * модели — законный сценарий, а не тупик. `has_deployment` идёт только на бейдж
- * «Сейчас: …», а не на авто-прыжок в done.
- */
 export class SetupViewModel {
 	#path = $state<SetupPath>("choose");
 	#hardwareWeak = $state(false);
@@ -50,7 +41,6 @@ export class SetupViewModel {
 		try {
 			const state = await API.setup.state();
 			this.#hardwareWeak = state.hardware.tier === "weak";
-			// «Сейчас: …» показываем, только если модель реально настроена.
 			this.#currentModel = state.has_deployment ? state.local_model : null;
 			this.#claudeAvailable = state.claude_available;
 		} catch (error) {

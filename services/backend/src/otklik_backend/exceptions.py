@@ -1,8 +1,3 @@
-# Re-export shim: canonical location for the exception hierarchy is
-# core/exceptions.py. ServerError kept as an alias so pre-refactor call
-# sites (routes, services) continue to work; the app-level exception
-# handler in api/errors.py is registered against DomainError, which
-# ServerError is now a subclass of.
 from otklik_backend.core.exceptions import (
     ConflictError,
     DomainError,

@@ -14,13 +14,12 @@ async def test_no_events_passes(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        await RateLimitRepository.ensure_within_limits(session=session)  # не падает
+        await RateLimitRepository.ensure_within_limits(session=session)
 
 
 async def test_under_hourly_limit_passes(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    # default hourly_limit = 5 → 4 события безопасны
     async with session_factory() as session:
         for _ in range(4):
             await RateLimitRepository.log_submission(session=session)

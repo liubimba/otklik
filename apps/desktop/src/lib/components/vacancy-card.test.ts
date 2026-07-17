@@ -3,11 +3,6 @@ import { render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The card reads its application status via createApplicationQuery, which needs
-// a QueryClient context. Stub it — the query never resolves, so any badge that
-// renders must have come from the `status` prop. `lastVacancyIdGetter` captures
-// the getter so tests can assert the query is disabled (null id) when the prop
-// supplies the status.
 const stub = vi.hoisted(() => ({
 	lastVacancyIdGetter: null as (() => number | null) | null,
 }));
@@ -70,7 +65,6 @@ describe("<VacancyCard>", () => {
 			}),
 		});
 		expect(screen.queryByText("Yandex")).not.toBeInTheDocument();
-		// No <p> siblings apart from the heading
 		expect(screen.queryAllByRole("paragraph")).toEqual([]);
 	});
 
@@ -149,7 +143,6 @@ describe("<VacancyCard> — status prop", () => {
 		render(VacancyCard, { vacancy: vacancy(), status: "letter_sent" });
 
 		expect(screen.getByText("Отправлено")).toBeInTheDocument();
-		// A null id is how createApplicationQuery disables itself.
 		expect(stub.lastVacancyIdGetter?.()).toBeNull();
 	});
 

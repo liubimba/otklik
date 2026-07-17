@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * @tauri-apps/plugin-fs calls window.__TAURI_INTERNALS__ at import time. Stub
- * every export we touch so consent.ts can run in Node.
- */
 const fsMock = vi.hoisted(() => ({
 	exists: vi.fn(),
 	mkdir: vi.fn(),
@@ -135,7 +131,6 @@ describe("saveConsent", () => {
 		const parsed = JSON.parse(payload as string);
 		expect(parsed.consentGiven).toBe(false);
 		expect(parsed.termsVersion).toBe(TERMS_VERSION);
-		// acceptedAt is a valid ISO string
 		expect(() =>
 			new Date(parsed.acceptedAt as string).toISOString(),
 		).not.toThrow();

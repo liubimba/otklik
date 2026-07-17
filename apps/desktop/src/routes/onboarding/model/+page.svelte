@@ -26,9 +26,6 @@ import { SetupViewModel } from "./setup.viewmodel.svelte";
 
 const OLLAMA_DOWNLOAD_URL = "https://ollama.com/download";
 
-// Мастер пишет deployment мимо формы Настроек, поэтому кэш ["settings"]
-// (staleTime: Infinity) надо обновить руками его же ответом — иначе в
-// Настройках модель не появится до перезапуска приложения.
 const queryClient = useQueryClient();
 const vm = new SetupViewModel((settings) =>
 	queryClient.setQueryData(query.settings.key, settings),
@@ -36,14 +33,9 @@ const vm = new SetupViewModel((settings) =>
 
 onMount(() => vm.init());
 
-// Тут пользователь как раз отдаёт ключ — честный момент сказать, куда он
-// ляжет, если системной связки нет (см. предупреждение в /settings).
 const secretStorage = query.secret_storage.create();
 const insecureStorage = $derived(secretStorage.data?.mode === "file");
 
-// Ключ и признак «облако прошло» живут на странице, а не в машине: submitKey
-// уже вернул true и записал deployment — флаг лишь переключает вид на общий
-// экран «Готово», не трогая состояние CloudFlow (там так и остаётся "trial").
 let keyInput = $state("");
 let cloudDone = $state(false);
 let claudeDone = $state(false);
@@ -53,7 +45,6 @@ async function goLocal(): Promise<void> {
 }
 
 async function goCloud(): Promise<void> {
-	// Повторный вход в облако не должен унаследовать «done» от прошлой попытки.
 	cloudDone = false;
 	keyInput = "";
 	await vm.chooseCloud();
@@ -64,8 +55,6 @@ async function checkKey(): Promise<void> {
 }
 
 async function goClaude(): Promise<void> {
-	// Тот же принцип, что и у goCloud: заново войдя в ветку, не наследуем
-	// «done» от прошлой попытки — ClaudeFlow сам приземлится на нужный экран.
 	claudeDone = false;
 	await vm.chooseClaude();
 }
@@ -74,27 +63,17 @@ async function runClaudeTrial(): Promise<void> {
 	if (await vm.claude.runTrial()) claudeDone = true;
 }
 
-// Письмо — общий для всех веток артефакт: локальный замер, облачный trial
-// или пробное письмо Claude, смотря какой путь довёл до «Готово».
 const letter = $derived(vm.local.letter ?? vm.cloud.letter ?? vm.claude.letter);
 
-// «Готово» — это не отдельный path, а терминальный экран внутри ветки:
-// локальная машина доходит до screen==="done", облачная и Claude — до
-// успешного trial'а (cloudDone/claudeDone), при котором сама машина
-// остаётся на "trial".
 const isDone = $derived(
 	(vm.path === "local" && vm.local.screen === "done") ||
 		(vm.path === "cloud" && cloudDone) ||
 		(vm.path === "claude" && claudeDone),
 );
 
-// Проценты и секунды приходят дробными — округляем один раз здесь, чтобы
-// цифра в тексте и ширина полосы не разъезжались.
 const percent = $derived(Math.round(vm.local.percent));
 const seconds = $derived(Math.round(vm.local.seconds));
 
-// Экран сам ничего не решает — вся логика в машинах. Прогресс шага озвучивается
-// ридеру через <LiveStatus>: смена состояния видна глазами, но не слышна иначе.
 const liveStatus = $derived.by(() => {
 	if (isDone) return m.setup_done_title();
 	if (vm.path === "choose") return m.setup_choose_title();
@@ -153,11 +132,6 @@ const liveStatus = $derived.by(() => {
         <p class="text-muted-foreground font-mono text-xs uppercase tracking-wide">
             {m.setup_title()}
         </p>
-        <!--
-            «Назад» уводит к развилке, а не назад по истории браузера: внутри
-            ветки идти «на шаг раньше» некуда — машина состояний не хранит стек.
-            На choose кнопки нет (уходить некуда), на done — тоже (шаг завершён).
-        -->
         {#if vm.path !== "choose" && !isDone}
             <Button
                     variant="ghost"
@@ -174,11 +148,6 @@ const liveStatus = $derived.by(() => {
     <LiveStatus text={liveStatus}/>
 
     {#if isDone}
-        <!--
-            Общий финал обеих веток. Письмо — главный экран онбординга: обещание
-            продукта здесь доказывается, а не декларируется, поэтому оно на виду
-            целиком, а не спрятано за кнопкой «показать».
-        -->
         <section class="bg-card space-y-4 rounded-lg border p-6 shadow-[var(--elevation-1)]">
             <div class="flex items-start gap-3">
                 <CircleCheck class="text-primary size-5 shrink-0"/>
@@ -214,10 +183,6 @@ const liveStatus = $derived.by(() => {
         </section>
 
     {:else if vm.path === "choose"}
-        <!--
-            Развилка: обе карточки равноправны, ни одна не «правильная». Клик по
-            всей карточке (не только по кнопке) — цель крупнее 44px и очевиднее.
-        -->
         <section class="space-y-4">
             <div class="space-y-1">
                 <h1 class="text-lg font-semibold">{m.setup_choose_title()}</h1>
@@ -278,12 +243,6 @@ const liveStatus = $derived.by(() => {
         </section>
 
     {:else if vm.path === "claude"}
-        <!--
-            Отдельная ветка, не общий {:else}-контейнер ниже: у Claude свой
-            «Назад» в шапке экрана уже есть общий (см. header выше), здесь же
-            нужен собственный набор экранов детекта CLI → выбор модели → trial,
-            не пересекающийся с local/cloud switch'ами.
-        -->
         <section class="bg-card space-y-4 rounded-lg border p-6 shadow-[var(--elevation-1)]">
             {#if vm.claude.screen === "checking"}
                 <div class="flex items-center gap-3">
@@ -300,10 +259,6 @@ const liveStatus = $derived.by(() => {
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <!--
-                        Установка Claude Code — вне приложения, поэтому ссылка —
-                        настоящий <a>: opener открывает её в системном браузере.
-                    -->
                     <a
                             href="https://claude.com/product/claude-code"
                             target="_blank"
@@ -350,10 +305,6 @@ const liveStatus = $derived.by(() => {
                         {m.setup_error({ error: vm.claude.errorMessage })}
                     </p>
                 {/if}
-                <!--
-                    disabled на isSubmitting запирает второй сабмит поверх
-                    идущего trial'а — тот же приём, что у облачной ветки.
-                -->
                 <Button class="cursor-pointer" disabled={vm.claude.isSubmitting} onclick={runClaudeTrial}>
                     {m.setup_claude_run_trial()}
                 </Button>
@@ -378,10 +329,6 @@ const liveStatus = $derived.by(() => {
         </section>
 
     {:else}
-        <!--
-            Один контейнер на все экраны ветки: карточка не «прыгает» между
-            состояниями шага, меняется только её содержимое.
-        -->
         <section class="bg-card space-y-4 rounded-lg border p-6 shadow-[var(--elevation-1)]">
             {#if vm.path === "local"}
                 {#if vm.local.screen === "checking"}
@@ -413,11 +360,6 @@ const liveStatus = $derived.by(() => {
                             </div>
                         </div>
                     {/if}
-                    <!--
-                        «Установить рекомендованную» стартует загрузку 4.7 ГБ:
-                        disabled на isPulling запирает вторую параллельную
-                        загрузку поверх идущей.
-                    -->
                     <Button
                             variant="outline"
                             class="w-full cursor-pointer gap-2"
@@ -437,10 +379,6 @@ const liveStatus = $derived.by(() => {
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <!--
-                            Установка Ollama — вне приложения, поэтому ссылка —
-                            настоящий <a>: opener открывает её в системном браузере.
-                        -->
                         <Button href={OLLAMA_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
                             {m.setup_install_link()}
                         </Button>
@@ -468,11 +406,6 @@ const liveStatus = $derived.by(() => {
                             {m.setup_pull_progress({ percent })}
                         </p>
                     </div>
-                    <!--
-                        Полоса показывает реальные проценты из стрима, а не
-                        бесконечную крутилку: скачивание идёт минутами, и
-                        пользователь должен видеть, что оно движется.
-                    -->
                     <div
                             role="progressbar"
                             aria-label={m.setup_progress_label()}
@@ -504,10 +437,6 @@ const liveStatus = $derived.by(() => {
                             <p class="text-muted-foreground text-sm">{m.setup_slow_body()}</p>
                         </div>
                     </div>
-                    <!--
-                        Медленно — развилка, а не авария: «остаться» пишет
-                        deployment, «Назад» (в шапке) уводит на выбор облака.
-                    -->
                     <Button
                             variant="outline"
                             class="cursor-pointer"
@@ -589,10 +518,6 @@ const liveStatus = $derived.by(() => {
                     </p>
                 {/if}
                 <div class="flex flex-wrap gap-2">
-                    <!--
-                        disabled на isSubmitting запирает второй сабмит поверх
-                        идущего trial'а.
-                    -->
                     <Button
                             class="cursor-pointer"
                             disabled={vm.cloud.isSubmitting}
@@ -631,11 +556,6 @@ const liveStatus = $derived.by(() => {
         </section>
     {/if}
 
-    <!--
-        Пути отхода — на каждом экране, кроме финала: шаг модели никогда не
-        запирает пользователя, пока модель ещё не настроена. На «Готово» бежать
-        уже некуда — обе ссылки вели бы туда же, куда «Начать поиск».
-    -->
     {#if !isDone}
         <footer class="space-y-3">
             <Separator/>

@@ -14,7 +14,6 @@ def test_settings_get(client):
 
 
 def test_settings_get_never_returns_api_key(client, fake_secret_store):
-    # Заводим deployment с ключом через PUT, затем читаем его обратно.
     settings = SettingsAPISchema.model_validate(client.get("/api/v1/settings").json())
     body = settings.model_dump(mode="json")
     body["llm"]["deployments"] = [
@@ -26,9 +25,7 @@ def test_settings_get_never_returns_api_key(client, fake_secret_store):
     response = client.get("/api/v1/settings")
     payload = response.json()
 
-    assert '"api_key"' not in json.dumps(
-        payload
-    )  # has_api_key содержит "api_key" как подстроку без кавычек
+    assert '"api_key"' not in json.dumps(payload)
     assert payload["llm"]["deployments"][0]["has_api_key"] is True
 
 
@@ -81,14 +78,6 @@ def test_settings_update_with_ai_rebuild(client):
 
 
 def test_settings_update_unrelated_field_keeps_api_key(client, fake_secret_store):
-    """Регресс-тест на молчаливое стирание ключа: PUT неродственного поля
-    (max_pages) без api_key в теле не должен трогать сохранённый ключ.
-
-    Раньше цепочка была: фронтенд не шлёт ключ (его и не должно быть в
-    ответе GET) → SettingsRepository.update слепо копирует колонку
-    llm_deployments из тела запроса → ключ пропадает. Защита — то, что
-    plan() считает полный список деплойментов сам, а не берёт его из
-    запроса напрямую."""
     seed = client.put(
         "/api/v1/settings",
         json={
@@ -107,10 +96,7 @@ def test_settings_update_unrelated_field_keeps_api_key(client, fake_secret_store
     get_response = client.get("/api/v1/settings")
     payload = get_response.json()
     payload["search"]["max_pages"] = 7
-    # payload не содержит api_key нигде — GET его никогда не отдаёт.
-    assert '"api_key"' not in json.dumps(
-        payload
-    )  # has_api_key содержит "api_key" как подстроку без кавычек
+    assert '"api_key"' not in json.dumps(payload)
 
     put_response = client.put("/api/v1/settings", json=payload)
     assert put_response.status_code == 200
@@ -209,6 +195,6 @@ def test_settings_update_drops_deployment_deletes_its_key(client, fake_secret_st
     assert dropped.status_code == 200
     updated = SettingsAPISchema.model_validate(dropped.json())
     assert len(updated.llm.deployments) == 1
-    assert updated.llm.deployments[0].has_api_key is True  # kept сохранил ключ
+    assert updated.llm.deployments[0].has_api_key is True
     assert fake_secret_store.items[account_for(kept_id)] == "sk-a"
     assert account_for(dropped_id) not in fake_secret_store.items

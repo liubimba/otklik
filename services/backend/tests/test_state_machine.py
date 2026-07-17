@@ -41,6 +41,15 @@ def _at(state: ProcessingState) -> ProcessingStateMachine:
     return sm
 
 
+def _skip_succeeds_from(state: ProcessingState) -> bool:
+    sm = _at(state)
+    try:
+        sm.send(ApplicationEvent.SKIP.value)
+    except TransitionNotAllowed:
+        return False
+    return True
+
+
 def test_submit_from_letter_ready_moves_to_letter_sending() -> None:
     sm = _at(ProcessingState.LETTER_READY)
     sm.send(ApplicationEvent.SUBMIT.value)
@@ -79,6 +88,54 @@ def test_submit_forbidden_from_non_authoring_states(
     sm = _at(state)
     with pytest.raises(TransitionNotAllowed):
         sm.send(ApplicationEvent.SUBMIT.value)
+
+
+def test_skip_from_error_moves_to_skipped() -> None:
+    sm = _at(ProcessingState.ERROR)
+    sm.send(ApplicationEvent.SKIP.value)
+    assert sm.current_state_value == ProcessingState.SKIPPED
+
+
+def test_skip_from_letter_ready_moves_to_skipped() -> None:
+    sm = _at(ProcessingState.LETTER_READY)
+    sm.send(ApplicationEvent.SKIP.value)
+    assert sm.current_state_value == ProcessingState.SKIPPED
+
+
+def test_skip_from_letter_reviewing_moves_to_skipped() -> None:
+    sm = _at(ProcessingState.LETTER_REVIEWING)
+    sm.send(ApplicationEvent.SKIP.value)
+    assert sm.current_state_value == ProcessingState.SKIPPED
+
+
+SKIP_SOURCE_STATES_OFFERED_BY_THE_SHEET_FOOTER = [
+    ProcessingState.LETTER_READY,
+    ProcessingState.LETTER_REVIEWING,
+    ProcessingState.ERROR,
+]
+
+
+def test_skip_arcs_match_exactly_the_states_the_sheet_footer_offers() -> None:
+    allowed = [state for state in ProcessingState if _skip_succeeds_from(state)]
+    assert allowed == SKIP_SOURCE_STATES_OFFERED_BY_THE_SHEET_FOOTER
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        ProcessingState.PARSED,
+        ProcessingState.LETTER_PENDING,
+        ProcessingState.LETTER_SENDING,
+        ProcessingState.LETTER_SENT,
+        ProcessingState.SKIPPED,
+    ],
+)
+def test_skip_forbidden_from_states_the_sheet_footer_does_not_offer(
+    state: ProcessingState,
+) -> None:
+    sm = _at(state)
+    with pytest.raises(TransitionNotAllowed):
+        sm.send(ApplicationEvent.SKIP.value)
 
 
 def test_retry_from_error_moves_to_letter_pending() -> None:

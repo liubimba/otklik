@@ -425,10 +425,34 @@ async def test_submit_returns_409_when_worker_is_paused_for_auth(
     assert detail_after.status == ProcessingState.ERROR
 
 
+async def test_skip_from_error_returns_200_not_409(client, session_factory):
+    app_id = await _seed_letter_ready(session_factory)
+    async with session_factory() as session:
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
+            to_state=ApplicationEvent.FAIL,
+        )
+
+    response: Response = client.post("/api/v1/vacancies/1/application/skip")
+    assert response.status_code == 200
+    detail = ApplicationDetailAPISchema.model_validate(response.json())
+    assert detail.status == ProcessingState.SKIPPED
+
+
+async def test_skip_from_letter_ready_without_opening_the_sheet(
+    client, session_factory
+):
+    await _seed_letter_ready(session_factory)
+
+    response: Response = client.post("/api/v1/vacancies/1/application/skip")
+    assert response.status_code == 200
+    detail = ApplicationDetailAPISchema.model_validate(response.json())
+    assert detail.status == ProcessingState.SKIPPED
+
+
 async def test_skip_transitions(client, session_factory):
     await _seed_letter_ready(session_factory)
-    # LETTER_READY → LETTER_REVIEWING → SKIPPED per state machine
-    # But new endpoint tries direct SKIP; let's move to reviewing first.
     async with session_factory() as session:
         app = await ApplicationRepository.get_by_vacancy_id(
             session=session, vacancy_id=1

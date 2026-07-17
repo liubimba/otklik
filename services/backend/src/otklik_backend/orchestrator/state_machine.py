@@ -63,7 +63,11 @@ class ProcessingStateMachine(StateMachine):
         # "Отправить" button in the error-state footer.
         | _.ERROR.to(_.LETTER_SENDING)
     )
-    skip = _.LETTER_REVIEWING.to(_.SKIPPED)
+    skip = (
+        _.LETTER_READY.to(_.SKIPPED)
+        | _.LETTER_REVIEWING.to(_.SKIPPED)
+        | _.ERROR.to(_.SKIPPED)
+    )
     submission_ok = _.LETTER_SENDING.to(_.LETTER_SENT)
     submission_failed = _.LETTER_SENDING.to(_.ERROR)
     retry = _.ERROR.to(_.LETTER_PENDING)

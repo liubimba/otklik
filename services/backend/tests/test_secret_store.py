@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import pytest
@@ -68,16 +69,31 @@ async def test_keyring_store_translates_backend_failure() -> None:
         await store.set("acct", "sk-secret")
 
 
-async def test_file_store_round_trips_and_is_private(tmp_path: Path) -> None:
+async def test_file_store_round_trips(tmp_path: Path) -> None:
     path = tmp_path / "secrets.json"
     store = FileSecretStore(path=path)
     assert store.mode is SecretStorageMode.FILE
     assert await store.get("acct") is None
     await store.set("acct", "sk-secret")
     assert await store.get("acct") == "sk-secret"
-    assert path.stat().st_mode & 0o777 == 0o600
     await store.delete("acct")
     assert await store.get("acct") is None
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "st_mode не несёт POSIX-прав на Windows: файл отдаёт 0o666, а доступ "
+        "ограничивает ACL профиля пользователя, а не биты режима"
+    ),
+)
+async def test_file_store_file_is_private_to_the_owner_on_posix(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "secrets.json"
+    store = FileSecretStore(path=path)
+    await store.set("acct", "sk-secret")
+    assert path.stat().st_mode & 0o777 == 0o600
 
 
 async def test_file_store_keeps_other_accounts(tmp_path: Path) -> None:

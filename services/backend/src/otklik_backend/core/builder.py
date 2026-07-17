@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.api.broadcaster import EventBroadcaster
@@ -18,6 +18,10 @@ from otklik_backend.orchestrator.search import SearchService
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.letter_pending import LetterPendingWorker
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
+from otklik_backend.secrets.factory import SecretStoreFactory
+from otklik_backend.secrets.migrator import SecretMigrator
+from otklik_backend.secrets.service import DeploymentSecretsService
+from otklik_backend.secrets.store import SecretStore
 from otklik_backend.sites.hh_ru import HHRUAuthFlow, HHRUParser, HHRUWriter
 
 logger = get_logger(__name__)
@@ -32,6 +36,7 @@ class AppContext:
     writer: HHRUWriter
     search_service: SearchService
     ai_layer: AILayer
+    secret_store: SecretStore
     cover_letter_service: CoverLetterService
     letter_chat_service: LetterChatService
     letter_sending_worker: LetterSendingWorker
@@ -61,10 +66,27 @@ class AppContext:
 
 
 class BackendBuilder:
-    def __init__(self, session_maker: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_maker: async_sessionmaker[AsyncSession],
+        engine: AsyncEngine,
+        secret_store: SecretStore | None = None,
+    ) -> None:
         self._session_maker = session_maker
+        self._engine = engine
+        self._secret_store = secret_store
 
     async def build(self) -> AppContext:
+        # Режим (связка/файл) решается один раз на старте живой пробой связки —
+        # см. SecretStoreFactory. secret_store можно подсунуть готовым (тесты,
+        # будущие вызовы) — тогда пробы не будет.
+        secret_store = self._secret_store or await SecretStoreFactory().create()
+        # До всего остального: если в БД остались легаси-ключи в открытом
+        # виде, они должны переехать в хранилище и исчезнуть с диска раньше,
+        # чем что-либо (включая _bootstrap_ai_layer ниже) их прочитает.
+        await SecretMigrator(
+            session_maker=self._session_maker, engine=self._engine, store=secret_store
+        ).migrate()
         browser = BrowserCore()
         auth_flow = HHRUAuthFlow(browser=browser)
         broadcaster = EventBroadcaster()
@@ -83,7 +105,7 @@ class BackendBuilder:
             writer=writer,
             broadcaster=broadcaster,
         )
-        ai_layer = await self._bootstrap_ai_layer()
+        ai_layer = await self._bootstrap_ai_layer(secret_store=secret_store)
         cover_letter_service = CoverLetterService(
             session_maker=self._session_maker,
             ai_layer=ai_layer,
@@ -121,6 +143,7 @@ class BackendBuilder:
             writer=writer,
             search_service=search_service,
             ai_layer=ai_layer,
+            secret_store=secret_store,
             cover_letter_service=cover_letter_service,
             letter_chat_service=letter_chat_service,
             letter_sending_worker=letter_sending_worker,
@@ -130,11 +153,14 @@ class BackendBuilder:
             authorization_service=authorization_service,
         )
 
-    async def _bootstrap_ai_layer(self) -> AILayer:
+    async def _bootstrap_ai_layer(self, secret_store: SecretStore) -> AILayer:
         async with self._session_maker() as session:
             settings: SettingsORM = await SettingsRepository.get(session=session)
         try:
-            return AILayer(deployments=settings.llm_deployments)
+            resolved = await DeploymentSecretsService(secret_store).resolve(
+                deployments=settings.llm_deployments
+            )
+            return AILayer(deployments=resolved)
         except Exception as e:
             logger.error(
                 "Failed to initialize AI Layer with error: %s. Initializing with no deployments.",

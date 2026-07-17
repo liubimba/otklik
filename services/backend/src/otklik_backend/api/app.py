@@ -20,10 +20,32 @@ from otklik_backend.api.routes import (
 from otklik_backend.api.schemas import SearchStatusAPISchema
 from otklik_backend.core.builder import BackendBuilder
 from otklik_backend.db.repositories.search_history import SearchHistoryRepository
-from otklik_backend.db.session import ensure_db_dir, session_maker
+from otklik_backend.db.session import engine, ensure_db_dir, session_maker
 from otklik_backend.log import configure_logging, get_logger
 
 logger = get_logger(__name__)
+
+# Бэкенд слушает 127.0.0.1 без авторизации, поэтому "*" означал: ЛЮБАЯ открытая
+# вкладка в браузере может читать наши ответы и дёргать наши ручки. Сужаем до
+# origin'ов самого приложения: devUrl из tauri.conf.json и origin'ы webview в
+# собранном билде (tauri://localhost на macOS/Linux, http://tauri.localhost на Windows).
+#
+# Граница честности:
+#  * CORS проверяется браузером, а не нами — он закрывает вектор "вредоносная
+#    вкладка читает fetch() к 127.0.0.1:8001", но не защищает от локального
+#    процесса. Тот и так прочитает ~/.otklik/secrets.json или дождётся
+#    системного диалога кейчейна — это вне зоны ответственности CORS.
+#  * WebSocket'ы этот список НЕ прикрывает: CORSMiddleware обрабатывает только
+#    HTTP, а к WS браузер same-origin policy не применяет вовсе — чужая вкладка
+#    по-прежнему может открыть ws://127.0.0.1:8001 (routes/ws.py) и слушать
+#    события. Ручки ws.py обязаны проверять заголовок Origin сами; сейчас они
+#    этого не делают — дыра существовала до этой задачи и вынесена в бэклог
+#    (ключей в WS-событиях нет).
+ALLOWED_ORIGINS = [
+    "http://localhost:1420",
+    "tauri://localhost",
+    "http://tauri.localhost",
+]
 
 
 @asynccontextmanager
@@ -33,7 +55,7 @@ async def lifespan(app: FastAPI) -> Any:
     # Adopts ~/.headhunter_ai from installs predating the rename, before any
     # component can touch the database.
     ensure_db_dir()
-    ctx = await BackendBuilder(session_maker=session_maker).build()
+    ctx = await BackendBuilder(session_maker=session_maker, engine=engine).build()
     for attr, value in ctx.__dict__.items():
         setattr(app.state, attr, value)
 
@@ -87,7 +109,10 @@ app = FastAPI(title="Otklik Backend API", version="0.0.1", lifespan=lifespan)
 app.include_router(router)
 app.include_router(ws.ws_router)
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 register_error_handlers(app=app)
 

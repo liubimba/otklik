@@ -5,7 +5,7 @@ import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { svelteTesting } from "@testing-library/svelte/vite";
 import { visualizer } from "rollup-plugin-visualizer";
-import { defineConfig } from "vite";
+import { defaultClientConditions, defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -30,15 +30,54 @@ const host = process.env.TAURI_DEV_HOST;
 // actually allows) rather than a deep bare import, which the `exports`
 // field would reject.
 //
-// NOTE: this only covers DropdownMenu. A future test that renders a
-// different bits-ui primitive (Sheet, Accordion, Tooltip, ...) will hit the
-// same crash and need the same treatment — widen this alias, don't remove
-// it.
+// A single aliased submodule only covers one primitive, but different
+// tests need different primitives from the same "bits-ui" specifier (e.g.
+// account-cell.test.ts needs DropdownMenu, settings-ai-tab.test.ts needs
+// Accordion and Label — formsnap's Form.Label renders `$lib/components/ui/
+// label`, which is a thin wrapper over bits-ui's Label). So instead of
+// aliasing to one submodule's file, alias to a tiny virtual module (below)
+// that re-exports each needed primitive from its own style-tag-free
+// submodule. Add a submodule entry here — and a matching
+// `export { X } from ...` line in the virtual module — the next time a test
+// needs another bits-ui primitive (Sheet, Tooltip, ...).
 const require = createRequire(import.meta.url);
-const bitsUiDropdownMenuEntry = path.join(
-	path.dirname(require.resolve("bits-ui")),
-	"bits/dropdown-menu/index.js",
-);
+/** @param {string} name */
+const bitsUiSubmodule = (name) =>
+	path.join(path.dirname(require.resolve("bits-ui")), `bits/${name}/index.js`);
+const bitsUiDropdownMenuEntry = bitsUiSubmodule("dropdown-menu");
+const bitsUiAccordionEntry = bitsUiSubmodule("accordion");
+const bitsUiLabelEntry = bitsUiSubmodule("label");
+
+const bitsUiTestShimId = "\0virtual:bits-ui-test-shim";
+
+// Second, distinct symptom of the same private-old-vite-copy issue: several
+// svelte-ecosystem packages (`formsnap`, its dependency `svelte-toolbelt`)
+// declare an exports map with ONLY a "svelte" condition and no
+// "default"/"import" fallback, e.g.:
+//   "exports": { ".": { "types": "...", "svelte": "./dist/index.js" } }
+// The main sveltekit()-managed vite instance gets that "svelte" resolve
+// condition pushed onto it at runtime by vite-plugin-svelte's `config()`
+// hook, so this resolves fine in dev/build. @vitest/mocker's private vite
+// copy never runs that plugin hook, so it never gets the condition, and
+// resolving e.g. "formsnap" through it throws `ERR_PACKAGE_PATH_NOT_EXPORTED`
+// outright the moment any test renders a component that touches
+// `$lib/components/ui/form`.
+//
+// Declaring the condition statically here (rather than relying on the
+// plugin to inject it at runtime) reaches both vite instances, since it's
+// plain config data both read — no per-package alias needed.
+//
+// ОБЯЗАТЕЛЬНО со спредом defaultClientConditions: resolve.conditions
+// ЗАМЕЩАЕТ дефолты вайта, а не дополняет их. Голый ["svelte"] выкидывает
+// "browser", и клиентский бандл начинает резолвить svelte по ветке
+// "default" её exports-мапы — то есть на СЕРВЕРНУЮ сборку: onDestroy падает
+// на любой странице с superForm (Настройки), onMount становится no-op'ом,
+// svelte/reactivity подменяется нереактивными заглушками внутри
+// bits-ui/runed, а untrack вырождается в (fn) => fn(). Ни один гейт этого
+// не увидит: svelteTesting() возвращает "browser" обратно, но только когда
+// выставлен process.env.VITEST — то есть тесты, pnpm check и pnpm build
+// остаются зелёными на сломанном dev/prod.
+const svelteResolveConditions = [...defaultClientConditions, "svelte"];
 
 // https://vite.dev/config/
 export default defineConfig(
@@ -61,6 +100,25 @@ export default defineConfig(
 					brotliSize: true,
 					template: "treemap",
 				}),
+				// Backs the `bits-ui` test alias below: resolves the virtual id to
+				// a module re-exporting each style-tag-free submodule under its
+				// real "bits-ui" export name. See the comment above
+				// `bitsUiSubmodule` for why this exists instead of aliasing
+				// straight to the package.
+				{
+					name: "bits-ui-test-shim",
+					resolveId(id) {
+						if (id === bitsUiTestShimId) return bitsUiTestShimId;
+					},
+					load(id) {
+						if (id !== bitsUiTestShimId) return;
+						return [
+							`export { DropdownMenu } from ${JSON.stringify(bitsUiDropdownMenuEntry)};`,
+							`export { Accordion } from ${JSON.stringify(bitsUiAccordionEntry)};`,
+							`export { Label } from ${JSON.stringify(bitsUiLabelEntry)};`,
+						].join("\n");
+					},
+				},
 			],
 
 			build: {
@@ -93,12 +151,16 @@ export default defineConfig(
 				},
 			},
 
+			resolve: {
+				conditions: svelteResolveConditions,
+			},
+
 			test: {
 				include: ["src/**/*.{test,spec}.{js,ts}"],
 				exclude: ["src-tauri/**", "node_modules/**"],
 				environment: "jsdom",
 				setupFiles: ["./src/lib/test-setup.ts"],
-				alias: [{ find: /^bits-ui$/, replacement: bitsUiDropdownMenuEntry }],
+				alias: [{ find: /^bits-ui$/, replacement: bitsUiTestShimId }],
 			},
 		}),
 );

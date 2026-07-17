@@ -1,5 +1,9 @@
 import { API } from "$lib/api/client";
-import type { LLMDeployment, LocalSetupState, Settings } from "$lib/api/types";
+import type {
+	LLMDeploymentWrite,
+	LocalSetupState,
+	Settings,
+} from "$lib/api/types";
 import { getLogger } from "$lib/log";
 
 const OLLAMA_HOST = "http://localhost:11434";
@@ -118,7 +122,7 @@ export class LocalFlow {
 	async #benchmark(model: string): Promise<void> {
 		this.#screen = "benchmark";
 		try {
-			const deployment: LLMDeployment = {
+			const deployment: LLMDeploymentWrite = {
 				model,
 				api_base: OLLAMA_HOST,
 				api_key: null,
@@ -150,7 +154,7 @@ export class LocalFlow {
 	}
 
 	async #writeDeployment(): Promise<void> {
-		const deployment: LLMDeployment = {
+		const deployment: LLMDeploymentWrite = {
 			model: `ollama_chat/${this.#chosenTag}`,
 			api_base: OLLAMA_HOST,
 			api_key: null,

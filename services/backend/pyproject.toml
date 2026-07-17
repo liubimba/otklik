@@ -21,6 +21,7 @@ dependencies = [
     "litellm>=1.86.2",
     "botocore>=1.43.18",
     "psutil>=7.2.2",
+    "keyring>=25.7",
 ]
 
 [project.scripts]

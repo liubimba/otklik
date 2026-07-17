@@ -1,10 +1,12 @@
 import asyncio
 
-from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.deployment import LLMDeployment, ResolvedDeployment
 from otklik_backend.ai.result import AICoverLetterResult
 from otklik_backend.setup.benchmark import BenchmarkFailureReason, BenchmarkRunner
 
-DEPLOYMENT = LLMDeployment(model="ollama_chat/qwen2.5:7b", api_base="http://x:11434")
+DEPLOYMENT = ResolvedDeployment(
+    deployment=LLMDeployment(model="ollama_chat/qwen2.5:7b", api_base="http://x:11434")
+)
 
 
 class _FakeLayer:
@@ -85,7 +87,9 @@ class _SlowLayer:
 async def test_run_honors_per_call_deadline_override():
     runner = BenchmarkRunner(deadline_sec=999, layer_factory=_SlowLayer)
     result = await runner.run(
-        deployment=LLMDeployment(model="x", api_base="http://h"),
+        deployment=ResolvedDeployment(
+            deployment=LLMDeployment(model="x", api_base="http://h")
+        ),
         deadline_sec=0.05,
     )
     assert result.passed is False

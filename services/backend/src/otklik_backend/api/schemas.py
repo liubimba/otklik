@@ -10,6 +10,7 @@ from otklik_backend.ai.deployment import LLMDeployment
 # call-site compatibility until every import is migrated (removed in stage 3.2+).
 from otklik_backend.core.state import ErrorDomain as ErrorDomain
 from otklik_backend.core.state import ProcessingState as ProcessingState
+from otklik_backend.secrets.store import SecretStorageMode
 from otklik_backend.setup.claude_code import ClaudeCodeState
 from otklik_backend.setup.hardware import HardwareSpecs
 from otklik_backend.setup.ollama import OllamaState
@@ -213,6 +214,25 @@ class LLMSettingsAPISchema(BaseModel):
     deployments: list[LLMDeployment] = Field(default_factory=list)
 
 
+class LLMDeploymentWriteAPISchema(BaseModel):
+    """Входящая форма — единственная, где есть ключ.
+    has_api_key здесь нет намеренно: клиент не должен уметь соврать про наличие
+    ключа, это вычисляет DeploymentSecretsService.plan()."""
+
+    id: Optional[str] = None
+    model: str
+    api_base: Optional[str] = None
+    # None/отсутствует — не трогаем сохранённый ключ; "" — удаляем; иначе — пишем.
+    api_key: Optional[str] = None
+
+
+class LLMSettingsWriteAPISchema(BaseModel):
+    resume_text: str = ""
+    letter_style: str = ""
+    system_prompt: Optional[str] = None
+    deployments: list[LLMDeploymentWriteAPISchema] = Field(default_factory=list)
+
+
 class UserSettingsAPISchema(BaseModel):
     auto_submit: bool = False
 
@@ -227,6 +247,20 @@ class SettingsAPISchema(BaseModel):
     user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
     llm: LLMSettingsAPISchema = Field(default_factory=LLMSettingsAPISchema)
     rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
+
+
+class SettingsWriteAPISchema(BaseModel):
+    """Тело PUT /settings. Отличается от SettingsAPISchema только формой
+    deployments: сюда ключ приходит, оттуда — никогда не уходит."""
+
+    search: SearchSettingsAPISchema = Field(default_factory=SearchSettingsAPISchema)
+    user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
+    llm: LLMSettingsWriteAPISchema = Field(default_factory=LLMSettingsWriteAPISchema)
+    rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
+
+
+class SecretStorageAPISchema(BaseModel):
+    mode: SecretStorageMode
 
 
 class AuthStatusAPISchema(BaseModel):
@@ -306,5 +340,5 @@ class ClaudeSetupStateAPISchema(BaseModel):
 
 
 class TrialRequestAPISchema(BaseModel):
-    deployment: LLMDeployment
+    deployment: LLMDeploymentWriteAPISchema
     deadline_sec: float

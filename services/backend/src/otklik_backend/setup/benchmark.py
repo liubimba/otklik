@@ -5,7 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.deployment import ResolvedDeployment
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.ai.result import AICoverLetterResult
 from otklik_backend.log import get_logger
@@ -56,14 +56,14 @@ class BenchmarkRunner:
     def __init__(
         self,
         deadline_sec: float = BENCHMARK_DEADLINE_SEC,
-        layer_factory: Callable[[list[LLMDeployment]], AILayer] = AILayer,
+        layer_factory: Callable[[list[ResolvedDeployment]], AILayer] = AILayer,
     ) -> None:
         self._deadline_sec = deadline_sec
         self._layer_factory = layer_factory
         self._log = get_logger(__name__)
 
     async def run(
-        self, deployment: LLMDeployment, deadline_sec: float | None = None
+        self, deployment: ResolvedDeployment, deadline_sec: float | None = None
     ) -> BenchmarkResult:
         deadline = deadline_sec if deadline_sec is not None else self._deadline_sec
         # Ровно один deployment: с несколькими LiteLLM-роутер построит

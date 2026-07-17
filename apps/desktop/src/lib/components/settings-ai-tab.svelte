@@ -8,6 +8,7 @@ import * as Form from "$lib/components/ui/form";
 import { Input } from "$lib/components/ui/input";
 import { Textarea } from "$lib/components/ui/textarea";
 import { m } from "$lib/paraglide/messages";
+import { query } from "$lib/queries";
 import {
 	type LLMDeploymentForm,
 	type SettingsFormData,
@@ -15,12 +16,12 @@ import {
 } from "$lib/schemas/settings";
 import { DragDropProvider } from "@dnd-kit/svelte";
 import { isSortableOperation } from "@dnd-kit/svelte/sortable";
-import Eye from "@lucide/svelte/icons/eye";
-import EyeOff from "@lucide/svelte/icons/eye-off";
 import GripVertical from "@lucide/svelte/icons/grip-vertical";
 import Plus from "@lucide/svelte/icons/plus";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import Trash2 from "@lucide/svelte/icons/trash-2";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import { untrack } from "svelte";
 import type { SuperForm } from "sveltekit-superforms";
 
 interface Props {
@@ -30,11 +31,69 @@ interface Props {
 const { form }: Props = $props();
 const { form: formData } = form;
 
-const visibleKeys = $state<Record<string, boolean>>({});
+// Режим хранения решается бэкендом один раз при старте (staleTime: Infinity
+// в самом query) — предупреждение показываем только когда системной связки
+// ключей нет и секреты лежат в файле.
+const secretStorage = query.secret_storage.create();
+const insecureStorage = $derived(secretStorage.data?.mode === "file");
+
+// Та же кэш-запись, что читает /settings (staleTime: Infinity, тот же
+// queryKey) — не отдельный запрос, а подписка на уже загруженные данные,
+// нужная только чтобы поймать момент, когда ../routes/settings/+page.svelte
+// перезаписывает кэш свежим (без ключей) ответом после Save.
+const settings = query.settings.create();
+
 let openItems = $state<string[]>([]);
 
-function toggleKey(id: string) {
-	visibleKeys[id] = !visibleKeys[id];
+// «Пользователь нажал Заменить» — состояние, которое не выразить через
+// has_api_key/api_key/clear_api_key: буфер пуст и там, и в состоянии
+// «ключ сохранён, не трогали» (см. keyFieldState ниже). Ключ карты — id
+// deployment'а, тот же, что у visibleKeys раньше.
+const replacingKey = $state<Record<string, boolean>>({});
+
+$effect(() => {
+	// Новые данные с бэкенда — первая загрузка или setQueryData после
+	// успешного Save — закрывают режим «печатаем новый ключ» для всех строк.
+	// Иначе после сохранения поле продолжало бы показывать (уже пустой)
+	// инпут вместо «Ключ сохранён».
+	//
+	// Читать и писать replacingKey нужно вне трекинга: без untrack этот
+	// эффект сам себя цепляет за Object.keys(replacingKey) как зависимость,
+	// и тогда startReplacing() (который лишь добавляет id в карту) сразу же
+	// перезапускает эффект и стирает только что поставленный флаг — кнопка
+	// «Заменить» переставала открывать поле ввода. untrack оставляет
+	// единственной зависимостью settings.data, как и задумано комментарием
+	// выше.
+	settings.data;
+	untrack(() => {
+		for (const id of Object.keys(replacingKey)) {
+			delete replacingKey[id];
+		}
+	});
+});
+
+type KeyFieldState = "stored" | "clearing" | "editing";
+
+function keyFieldState(deployment: LLMDeploymentForm): KeyFieldState {
+	if (deployment.clear_api_key) return "clearing";
+	if (deployment.has_api_key && !replacingKey[deployment.id]) return "stored";
+	return "editing";
+}
+
+function startReplacing(index: number) {
+	const id = $formData.llm.deployments[index].id;
+	replacingKey[id] = true;
+}
+
+function markCleared(index: number) {
+	const id = $formData.llm.deployments[index].id;
+	$formData.llm.deployments[index].clear_api_key = true;
+	$formData.llm.deployments[index].api_key = "";
+	delete replacingKey[id];
+}
+
+function cancelClear(index: number) {
+	$formData.llm.deployments[index].clear_api_key = false;
 }
 
 function arrayMove<T>(arr: T[], from: number, to: number): T[] {
@@ -68,8 +127,10 @@ function addDeployment() {
 	const created: LLMDeploymentForm = {
 		id: makeDeploymentId(),
 		model: "",
-		api_key: "",
 		api_base: "",
+		has_api_key: false,
+		api_key: "",
+		clear_api_key: false,
 	};
 	$formData.llm.deployments = [...$formData.llm.deployments, created];
 	openItems = [...openItems, created.id];
@@ -81,7 +142,7 @@ function removeDeployment(index: number) {
 		(_, i) => i !== index,
 	);
 	openItems = openItems.filter((v) => v !== id);
-	delete visibleKeys[id];
+	delete replacingKey[id];
 }
 
 function deploymentBadge(index: number): string {
@@ -168,6 +229,15 @@ function deploymentBadge(index: number): string {
 				{m.settings_ai_setup_wizard()}
 			</Button>
 		</div>
+
+		{#if insecureStorage}
+			<div
+				class="border-amber-500/30 bg-amber-500/10 flex items-start gap-2 rounded-md border p-3 text-sm text-amber-700 dark:text-amber-400"
+			>
+				<TriangleAlert class="mt-0.5 size-4 shrink-0" />
+				<p>{m.settings_ai_storage_file_warning()}</p>
+			</div>
+		{/if}
 
 		{#if $formData.llm.deployments.length === 0}
 			<p
@@ -258,41 +328,72 @@ function deploymentBadge(index: number): string {
 													<Form.Description>
 														{m.settings_ai_deployment_api_key_hint()}
 													</Form.Description>
-													<div class="flex gap-2">
+													{#if keyFieldState(deployment) === "stored"}
+														<!-- Бэкенд ключи больше не отдаёт — раскрывать
+															 нечего, поэтому вместо Eye/EyeOff тут
+															 статус и явные действия. -->
+														<div
+															class="flex items-center justify-between gap-2 rounded-md border p-3"
+														>
+															<span
+																class="text-muted-foreground text-sm"
+															>
+																{m.settings_ai_key_stored()}
+															</span>
+															<div class="flex gap-2">
+																<Button
+																	type="button"
+																	variant="outline"
+																	size="sm"
+																	class="cursor-pointer"
+																	onclick={() =>
+																		startReplacing(i)}
+																>
+																	{m.settings_ai_key_replace()}
+																</Button>
+																<Button
+																	type="button"
+																	variant="ghost"
+																	size="sm"
+																	class="cursor-pointer"
+																	onclick={() =>
+																		markCleared(i)}
+																>
+																	{m.settings_ai_key_remove()}
+																</Button>
+															</div>
+														</div>
+													{:else if keyFieldState(deployment) === "clearing"}
+														<div
+															class="border-destructive/30 bg-destructive/10 flex items-center justify-between gap-2 rounded-md border p-3"
+														>
+															<span
+																class="text-destructive text-sm"
+															>
+																{m.settings_ai_key_will_be_removed()}
+															</span>
+															<Button
+																type="button"
+																variant="ghost"
+																size="sm"
+																class="cursor-pointer"
+																onclick={() => cancelClear(i)}
+															>
+																{m.settings_ai_key_cancel_remove()}
+															</Button>
+														</div>
+													{:else}
 														<Input
 															{...props}
-															type={visibleKeys[
-																deployment.id
-															]
-																? "text"
-																: "password"}
+															type="password"
+															placeholder={m.settings_ai_key_placeholder()}
 															bind:value={
 																$formData.llm
 																	.deployments[i]
 																	.api_key
 															}
 														/>
-														<Button
-															type="button"
-															variant="ghost"
-															size="icon"
-															onclick={() =>
-																toggleKey(
-																	deployment.id,
-																)}
-															aria-label={visibleKeys[
-																deployment.id
-															]
-																? m.settings_ai_hide_key()
-																: m.settings_ai_show_key()}
-														>
-															{#if visibleKeys[deployment.id]}
-																<EyeOff class="size-4" />
-															{:else}
-																<Eye class="size-4" />
-															{/if}
-														</Button>
-													</div>
+													{/if}
 												{/snippet}
 											</Form.Control>
 											<Form.FieldErrors />

@@ -1,3 +1,4 @@
+from otklik_backend.ai.deployment import LLMDeployment
 from otklik_backend.db.models import (
     VacancyORM,
     SettingsORM,
@@ -15,6 +16,7 @@ from otklik_backend.api.schemas import (
     LLMSettingsAPISchema,
     SearchSettingsAPISchema,
     SettingsAPISchema,
+    SettingsWriteAPISchema,
     RateLimitsAPISchema,
     UserSettingsAPISchema,
     ApplicationAPISchema,
@@ -22,7 +24,16 @@ from otklik_backend.api.schemas import (
 )
 
 
-def settings_to_orm(schema: SettingsAPISchema) -> SettingsORM:
+def settings_to_orm(
+    schema: SettingsAPISchema | SettingsWriteAPISchema,
+    deployments: list[LLMDeployment],
+) -> SettingsORM:
+    """`deployments` приходит параметром, а не из `schema.llm.deployments` —
+    намеренно. Список для колонки должен быть посчитан
+    DeploymentSecretsService.plan() (с ключами, ушедшими в хранилище, и
+    актуальным has_api_key), а не взят из тела запроса напрямую: иначе
+    неполный/сырой список из запроса тихо стёр бы сохранённые ключи (см.
+    test_settings_update_unrelated_field_keeps_api_key)."""
     return SettingsORM(
         letter_style=schema.llm.letter_style,
         resume_text=schema.llm.resume_text,
@@ -30,7 +41,7 @@ def settings_to_orm(schema: SettingsAPISchema) -> SettingsORM:
         hourly_limit=schema.rate_limits.hourly_limit,
         min_delay_ms=schema.rate_limits.min_delay_ms,
         delay_jitter_ms=schema.rate_limits.delay_jitter_ms,
-        llm_deployments=schema.llm.deployments,
+        llm_deployments=deployments,
         llm_system_prompt=schema.llm.system_prompt,
         auto_submit=schema.user.auto_submit,
         max_vacancies=schema.search.max_vacancies,

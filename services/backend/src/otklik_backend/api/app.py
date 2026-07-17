@@ -99,7 +99,17 @@ app.add_middleware(
 register_error_handlers(app=app)
 
 
-def run() -> None:
+def run(port: int = 8001, host: str = "127.0.0.1") -> None:
     import uvicorn
 
-    uvicorn.run("otklik_backend.api.app:app", host="127.0.0.1", port=8001)
+    uvicorn.run(app, host=host, port=port)
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="otklik-backend")
+    parser.add_argument("--port", type=int, default=8001)
+    parser.add_argument("--host", default="127.0.0.1")
+    args = parser.parse_args()
+    run(port=args.port, host=args.host)

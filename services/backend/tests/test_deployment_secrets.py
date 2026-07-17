@@ -115,3 +115,31 @@ def test_unknown_client_supplied_id_is_not_trusted() -> None:
     assert minted_id != "attacker-supplied-id"
     assert plan.to_set == {account_for(minted_id): "sk-x"}
     assert account_for("attacker-supplied-id") not in plan.to_set
+
+
+def test_duplicate_client_ids_do_not_share_one_storage_account() -> None:
+    """Два входящих item'а с одним и тем же id должны разъехаться по разным
+    аккаунтам. Совпасть с существующей записью может только первый: если бы оба
+    получили её id, они получили бы и общий аккаунт — ключ второго молча затёр
+    бы ключ первого, а удаление одной строки убило бы ключ другой. Ровно та
+    коллизия, из-за которой идентичность и перестала считаться хэшем."""
+    existing = LLMDeployment(model="gigachat/GigaChat-2", has_api_key=True)
+    incoming = [
+        LLMDeploymentWriteAPISchema(
+            id=existing.id, model="gigachat/GigaChat-2", api_key="sk-first"
+        ),
+        LLMDeploymentWriteAPISchema(
+            id=existing.id, model="gigachat/GigaChat-2", api_key="sk-second"
+        ),
+    ]
+
+    deployments, plan = make_service().plan(current=[existing], incoming=incoming)
+
+    first_id, second_id = deployments[0].id, deployments[1].id
+    assert first_id == existing.id
+    assert second_id != first_id
+    # Оба ключа доехали: ни один не затёрт вторым.
+    assert plan.to_set == {
+        account_for(first_id): "sk-first",
+        account_for(second_id): "sk-second",
+    }

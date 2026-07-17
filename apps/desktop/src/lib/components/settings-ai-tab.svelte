@@ -21,6 +21,7 @@ import Plus from "@lucide/svelte/icons/plus";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import { untrack } from "svelte";
 import type { SuperForm } from "sveltekit-superforms";
 
 interface Props {
@@ -55,10 +56,20 @@ $effect(() => {
 	// успешного Save — закрывают режим «печатаем новый ключ» для всех строк.
 	// Иначе после сохранения поле продолжало бы показывать (уже пустой)
 	// инпут вместо «Ключ сохранён».
+	//
+	// Читать и писать replacingKey нужно вне трекинга: без untrack этот
+	// эффект сам себя цепляет за Object.keys(replacingKey) как зависимость,
+	// и тогда startReplacing() (который лишь добавляет id в карту) сразу же
+	// перезапускает эффект и стирает только что поставленный флаг — кнопка
+	// «Заменить» переставала открывать поле ввода. untrack оставляет
+	// единственной зависимостью settings.data, как и задумано комментарием
+	// выше.
 	settings.data;
-	for (const id of Object.keys(replacingKey)) {
-		delete replacingKey[id];
-	}
+	untrack(() => {
+		for (const id of Object.keys(replacingKey)) {
+			delete replacingKey[id];
+		}
+	});
 });
 
 type KeyFieldState = "stored" | "clearing" | "editing";

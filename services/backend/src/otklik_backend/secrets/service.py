@@ -48,7 +48,13 @@ class DeploymentSecretsService:
             # Клиентскому id доверяем, только если он совпадает с существующей
             # записью: id становится именем аккаунта в хранилище, а любая
             # веб-страница сейчас может достучаться до этого эндпоинта (CORS).
-            existing = by_id.get(item.id) if item.id else None
+            #
+            # pop, а не get: каждую существующую запись можно забрать лишь один
+            # раз. Иначе два входящих item'а с одним и тем же id получили бы
+            # общий deployment_id — то есть общий аккаунт в хранилище: ключ
+            # второго молча затёр бы ключ первого, а удаление одной строки
+            # убило бы ключ другой. Второй такой item честно считается новым.
+            existing = by_id.pop(item.id, None) if item.id else None
             deployment_id = existing.id if existing else uuid4().hex
             kept_ids.add(deployment_id)
             has_key = existing.has_api_key if existing else False

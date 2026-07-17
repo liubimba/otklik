@@ -39,8 +39,15 @@ class SecretMigrator:
         entries = await self._read_raw()
         if entries is None or not self._needs_migration(entries):
             return
+        # Проход 1 — чистый: нормализуем записи и вынимаем ключи, ничего никуда
+        # не записывая. Отделён от прохода 2 намеренно: к моменту, когда
+        # начинается ввод-вывод, `entries` приведён к финальному виду целиком.
+        # Слитый в один цикл вариант оставлял бы список нормализованным лишь до
+        # первой упавшей записи — и любой будущий ранний _write_raw записал бы
+        # этот огрызок в колонку, потеряв ключи остальных.
         moved = 0
         try:
+            to_move: list[tuple[str, str]] = []  # account -> secret
             for entry in entries:
                 entry.setdefault("id", uuid4().hex)
                 key = entry.pop("api_key", None)
@@ -48,8 +55,14 @@ class SecretMigrator:
                     entry.get("has_api_key", False)
                 )
                 if key:
-                    await self._store.set(account_for(str(entry["id"])), str(key))
-                    moved += 1
+                    to_move.append((account_for(str(entry["id"])), str(key)))
+
+            # Проход 2 — ввод-вывод. Колонку не трогаем, пока в хранилище не
+            # легли ВСЕ ключи: любой сбой здесь оставляет БД ровно как была, и
+            # следующий старт повторит миграцию с нуля.
+            for account, secret in to_move:
+                await self._store.set(account, secret)
+                moved += 1
         except SecretStoreUnavailableError as e:
             # Ожидаемый, ретраимый случай: хранилище — ненадёжная сторона (диск
             # полон, нет прав, связка заблокирована). Колонку не трогаем вовсе:

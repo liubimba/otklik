@@ -19,6 +19,8 @@ from otklik_backend.secrets.store import SecretStore
 from otklik_backend.setup.benchmark import BenchmarkRunner
 from otklik_backend.setup.claude_code import ClaudeCodeGate
 from otklik_backend.setup.hardware import HardwareProbe
+from otklik_backend.browser.chromium_gate import ChromiumGate
+from otklik_backend.paths import AppPaths
 from otklik_backend.setup.ollama import OllamaGate
 from otklik_backend.sites.hh_ru.auth_flow import HHRUAuthFlow
 from otklik_backend.sites.hh_ru.writer import HHRUWriter
@@ -76,6 +78,10 @@ def get_hardware_probe() -> HardwareProbe:
     return HardwareProbe()
 
 
+def get_chromium_gate() -> ChromiumGate:
+    return ChromiumGate(browsers_dir=AppPaths().browsers_dir)
+
+
 def get_ollama_gate() -> OllamaGate:
     return OllamaGate()
 
@@ -111,6 +117,7 @@ AuthorizationServiceDep = Annotated[
 StateServiceDep = Annotated[StateTransitionService, Depends(get_state_service)]
 HardwareProbeDep = Annotated[HardwareProbe, Depends(get_hardware_probe)]
 OllamaGateDep = Annotated[OllamaGate, Depends(get_ollama_gate)]
+ChromiumGateDep = Annotated[ChromiumGate, Depends(get_chromium_gate)]
 ClaudeCodeGateDep = Annotated[ClaudeCodeGate, Depends(get_claude_code_gate)]
 BenchmarkRunnerDep = Annotated[BenchmarkRunner, Depends(get_benchmark_runner)]
 DeploymentSecretsDep = Annotated[

@@ -5,8 +5,8 @@ from enum import Enum
 from typing import Any
 
 import httpx
-from pydantic import BaseModel
 
+from otklik_backend.core.progress import PullProgress
 from otklik_backend.log import get_logger
 from otklik_backend.setup.constants import LOCAL_MODEL_TAG, OLLAMA_HOST
 
@@ -15,14 +15,6 @@ PULL_TIMEOUT_SEC = 60.0
 
 
 class OllamaPullError(Exception): ...
-
-
-class PullProgress(BaseModel):
-    status: str
-    completed_bytes: int = 0
-    total_bytes: int = 0
-    percent: float = 0.0
-    done: bool = False
 
 
 class OllamaState(str, Enum):

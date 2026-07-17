@@ -293,6 +293,7 @@ class SetupStateAPISchema(BaseModel):
     local_model: str
     cloud_model: str
     claude_available: bool
+    chromium_installed: bool
 
 
 class LocalSetupStateAPISchema(BaseModel):

@@ -7,6 +7,7 @@ from pydantic import SecretStr
 
 from otklik_backend.ai.deployment import LLMDeployment, ResolvedDeployment
 from otklik_backend.api.dependencies import (
+    ChromiumGateDep,
     AILayerDep,
     BenchmarkRunnerDep,
     ClaudeCodeGateDep,
@@ -37,6 +38,7 @@ from otklik_backend.setup.constants import (
     LOCAL_MODEL,
     LOCAL_MODEL_TAG,
 )
+from otklik_backend.browser.chromium_gate import ChromiumInstallError
 from otklik_backend.setup.ollama import OllamaPullError
 
 log = get_logger(__name__)
@@ -50,6 +52,7 @@ async def setup_state(
     hardware: HardwareProbeDep,
     ollama: OllamaGateDep,
     claude: ClaudeCodeGateDep,
+    chromium: ChromiumGateDep,
 ) -> SetupStateAPISchema:
     settings: SettingsORM = await SettingsRepository.get(session=session)
     return SetupStateAPISchema(
@@ -59,6 +62,7 @@ async def setup_state(
         local_model=LOCAL_MODEL,
         cloud_model=CLOUD_MODEL,
         claude_available=claude.credentials_present(),
+        chromium_installed=chromium.is_installed(),
     )
 
 
@@ -97,6 +101,22 @@ async def setup_pull(ollama: OllamaGateDep) -> StreamingResponse:
         except Exception as exc:  # noqa: BLE001
             log.error("Model pull failed unexpectedly", error=str(exc))
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Model pull failed'})}\n\n"
+
+    return StreamingResponse(frames(), media_type="text/event-stream")
+
+
+@setup_router.post("/chromium")
+async def setup_chromium(chromium: ChromiumGateDep) -> StreamingResponse:
+    async def frames() -> AsyncIterator[str]:
+        try:
+            async for progress in chromium.install():
+                yield f"data: {progress.model_dump_json()}\n\n"
+        except ChromiumInstallError as exc:
+            log.warning("Chromium install failed", detail=str(exc))
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
+        except Exception as exc:  # noqa: BLE001
+            log.error("Chromium install failed unexpectedly", error=str(exc))
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Chromium install failed'})}\n\n"
 
     return StreamingResponse(frames(), media_type="text/event-stream")
 

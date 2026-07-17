@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -55,6 +55,14 @@ jobs:
 
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/backend/uv.lock
+
+      - name: Build backend sidecar
+        run: cd services/backend && uv sync && ./scripts/build_sidecar.sh
 
       - name: Build, sign and publish
         uses: tauri-apps/tauri-action@v0

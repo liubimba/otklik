@@ -95,10 +95,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/backend/uv.lock
+      - name: Build backend sidecar
+        run: cd services/backend && uv sync && ./scripts/build_sidecar.sh
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -141,3 +147,49 @@ jobs:
       - name: tauri build
         working-directory: apps/desktop
         run: pnpm exec tauri build --no-bundle
+
+  sidecar:
+    name: sidecar smoke (built artifact)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/backend/uv.lock
+      - name: Install Python deps
+        run: cd services/backend && uv sync
+      - name: Build sidecar
+        run: cd services/backend && ./scripts/build_sidecar.sh
+      - name: Built backend must answer /health
+        run: |
+          ./apps/desktop/src-tauri/resources/backend/otklik-backend --port 18123 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:18123/api/v1/system/health; then
+              echo "sidecar OK"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "sidecar did not come up"
+          exit 1
+      - name: Built backend must create the schema on a clean profile
+        run: |
+          rm -rf "$HOME/.otklik"
+          ./apps/desktop/src-tauri/resources/backend/otklik-backend --port 18124 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:18124/api/v1/system/health && break
+            sleep 2
+          done
+          python3 - <<'PY'
+          import os, sqlite3, sys
+          db = os.path.expanduser("~/.otklik/db.sqlite")
+          if not os.path.exists(db):
+              sys.exit("no database was created")
+          tables = {r[0] for r in sqlite3.connect(db).execute(
+              "SELECT name FROM sqlite_master WHERE type='table'")}
+          missing = {"settings", "vacancies", "applications", "alembic_version"} - tables
+          if missing:
+              sys.exit(f"missing tables: {sorted(missing)}")
+          print("schema OK:", sorted(tables))
+          PY

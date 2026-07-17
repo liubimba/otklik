@@ -59,6 +59,10 @@ class FakeWebSocket {
 }
 
 beforeEach(() => {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn().mockResolvedValue(new Response("{}", { status: 200 })),
+	);
 	FakeWebSocket.reset();
 	vi.stubGlobal("WebSocket", FakeWebSocket);
 	vi.useFakeTimers();

@@ -17,6 +17,8 @@ vi.mock("$lib/log", () => ({
 const { API } = await import("./client");
 const { APIError } = await import("./error");
 
+const isHealthProbe = (url: string): boolean => url.endsWith("/system/health");
+
 interface RecordedCall {
 	url: string;
 	init: RequestInit | undefined;
@@ -46,6 +48,7 @@ function noContent(): Response {
 beforeEach(() => {
 	calls = [];
 	fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+		if (isHealthProbe(url)) return jsonResponse({ status: "ok" });
 		calls.push({ url, init });
 		return jsonResponse({});
 	});
@@ -58,6 +61,7 @@ afterEach(() => {
 
 function respondWith(response: Response): void {
 	fetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
+		if (isHealthProbe(url)) return jsonResponse({ status: "ok" });
 		calls.push({ url, init });
 		return response;
 	});
@@ -97,6 +101,7 @@ function mockFetchSSEWithChunks(chunks: string[]): void {
 		body: { getReader: () => reader },
 	} as unknown as Response;
 	fetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
+		if (isHealthProbe(url)) return jsonResponse({ status: "ok" });
 		calls.push({ url, init });
 		return response;
 	});

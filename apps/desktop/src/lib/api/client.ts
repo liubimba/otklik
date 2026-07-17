@@ -1,4 +1,5 @@
 import { getLogger } from "$lib/log";
+import { backendOrigin } from "./backend-address";
 import { APIError } from "./error";
 import type {
 	APIRequestError,
@@ -31,8 +32,6 @@ import type {
 	VacancyStatusFilter,
 } from "./types";
 
-const BASE_IP = import.meta.env.VITE_BACKEND_IP;
-const BASE_PORT = import.meta.env.VITE_BACKEND_PORT;
 const logger = getLogger("APIClient");
 
 function formatErrorDetail(detail: APIRequestError["detail"]): string {
@@ -63,7 +62,7 @@ function qs(params: QueryParams): string {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/${path}`;
+	const url = `http://${await backendOrigin()}/api/v1/${path}`;
 	logger.info(
 		`Making API request to "${url}" with method: ${init?.method || "GET"}. Body: ${init?.body}`,
 	);
@@ -104,7 +103,7 @@ async function apiNullable204<T>(
 	path: string,
 	init?: RequestInit,
 ): Promise<T | null> {
-	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/${path}`;
+	const url = `http://${await backendOrigin()}/api/v1/${path}`;
 	const res = await fetch(url, {
 		...init,
 		headers: {
@@ -162,7 +161,7 @@ async function* streamChat(
 	vacancyId: number,
 	message: string,
 ): AsyncGenerator<ChatStreamEvent> {
-	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/vacancies/${vacancyId}/application/chat`;
+	const url = `http://${await backendOrigin()}/api/v1/vacancies/${vacancyId}/application/chat`;
 	logger.info(`Opening chat stream to "${url}"`);
 	yield* streamSSE<ChatStreamEvent>(url, {
 		method: "POST",
@@ -173,7 +172,7 @@ async function* streamChat(
 type PullFrame = PullProgress | { type: "error"; detail: string };
 
 async function* streamPull(): AsyncGenerator<PullProgress> {
-	const url = `http://${BASE_IP}:${BASE_PORT}/api/v1/setup/pull`;
+	const url = `http://${await backendOrigin()}/api/v1/setup/pull`;
 	for await (const frame of streamSSE<PullFrame>(url, { method: "POST" })) {
 		if ("type" in frame && frame.type === "error") {
 			throw new APIError(500, frame.detail);

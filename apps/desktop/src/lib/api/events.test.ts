@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@tauri-apps/api/core", () => ({
+	invoke: () => Promise.resolve(8001),
+}));
+
 vi.mock("$lib/log", () => ({
 	getLogger: () => ({
 		debug: () => {},
@@ -65,40 +69,48 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
+const flush = async (): Promise<void> => {
+	await vi.advanceTimersByTimeAsync(0);
+};
+
 describe("EventsWebSocket — connection URL + lifecycle", () => {
-	it("connects to /ws/events on the configured host", () => {
+	it("connects to /ws/events on the configured host", async () => {
 		const ws = new EventsWebSocket(() => {});
 		ws.connect();
+		await flush();
 		expect(FakeWebSocket.last().url).toMatch(/\/ws\/events$/);
 		expect(FakeWebSocket.last().url.startsWith("ws://")).toBe(true);
 	});
 
-	it("close() marks the socket closed and skips reconnect", () => {
+	it("close() marks the socket closed and skips reconnect", async () => {
 		const ws = new EventsWebSocket(() => {});
 		ws.connect();
+		await flush();
 		ws.close();
 		FakeWebSocket.last().fireClose();
 		vi.runAllTimers();
 		expect(FakeWebSocket.instances.length).toBe(1);
 	});
 
-	it("close() cancels a pending reconnect timer", () => {
+	it("close() cancels a pending reconnect timer", async () => {
 		const ws = new EventsWebSocket(() => {}, undefined, undefined, {
 			initialDelay: 1_000,
 		});
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireClose();
 		ws.close();
-		vi.advanceTimersByTime(5_000);
+		await vi.advanceTimersByTimeAsync(5_000);
 		expect(FakeWebSocket.instances.length).toBe(1);
 	});
 });
 
 describe("EventsWebSocket — message dispatch", () => {
-	it("parses valid JSON and forwards it to onEvent", () => {
+	it("parses valid JSON and forwards it to onEvent", async () => {
 		const received: unknown[] = [];
 		const ws = new EventsWebSocket((event) => received.push(event));
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireOpen();
 
 		FakeWebSocket.last().fireMessage({
@@ -111,10 +123,11 @@ describe("EventsWebSocket — message dispatch", () => {
 		]);
 	});
 
-	it("swallows malformed JSON without calling onEvent", () => {
+	it("swallows malformed JSON without calling onEvent", async () => {
 		const received: unknown[] = [];
 		const ws = new EventsWebSocket((event) => received.push(event));
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireOpen();
 
 		FakeWebSocket.last().fireMessage("not-json");
@@ -124,95 +137,100 @@ describe("EventsWebSocket — message dispatch", () => {
 });
 
 describe("EventsWebSocket — reconnect backoff", () => {
-	it("reconnects after unclean close with the configured initial delay", () => {
+	it("reconnects after unclean close with the configured initial delay", async () => {
 		const ws = new EventsWebSocket(() => {}, undefined, undefined, {
 			initialDelay: 500,
 			backoffFactor: 2,
 			maxDelay: 10_000,
 		});
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireClose(1006, false);
 
 		expect(FakeWebSocket.instances.length).toBe(1);
-		vi.advanceTimersByTime(499);
+		await vi.advanceTimersByTimeAsync(499);
 		expect(FakeWebSocket.instances.length).toBe(1);
-		vi.advanceTimersByTime(1);
+		await vi.advanceTimersByTimeAsync(1);
 		expect(FakeWebSocket.instances.length).toBe(2);
 	});
 
-	it("doubles delay after each failed attempt (exponential backoff)", () => {
+	it("doubles delay after each failed attempt (exponential backoff)", async () => {
 		const ws = new EventsWebSocket(() => {}, undefined, undefined, {
 			initialDelay: 100,
 			backoffFactor: 2,
 			maxDelay: 10_000,
 		});
 		ws.connect();
+		await flush();
 
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(100);
+		await vi.advanceTimersByTimeAsync(100);
 		expect(FakeWebSocket.instances.length).toBe(2);
 
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(199);
+		await vi.advanceTimersByTimeAsync(199);
 		expect(FakeWebSocket.instances.length).toBe(2);
-		vi.advanceTimersByTime(1);
+		await vi.advanceTimersByTimeAsync(1);
 		expect(FakeWebSocket.instances.length).toBe(3);
 
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(399);
+		await vi.advanceTimersByTimeAsync(399);
 		expect(FakeWebSocket.instances.length).toBe(3);
-		vi.advanceTimersByTime(1);
+		await vi.advanceTimersByTimeAsync(1);
 		expect(FakeWebSocket.instances.length).toBe(4);
 	});
 
-	it("caps the delay at maxDelay", () => {
+	it("caps the delay at maxDelay", async () => {
 		const ws = new EventsWebSocket(() => {}, undefined, undefined, {
 			initialDelay: 100,
 			backoffFactor: 10,
 			maxDelay: 500,
 		});
 		ws.connect();
+		await flush();
 
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(100);
+		await vi.advanceTimersByTimeAsync(100);
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(500);
+		await vi.advanceTimersByTimeAsync(500);
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(500);
+		await vi.advanceTimersByTimeAsync(500);
 		expect(FakeWebSocket.instances.length).toBe(4);
 	});
 
-	it("resets backoff after a successful open", () => {
+	it("resets backoff after a successful open", async () => {
 		const ws = new EventsWebSocket(() => {}, undefined, undefined, {
 			initialDelay: 100,
 			backoffFactor: 2,
 		});
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(100);
+		await vi.advanceTimersByTimeAsync(100);
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(200);
+		await vi.advanceTimersByTimeAsync(200);
 		FakeWebSocket.last().fireOpen();
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(99);
+		await vi.advanceTimersByTimeAsync(99);
 		const before = FakeWebSocket.instances.length;
-		vi.advanceTimersByTime(1);
+		await vi.advanceTimersByTimeAsync(1);
 		expect(FakeWebSocket.instances.length).toBe(before + 1);
 	});
 
-	it("stops reconnecting once maxAttempts is reached and fires onClose", () => {
+	it("stops reconnecting once maxAttempts is reached and fires onClose", async () => {
 		const onClose = vi.fn();
 		const ws = new EventsWebSocket(() => {}, undefined, onClose, {
 			initialDelay: 10,
 			maxAttempts: 2,
 		});
 		ws.connect();
+		await flush();
 
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(10);
+		await vi.advanceTimersByTimeAsync(10);
 
 		FakeWebSocket.last().fireClose();
-		vi.advanceTimersByTime(20);
+		await vi.advanceTimersByTimeAsync(20);
 
 		FakeWebSocket.last().fireClose();
 		vi.runAllTimers();
@@ -223,7 +241,7 @@ describe("EventsWebSocket — reconnect backoff", () => {
 });
 
 describe("EventsWebSocket — open hook", () => {
-	it("calls onOpen on the first successful connect", () => {
+	it("calls onOpen on the first successful connect", async () => {
 		const onOpen = vi.fn();
 		const ws = new EventsWebSocket(
 			() => {},
@@ -233,12 +251,13 @@ describe("EventsWebSocket — open hook", () => {
 			onOpen,
 		);
 		ws.connect();
+		await flush();
 		expect(onOpen).not.toHaveBeenCalled();
 		FakeWebSocket.last().fireOpen();
 		expect(onOpen).toHaveBeenCalledTimes(1);
 	});
 
-	it("calls onOpen again on every reconnect, not just the first connect", () => {
+	it("calls onOpen again on every reconnect, not just the first connect", async () => {
 		const onOpen = vi.fn();
 		const ws = new EventsWebSocket(
 			() => {},
@@ -248,11 +267,12 @@ describe("EventsWebSocket — open hook", () => {
 			onOpen,
 		);
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireOpen();
 		expect(onOpen).toHaveBeenCalledTimes(1);
 
 		FakeWebSocket.last().fireClose(1006, false);
-		vi.advanceTimersByTime(100);
+		await vi.advanceTimersByTimeAsync(100);
 		FakeWebSocket.last().fireOpen();
 		expect(onOpen).toHaveBeenCalledTimes(2);
 	});
@@ -270,26 +290,28 @@ describe("EventsWebSocket — disconnect hook", () => {
 		);
 	}
 
-	it("fires onDisconnect when an established socket drops unexpectedly", () => {
+	it("fires onDisconnect when an established socket drops unexpectedly", async () => {
 		const onDisconnect = vi.fn();
 		const ws = withDisconnect(onDisconnect, { initialDelay: 100 });
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireOpen();
 		FakeWebSocket.last().fireClose(1006, false);
 		expect(onDisconnect).toHaveBeenCalledTimes(1);
 	});
 
-	it("does NOT fire onDisconnect on an intentional close() — that's onClose's job", () => {
+	it("does NOT fire onDisconnect on an intentional close() — that's onClose's job", async () => {
 		const onDisconnect = vi.fn();
 		const ws = withDisconnect(onDisconnect);
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireOpen();
 		ws.close();
 		FakeWebSocket.last().fireClose();
 		expect(onDisconnect).not.toHaveBeenCalled();
 	});
 
-	it("fires onDisconnect when the socket cannot even be opened", () => {
+	it("fires onDisconnect when the socket cannot even be opened", async () => {
 		vi.stubGlobal(
 			"WebSocket",
 			class {
@@ -301,23 +323,25 @@ describe("EventsWebSocket — disconnect hook", () => {
 		const onDisconnect = vi.fn();
 		const ws = withDisconnect(onDisconnect);
 		ws.connect();
+		await flush();
 		expect(onDisconnect).toHaveBeenCalledTimes(1);
 		ws.close();
 	});
 });
 
 describe("EventsWebSocket — error hook", () => {
-	it("propagates onerror to the caller-supplied handler", () => {
+	it("propagates onerror to the caller-supplied handler", async () => {
 		const onError = vi.fn();
 		const ws = new EventsWebSocket(() => {}, onError);
 		ws.connect();
+		await flush();
 		FakeWebSocket.last().fireError();
 		expect(onError).toHaveBeenCalledTimes(1);
 	});
 });
 
 describe("EventsWebSocket — a bad URL must not take the app down", () => {
-	it("does not throw when the WebSocket constructor rejects the url", () => {
+	it("does not throw when the WebSocket constructor rejects the url", async () => {
 		vi.stubGlobal(
 			"WebSocket",
 			class {
@@ -336,7 +360,7 @@ describe("EventsWebSocket — a bad URL must not take the app down", () => {
 		ws.close();
 	});
 
-	it("reports the failure through onError instead of throwing", () => {
+	it("reports the failure through onError instead of throwing", async () => {
 		vi.stubGlobal(
 			"WebSocket",
 			class {
@@ -351,6 +375,7 @@ describe("EventsWebSocket — a bad URL must not take the app down", () => {
 
 		const ws = new EventsWebSocket(() => {}, onError);
 		ws.connect();
+		await flush();
 
 		expect(onError).toHaveBeenCalledTimes(1);
 

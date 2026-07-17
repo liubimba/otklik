@@ -1,8 +1,6 @@
 import { getLogger } from "$lib/log";
+import { backendOrigin } from "./backend-address";
 import type { ServerEvent } from "./types";
-
-const BASE_IP = import.meta.env.VITE_BACKEND_IP;
-const BASE_PORT = import.meta.env.VITE_BACKEND_PORT;
 
 export interface ReconnectOptions {
 	initialDelay?: number;
@@ -16,7 +14,7 @@ export class EventsWebSocket {
 	private logger = getLogger(EventsWebSocket.name);
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-	private readonly url: string;
+	private url = "";
 	private readonly options: Required<ReconnectOptions>;
 	private closed = false;
 	private currentDelay: number;
@@ -30,7 +28,6 @@ export class EventsWebSocket {
 		private readonly onOpen?: () => void,
 		private readonly onDisconnect?: () => void,
 	) {
-		this.url = `ws://${BASE_IP}:${BASE_PORT}/ws/events`;
 		this.options = {
 			initialDelay: options.initialDelay ?? 1_000,
 			maxDelay: options.maxDelay ?? 30_000,
@@ -54,6 +51,27 @@ export class EventsWebSocket {
 		if (this.closed) {
 			return;
 		}
+		void this.openSocket();
+	}
+
+	private async openSocket(): Promise<void> {
+		try {
+			this.url = `ws://${await backendOrigin()}/ws/events`;
+		} catch (error) {
+			this.logger.error(
+				`Cannot resolve the backend port from Tauri: ${
+					error instanceof Error ? error.message : String(error)
+				}. The sidecar is probably still starting.`,
+			);
+			this.ws = null;
+			this.onError?.(new Event("error"));
+			this.onDisconnect?.();
+			this.scheduleReconnect();
+			return;
+		}
+		if (this.closed) {
+			return;
+		}
 		this.logger.info(
 			`Connecting to ${this.url}${this.attempts > 0 ? ` (attempt #${this.attempts + 1})` : ""}`,
 		);
@@ -64,7 +82,7 @@ export class EventsWebSocket {
 			this.logger.error(
 				`Cannot open the server-events socket (url=${this.url}): ${
 					error instanceof Error ? error.message : String(error)
-				}. Is VITE_BACKEND_IP/VITE_BACKEND_PORT set? See apps/desktop/.env.example`,
+				}`,
 			);
 			this.ws = null;
 			this.onError?.(new Event("error"));
@@ -137,34 +155,4 @@ export class EventsWebSocket {
 
 		this.currentDelay = Math.min(delay * backoffFactor, maxDelay);
 	}
-}
-
-export function connectEvents(
-	onEvent: (event: ServerEvent) => void,
-	onError?: (event: Event) => void,
-	onClose?: () => void,
-): WebSocket {
-	const logger = getLogger("api/events");
-	const ws = new WebSocket(`ws://${BASE_IP}:${BASE_PORT}/ws/events`);
-	ws.onopen = () => {
-		logger.info("WebSocket connection established for server events");
-	};
-	ws.onclose = () => {
-		logger.info("WebSocket connection closed for server events");
-		onClose?.();
-	};
-	ws.onerror = (err: Event) => {
-		logger.error(`WebSocket error for server events. Error: ${err}`);
-		onError?.(err);
-	};
-	ws.onmessage = (message) => {
-		try {
-			const event: ServerEvent = JSON.parse(message.data);
-			onEvent(event);
-		} catch (err) {
-			logger.error(`Failed to parse server event message. Error: ${err}`);
-		}
-	};
-	logger.info("Register new WebSocket connection for server events");
-	return ws;
 }

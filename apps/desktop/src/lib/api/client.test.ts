@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PullProgress, SetupState } from "./types";
 
+vi.mock("@tauri-apps/api/core", () => ({
+	invoke: () => Promise.resolve(8001),
+}));
+
 vi.mock("$lib/log", () => ({
 	getLogger: () => ({
 		debug: () => {},

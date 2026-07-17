@@ -48,12 +48,21 @@ class BrowserCore:
         self.headless = False
         self._context: BrowserContext | None = None
         self._playwright: Playwright | None = None
+        self._start_lock = asyncio.Lock()
         if window is not None:
             self._window = window
         elif X11WindowController.available():
             self._window = X11WindowController(self.profile_dir, APP_WINDOW_NAME)
         else:
             self._window = NoopWindowController()
+
+    async def ensure_started(self) -> None:
+        if self._context is not None:
+            return
+        async with self._start_lock:
+            if self._context is not None:
+                return
+            await self.start()
 
     async def start(self) -> None:
         self.logger.info(
@@ -86,8 +95,8 @@ class BrowserCore:
         self._playwright = None
 
     async def new_page(self, url: str) -> BrowserPage:
+        await self.ensure_started()
         if self._context is None:
-            self.logger.error("BrowserCore is not started")
             raise RuntimeError("BrowserCore is not started")
         for attempt in range(MAX_ATTEMPTS):
             page: Page | None = None
@@ -111,11 +120,13 @@ class BrowserCore:
         raise RuntimeError("Unreachable")
 
     async def cookies(self, base_url: str) -> list[Cookie]:
+        await self.ensure_started()
         if self._context is None:
             raise RuntimeError("BrowserCore is not started")
         return await self._context.cookies(base_url)
 
     async def clear_cookies(self) -> None:
+        await self.ensure_started()
         if self._context is None:
             raise RuntimeError("BrowserCore is not started yet")
         await self._context.clear_cookies()

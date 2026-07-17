@@ -1,4 +1,7 @@
+import asyncio
 import sys
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from patchright.async_api import Error as PlaywrightError
@@ -117,3 +120,38 @@ async def test_new_page_does_not_retry_non_playwright_errors(core) -> None:
         await core.new_page(url="https://hh.ru/search/vacancy")
 
     assert len(context.pages) == 1
+
+
+async def test_ensure_started_launches_once_even_when_called_concurrently() -> None:
+    core = BrowserCore(profile_dir=Path("/tmp/unused"), window=NoopWindowController())
+    starts = 0
+
+    async def fake_start() -> None:
+        nonlocal starts
+        starts += 1
+        await asyncio.sleep(0.01)
+        core._context = object()  # type: ignore[assignment]
+
+    with patch.object(core, "start", fake_start):
+        await asyncio.gather(*(core.ensure_started() for _ in range(5)))
+
+    assert starts == 1
+
+
+async def test_ensure_started_retries_after_a_failed_launch() -> None:
+    core = BrowserCore(profile_dir=Path("/tmp/unused"), window=NoopWindowController())
+    attempts = 0
+
+    async def flaky_start() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("Executable doesn't exist at chrome")
+        core._context = object()  # type: ignore[assignment]
+
+    with patch.object(core, "start", flaky_start):
+        with pytest.raises(RuntimeError):
+            await core.ensure_started()
+        await core.ensure_started()
+
+    assert attempts == 2

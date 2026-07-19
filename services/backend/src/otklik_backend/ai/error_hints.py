@@ -14,10 +14,19 @@ _GIGACHAT_AUTH_HINT = (
     "И проверьте область (Personal/Corporate)."
 )
 
+_CLAUDE_CODE_HINT = (
+    "Claude Code (claude) не отработал. Проверьте, что CLI установлен и выполнен "
+    "вход (`claude login`), а Anthropic доступен из сети — из РФ заблокирован, "
+    "нужен VPN (системный или HTTP-прокси; SOCKS `claude` не понимает). "
+    "Как альтернатива из РФ — GigaChat или локальная модель."
+)
+
 
 def humanize_llm_error(error: object) -> str:
     text = str(error)
     lowered = text.lower()
+    if "claude -p" in lowered or "claudecodeerror" in lowered:
+        return _CLAUDE_CODE_HINT
     if "gigachat" in lowered and (
         "can't decode" in lowered
         or "authentication failed" in lowered

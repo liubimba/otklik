@@ -23,7 +23,10 @@ def _resolve_verify(
 
 
 def apply_llm_proxy(proxy_url: str | None) -> None:
+    from otklik_backend.ai.claude_code import set_claude_proxy
+
     proxy = (proxy_url or "").strip() or None
+    set_claude_proxy(proxy)
     _flush_client_cache()
 
     def _transport(

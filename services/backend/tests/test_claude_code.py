@@ -10,9 +10,11 @@ from otklik_backend.ai.claude_code import (
     ClaudeCodeError,
     ClaudeCodeLLM,
     _clean_env,
+    _error_detail,
     _messages_to_prompt,
     register_claude_code_provider,
     resolve_claude_binary,
+    set_claude_proxy,
 )
 
 
@@ -121,6 +123,63 @@ async def test_acompletion_raises_on_nonzero_exit() -> None:
                 messages=[{"role": "user", "content": "go"}],
                 model_response=ModelResponse(),
             )
+
+
+async def test_acompletion_surfaces_stdout_error_when_stderr_empty() -> None:
+    llm = ClaudeCodeLLM()
+    proc = _FakeProc(
+        stdout=json.dumps(
+            {
+                "is_error": True,
+                "api_error_status": 403,
+                "result": "API Error: Forbidden",
+            }
+        ).encode(),
+        stderr=b"",
+        returncode=1,
+    )
+    with (
+        patch(
+            "otklik_backend.ai.claude_code.resolve_claude_binary",
+            return_value="/usr/bin/claude",
+        ),
+        _spawn_returns(proc),
+    ):
+        with pytest.raises(ClaudeCodeError, match="403"):
+            await llm.acompletion(
+                model="claude-code/sonnet",
+                messages=[{"role": "user", "content": "go"}],
+                model_response=ModelResponse(),
+            )
+
+
+def test_error_detail_prefers_structured_stdout_error() -> None:
+    out = json.dumps({"result": "API Error: Forbidden"}).encode()
+    assert _error_detail(out, b"Shell cwd was reset") == "API Error: Forbidden"
+
+
+def test_error_detail_uses_stderr_when_stdout_has_no_structured_error() -> None:
+    assert _error_detail(b"random noise", b"real crash") == "real crash"
+
+
+def test_error_detail_extracts_stdout_json_when_stderr_empty() -> None:
+    out = json.dumps({"api_error_status": 401, "result": "Unauthorized"}).encode()
+    assert _error_detail(out, b"") == "HTTP 401: Unauthorized"
+
+
+def test_error_detail_falls_back_when_no_output() -> None:
+    assert _error_detail(b"", b"") == "нет вывода от claude"
+
+
+def test_clean_env_injects_configured_proxy() -> None:
+    set_claude_proxy("http://127.0.0.1:10809")
+    try:
+        env = _clean_env()
+        assert env["HTTPS_PROXY"] == "http://127.0.0.1:10809"
+        assert env["ALL_PROXY"] == "http://127.0.0.1:10809"
+    finally:
+        set_claude_proxy(None)
+    assert _clean_env().get("HTTPS_PROXY") != "http://127.0.0.1:10809"
 
 
 async def test_acompletion_raises_on_is_error_payload() -> None:

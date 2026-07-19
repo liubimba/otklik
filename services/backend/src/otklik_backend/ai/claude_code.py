@@ -24,6 +24,31 @@ STREAM_IDLE_TIMEOUT_SEC = 120.0
 class ClaudeCodeError(Exception): ...
 
 
+_PROXY: str | None = None
+
+
+def set_claude_proxy(proxy_url: str | None) -> None:
+    global _PROXY
+    _PROXY = (proxy_url or "").strip() or None
+
+
+def _error_detail(stdout: bytes, stderr: bytes) -> str:
+    err = stderr.decode(errors="replace").strip()
+    out = stdout.decode(errors="replace").strip()
+    if out:
+        try:
+            data = json.loads(out)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict):
+            status = data.get("api_error_status")
+            result = str(data.get("result") or data.get("error") or "").strip()
+            combined = f"HTTP {status}: {result}" if status else result
+            if combined:
+                return combined[-500:]
+    return (err or out or "нет вывода от claude")[-500:]
+
+
 def resolve_claude_binary() -> str | None:
     found = shutil.which("claude")
     if found:
@@ -48,6 +73,9 @@ def _clean_env() -> dict[str, str]:
     env = dict(os.environ)
     env.pop("ANTHROPIC_API_KEY", None)
     env.pop("ANTHROPIC_AUTH_TOKEN", None)
+    if _PROXY:
+        for var in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"):
+            env[var] = _PROXY
     return env
 
 
@@ -140,9 +168,11 @@ class ClaudeCodeLLM(CustomLLM):
                 f"`claude -p` timed out after {timeout:.0f}s"
             ) from exc
         if proc.returncode != 0:
-            tail = stderr.decode(errors="replace")[-500:]
-            log.warning("claude-code: `claude -p` exited %s: %s", proc.returncode, tail)
-            raise ClaudeCodeError(f"`claude -p` exited {proc.returncode}: {tail}")
+            detail = _error_detail(stdout, stderr)
+            log.warning(
+                "claude-code: `claude -p` exited %s: %s", proc.returncode, detail
+            )
+            raise ClaudeCodeError(f"`claude -p` exited {proc.returncode}: {detail}")
         try:
             data = json.loads(stdout.decode(errors="replace"))
         except json.JSONDecodeError as exc:

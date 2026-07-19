@@ -65,5 +65,11 @@ def test_humanize_gigachat_auth_error_explains_the_right_key() -> None:
     assert "авторизаци" in hint.lower()
 
 
+def test_humanize_claude_code_error_gives_actionable_guidance() -> None:
+    hint = humanize_llm_error("litellm.APIConnectionError: `claude -p` exited 1: ")
+    assert "claude" in hint.lower()
+    assert "login" in hint.lower() or "вход" in hint.lower()
+
+
 def test_humanize_passes_through_unrelated_errors() -> None:
     assert humanize_llm_error("Rate limit exceeded") == "Rate limit exceeded"

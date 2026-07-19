@@ -81,7 +81,7 @@ $effect(() => {
 </AlertDialog.Root>
 
 <div class="container mx-auto max-w-2xl p-6 space-y-6 relative">
-    <header class="flex items-center justify-between sticky top-0">
+    <header class="flex items-center justify-between">
         <h1 class="text-2xl font-semibold">{m.queue_title()}</h1>
         {#if searchQuery.data}
             <span class="text-muted-foreground font-mono text-xs"

@@ -1,16 +1,11 @@
 from collections.abc import Iterator
 
 import httpx
-import litellm
 import pytest
 from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 
 from otklik_backend.ai.error_hints import humanize_llm_error
-from otklik_backend.ai.proxy import (
-    _ORIGINAL_DISABLE_AIOHTTP,
-    _ORIGINAL_TRANSPORT,
-    apply_llm_proxy,
-)
+from otklik_backend.ai.proxy import _resolve_verify, apply_llm_proxy
 
 
 @pytest.fixture(autouse=True)
@@ -30,23 +25,22 @@ async def test_apply_llm_proxy_routes_requests_through_the_proxy() -> None:
             await httpclient.get("https://example.com", timeout=3)
 
 
-def test_apply_llm_proxy_forces_httpx_transport() -> None:
-    apply_llm_proxy("http://127.0.0.1:10809")
-    assert litellm.disable_aiohttp_transport is True
-
-
-def test_apply_llm_proxy_none_restores_the_default_transport() -> None:
-    apply_llm_proxy("http://127.0.0.1:10809")
-
+def test_ssl_verify_false_yields_a_fresh_httpx_transport_without_proxy() -> None:
     apply_llm_proxy(None)
+    transport = AsyncHTTPHandler._create_async_transport(ssl_verify=False)
+    assert isinstance(transport, httpx.AsyncHTTPTransport)
 
-    assert AsyncHTTPHandler.__dict__["_create_async_transport"] is _ORIGINAL_TRANSPORT
-    assert litellm.disable_aiohttp_transport is _ORIGINAL_DISABLE_AIOHTTP
+
+def test_normal_requests_keep_the_default_transport_without_proxy() -> None:
+    apply_llm_proxy(None)
+    transport = AsyncHTTPHandler._create_async_transport()
+    assert not isinstance(transport, httpx.AsyncHTTPTransport)
 
 
-def test_apply_llm_proxy_blank_is_treated_as_no_proxy() -> None:
-    apply_llm_proxy("   ")
-    assert AsyncHTTPHandler.__dict__["_create_async_transport"] is _ORIGINAL_TRANSPORT
+def test_resolve_verify_maps_ssl_verify_false_to_no_verification() -> None:
+    assert _resolve_verify(None, False) is False
+    assert _resolve_verify(None, None) is True
+    assert _resolve_verify(None, True) is True
 
 
 def test_humanize_forbidden_points_to_the_proxy_setting() -> None:

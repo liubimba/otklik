@@ -1,5 +1,5 @@
 import ssl
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 import litellm
@@ -9,36 +9,43 @@ from otklik_backend.log import get_logger
 
 _log = get_logger(__name__)
 
-_ORIGINAL_TRANSPORT = AsyncHTTPHandler.__dict__["_create_async_transport"]
-_ORIGINAL_DISABLE_AIOHTTP = litellm.disable_aiohttp_transport
+_ORIGINAL_TRANSPORT = AsyncHTTPHandler._create_async_transport
+
+
+def _resolve_verify(
+    ssl_context: Optional[ssl.SSLContext], ssl_verify: Optional[bool]
+) -> ssl.SSLContext | bool:
+    if ssl_context is not None:
+        return ssl_context
+    if ssl_verify is False:
+        return False
+    return True
 
 
 def apply_llm_proxy(proxy_url: str | None) -> None:
-    normalized = (proxy_url or "").strip()
+    proxy = (proxy_url or "").strip() or None
     _flush_client_cache()
-    if not normalized:
-        AsyncHTTPHandler._create_async_transport = _ORIGINAL_TRANSPORT  # type: ignore[method-assign]
-        litellm.disable_aiohttp_transport = _ORIGINAL_DISABLE_AIOHTTP
-        return
 
-    litellm.disable_aiohttp_transport = True
-
-    def _proxied_transport(
+    def _transport(
         ssl_context: Optional[ssl.SSLContext] = None,
         ssl_verify: Optional[bool] = None,
-        shared_session: object = None,
-    ) -> httpx.AsyncHTTPTransport:
-        verify: ssl.SSLContext | bool
-        if ssl_context is not None:
-            verify = ssl_context
-        elif ssl_verify is False:
-            verify = False
-        else:
-            verify = True
-        return httpx.AsyncHTTPTransport(proxy=normalized, verify=verify)
+        shared_session: Any = None,
+    ) -> Any:
+        if proxy is not None:
+            return httpx.AsyncHTTPTransport(
+                proxy=proxy, verify=_resolve_verify(ssl_context, ssl_verify)
+            )
+        if ssl_verify is False:
+            return httpx.AsyncHTTPTransport(verify=False)
+        return _ORIGINAL_TRANSPORT(
+            ssl_context=ssl_context,
+            ssl_verify=ssl_verify,
+            shared_session=shared_session,
+        )
 
-    AsyncHTTPHandler._create_async_transport = staticmethod(_proxied_transport)  # type: ignore[method-assign]
-    _log.info("LLM requests routed through proxy")
+    AsyncHTTPHandler._create_async_transport = staticmethod(_transport)  # type: ignore[method-assign]
+    if proxy is not None:
+        _log.info("LLM requests routed through proxy")
 
 
 def _flush_client_cache() -> None:

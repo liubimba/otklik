@@ -62,5 +62,14 @@ def test_humanize_connection_failure_points_to_the_proxy_setting() -> None:
     assert "прокси" in hint.lower()
 
 
+def test_humanize_gigachat_auth_error_explains_the_right_key() -> None:
+    hint = humanize_llm_error(
+        "GigachatException - GigaChat authentication failed: "
+        '{"code":4,"message":"Can\'t decode \'Authorization\' header"}'
+    )
+    assert "GigaChat" in hint
+    assert "авторизаци" in hint.lower()
+
+
 def test_humanize_passes_through_unrelated_errors() -> None:
     assert humanize_llm_error("Rate limit exceeded") == "Rate limit exceeded"

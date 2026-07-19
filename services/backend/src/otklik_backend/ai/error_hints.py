@@ -8,10 +8,22 @@ _CONNECTION_HINT = (
     "Проверьте адрес прокси в Настройках → ИИ и что VPN включён."
 )
 
+_GIGACHAT_AUTH_HINT = (
+    "GigaChat не принял ключ. Нужен «Ключ авторизации» из кабинета "
+    "(Настройки API → длинная строка без точек), а не access-токен. "
+    "И проверьте область (Personal/Corporate)."
+)
+
 
 def humanize_llm_error(error: object) -> str:
     text = str(error)
     lowered = text.lower()
+    if "gigachat" in lowered and (
+        "can't decode" in lowered
+        or "authentication failed" in lowered
+        or "authorization" in lowered
+    ):
+        return _GIGACHAT_AUTH_HINT
     if "forbidden" in lowered or "403" in lowered:
         return _REGION_HINT
     if (

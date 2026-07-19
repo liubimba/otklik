@@ -8,6 +8,7 @@ import DottedBackground from "$lib/components/dotted-background.svelte";
 import { Toaster } from "$lib/components/ui/sonner";
 import WindowResizeHandles from "$lib/components/window-resize-handles.svelte";
 import WindowTitlebar from "$lib/components/window-titlebar.svelte";
+import { hideAppSplash } from "$lib/splash";
 import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
 import { ModeWatcher, mode } from "mode-watcher";
 import { onMount } from "svelte";
@@ -35,6 +36,7 @@ const queryClient = new QueryClient({
 });
 
 onMount(() => {
+	hideAppSplash();
 	void updater.check();
 
 	const sync = createEventSync(queryClient);

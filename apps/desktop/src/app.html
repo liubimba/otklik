@@ -1,13 +1,59 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tauri + SvelteKit + Typescript App</title>
+    <title>Otklik</title>
+    <style>
+      html {
+        background: #ffffff;
+      }
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        transition: opacity 220ms ease;
+      }
+      #app-splash.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #app-splash .spinner {
+        width: 34px;
+        height: 34px;
+        border-radius: 9999px;
+        border: 3px solid rgba(120, 120, 120, 0.25);
+        border-top-color: rgba(120, 120, 120, 0.9);
+        animation: app-splash-spin 800ms linear infinite;
+      }
+      @media (prefers-color-scheme: dark) {
+        html {
+          background: #1f1f1f;
+        }
+        #app-splash {
+          background: #1f1f1f;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash .spinner {
+          animation: none;
+        }
+      }
+      @keyframes app-splash-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
+    <div id="app-splash"><div class="spinner"></div></div>
     <div style="display: contents">%sveltekit.body%</div>
   </body>
 </html>

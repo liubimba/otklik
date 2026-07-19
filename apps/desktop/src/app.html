@@ -14,16 +14,74 @@
         inset: 0;
         z-index: 2147483647;
         display: flex;
-        align-items: center;
-        justify-content: center;
+        flex-direction: column;
         background: #ffffff;
+        color: #171717;
         transition: opacity 220ms ease;
       }
       #app-splash.is-hidden {
         opacity: 0;
         pointer-events: none;
       }
-      #app-splash .spinner {
+      #splash-titlebar {
+        display: flex;
+        height: 36px;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #e5e5e5;
+        user-select: none;
+      }
+      #splash-brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+      }
+      #splash-mark {
+        display: flex;
+        height: 24px;
+        width: 24px;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        background: #c10007;
+      }
+      #splash-name {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      #splash-controls {
+        display: flex;
+        align-items: center;
+      }
+      #splash-controls button {
+        display: inline-flex;
+        height: 36px;
+        width: 44px;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        background: transparent;
+        color: #737373;
+        cursor: pointer;
+      }
+      #splash-controls button:hover {
+        background: #f5f5f5;
+      }
+      #splash-controls button.close:hover {
+        background: #c10007;
+        color: #fef2f2;
+      }
+      #splash-body {
+        display: flex;
+        flex: 1;
+        align-items: center;
+        justify-content: center;
+      }
+      #splash-body .spinner {
         width: 34px;
         height: 34px;
         border-radius: 9999px;
@@ -37,10 +95,17 @@
         }
         #app-splash {
           background: #1f1f1f;
+          color: #fafafa;
+        }
+        #splash-titlebar {
+          border-bottom-color: #333333;
+        }
+        #splash-controls button:hover {
+          background: #2a2a2a;
         }
       }
       @media (prefers-reduced-motion: reduce) {
-        #app-splash .spinner {
+        #splash-body .spinner {
           animation: none;
         }
       }
@@ -53,7 +118,53 @@
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
-    <div id="app-splash"><div class="spinner"></div></div>
+    <div id="app-splash">
+      <div id="splash-titlebar" data-tauri-drag-region>
+        <div id="splash-brand">
+          <span id="splash-mark">
+            <svg width="16" height="16" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="128" cy="128" r="60" fill="none" stroke="#fef2f2" stroke-width="16" />
+              <g fill="#fef2f2">
+                <rect x="120" y="24" width="16" height="68" rx="8" />
+                <rect x="120" y="164" width="16" height="68" rx="8" />
+                <rect x="24" y="120" width="68" height="16" rx="8" />
+                <rect x="164" y="120" width="68" height="16" rx="8" />
+                <rect x="114" y="114" width="28" height="28" rx="7" />
+              </g>
+            </svg>
+          </span>
+          <span id="splash-name">Otklik</span>
+        </div>
+        <div id="splash-controls">
+          <button type="button" id="splash-min" aria-label="Свернуть">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          </button>
+          <button type="button" id="splash-max" aria-label="Развернуть">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
+          </button>
+          <button type="button" id="splash-close" class="close" aria-label="Закрыть">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="6" x2="18" y2="18" /><line x1="6" y1="18" x2="18" y2="6" /></svg>
+          </button>
+        </div>
+      </div>
+      <div id="splash-body"><div class="spinner"></div></div>
+    </div>
     <div style="display: contents">%sveltekit.body%</div>
+    <script>
+      (function () {
+        try {
+          var api = window.__TAURI__ && window.__TAURI__.window;
+          if (!api || !api.getCurrentWindow) return;
+          var w = api.getCurrentWindow();
+          var bind = function (id, fn) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener("click", fn);
+          };
+          bind("splash-min", function () { w.minimize(); });
+          bind("splash-max", function () { w.toggleMaximize(); });
+          bind("splash-close", function () { w.close(); });
+        } catch (e) {}
+      })();
+    </script>
   </body>
 </html>

@@ -36,28 +36,53 @@ class HHRUAuthFlow:
         await self._browser.show_window()
         await page.bring_to_front()
         self._auth_status = AuthStatusAPISchema.authorizing()
+        logged_in = False
         try:
-            while not await self._is_authorized():
-                self._log.info("User is not authenticated yet, waiting...")
-                await asyncio.sleep(poll_interval)
+            while True:
                 if page.is_closed():
-                    page = await self._browser.new_page(f"{BASE_URL}/login")
+                    self._log.info("Login window closed before authentication")
+                    break
+                if await self._is_authorized():
+                    self._log.info("User has logged in")
+                    logged_in = True
+                    break
+                await asyncio.sleep(poll_interval)
+        except Exception as error:  # noqa: BLE001
+            self._log.warning("Login wait interrupted", error=str(error))
         finally:
-            if await self._is_authorized():
-                self._log.info("User has logged in")
-                self._auth_status = AuthStatusAPISchema.authorized()
-            else:
-                self._auth_status = AuthStatusAPISchema.unauthorized()
-            await page.close()
-            await self._browser.hide_window()
+            self._auth_status = (
+                AuthStatusAPISchema.authorized()
+                if logged_in
+                else AuthStatusAPISchema.unauthorized()
+            )
+            await self._safe_close_page(page)
+            await self._safe_hide_window()
 
     async def unauthorize(self) -> None:
         await self._browser.clear_cookies()
         self._auth_status = AuthStatusAPISchema.unauthorized()
 
+    async def _safe_close_page(self, page: BrowserPage) -> None:
+        try:
+            await page.close()
+        except Exception as error:  # noqa: BLE001
+            self._log.warning("Failed to close login page", error=str(error))
+
+    async def _safe_hide_window(self) -> None:
+        try:
+            await self._browser.hide_window()
+        except Exception as error:  # noqa: BLE001
+            self._log.warning("Failed to hide window", error=str(error))
+
     async def _is_authorized(self) -> bool:
         self._log.info("Checking authentication status")
-        cookies: list[Cookie] = await self._browser.cookies(BASE_URL)
+        try:
+            cookies: list[Cookie] = await self._browser.cookies(BASE_URL)
+        except Exception as error:  # noqa: BLE001
+            self._log.warning(
+                "Failed to read auth cookies (browser closed?)", error=str(error)
+            )
+            return False
         for cookie in cookies:
             if cookie["name"] == AUTH_COOKIE_NAME:
                 role = cookie["value"]

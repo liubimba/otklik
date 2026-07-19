@@ -70,14 +70,20 @@ class BrowserCore:
             profile_dir=str(self.profile_dir),
         )
         self.profile_dir.mkdir(parents=True, exist_ok=True)
-        self._playwright = await async_playwright().start()
+        if self._playwright is None:
+            self._playwright = await async_playwright().start()
         self._context = await self._playwright.chromium.launch_persistent_context(
             user_data_dir=str(self.profile_dir),
             headless=self.headless,
             no_viewport=True,
             args=CHROMIUM_ARGS,
         )
+        self._context.on("close", self._on_context_closed)
         await self._window.hide()
+
+    def _on_context_closed(self, *_: object) -> None:
+        self.logger.info("Browser context closed")
+        self._context = None
 
     async def show_window(self) -> None:
         await self._window.show_near_app()
@@ -122,8 +128,15 @@ class BrowserCore:
     async def cookies(self, base_url: str) -> list[Cookie]:
         await self.ensure_started()
         if self._context is None:
-            raise RuntimeError("BrowserCore is not started")
-        return await self._context.cookies(base_url)
+            return []
+        try:
+            return await self._context.cookies(base_url)
+        except Exception as error:  # noqa: BLE001
+            self.logger.warning(
+                "Failed to read cookies (browser closed?)", error=str(error)
+            )
+            self._context = None
+            return []
 
     async def clear_cookies(self) -> None:
         await self.ensure_started()

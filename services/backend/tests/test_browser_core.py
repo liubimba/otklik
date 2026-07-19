@@ -155,3 +155,26 @@ async def test_ensure_started_retries_after_a_failed_launch() -> None:
         await core.ensure_started()
 
     assert attempts == 2
+
+
+def test_on_context_closed_nulls_context(tmp_path):
+    core = BrowserCore(profile_dir=tmp_path, window=NoopWindowController())
+    core._context = object()  # type: ignore[assignment]
+
+    core._on_context_closed()
+
+    assert core._context is None
+
+
+async def test_cookies_returns_empty_and_nulls_context_when_browser_dead(tmp_path):
+    class _DeadContext:
+        async def cookies(self, base_url: str) -> list[object]:
+            raise PlaywrightError("Target page, context or browser has been closed")
+
+    core = BrowserCore(profile_dir=tmp_path, window=NoopWindowController())
+    core._context = _DeadContext()  # type: ignore[assignment]
+
+    result = await core.cookies("https://hh.ru")
+
+    assert result == []
+    assert core._context is None

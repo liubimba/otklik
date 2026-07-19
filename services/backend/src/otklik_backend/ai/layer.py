@@ -18,6 +18,7 @@ from otklik_backend.ai.result import AICoverLetterResult
 from otklik_backend.ai.prompts import PromptBuilder
 from otklik_backend.ai.exceptions import GenerationCoverLetterError
 from otklik_backend.ai.health import AILayerHealthStatus
+from otklik_backend.setup.constants import GIGACHAT_PREFIX
 from otklik_backend.log import get_logger
 
 
@@ -148,14 +149,17 @@ class AILayer:
         return self._deployments[0]
 
     def _map_llm_to_deploy(self, llm: ResolvedDeployment) -> DeploymentTypedDict:
+        params = LiteLLMParamsTypedDict(
+            model=llm.deployment.model,
+            api_base=llm.deployment.api_base,
+            api_key=llm.api_key.get_secret_value() if llm.api_key else None,
+        )
+        if llm.deployment.model.startswith(GIGACHAT_PREFIX):
+            params["ssl_verify"] = False  # type: ignore[typeddict-unknown-key]
         return DeploymentTypedDict(
             model_name=llm.deployment.model,
             model_info={"id": llm.deployment.id},
-            litellm_params=LiteLLMParamsTypedDict(
-                model=llm.deployment.model,
-                api_base=llm.deployment.api_base,
-                api_key=llm.api_key.get_secret_value() if llm.api_key else None,
-            ),
+            litellm_params=params,
         )
 
     def _generate_model_list(

@@ -12,6 +12,7 @@ BENCHMARK_DEADLINE_SEC = 45.0
 
 CLAUDE_CODE_PROVIDER = "claude-code"
 CLAUDE_CODE_PREFIX = "claude-code/"
+GIGACHAT_PREFIX = "gigachat/"
 CLAUDE_CODE_DEFAULT_MODEL = "claude-code/sonnet"
 CLAUDE_CODE_MODEL_OPTIONS: list[tuple[str, str]] = [
     ("claude-code/sonnet", "Claude Sonnet"),

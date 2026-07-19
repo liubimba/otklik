@@ -139,3 +139,15 @@ async def test_ai_rebuild_swaps_deployments_and_router(make_ai_layer) -> None:
     layer.rebuild(deployments=[_resolved(model="openai/gpt-4o", key="y")])
     assert layer._deployments[0].deployment.model == "openai/gpt-4o"
     assert layer._router is not old_router
+
+
+def test_ai_layer_disables_ssl_verify_for_gigachat(make_ai_layer) -> None:
+    layer: AILayer = make_ai_layer([])
+    deploy = layer._map_llm_to_deploy(_resolved(model="gigachat/GigaChat-2-Lite"))
+    assert deploy["litellm_params"].get("ssl_verify") is False
+
+
+def test_ai_layer_keeps_ssl_verify_for_other_providers(make_ai_layer) -> None:
+    layer: AILayer = make_ai_layer([])
+    deploy = layer._map_llm_to_deploy(_resolved(model="groq/llama-3.3-70b-versatile"))
+    assert "ssl_verify" not in deploy["litellm_params"]

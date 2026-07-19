@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.ai.proxy import apply_llm_proxy
 from otklik_backend.api.schemas import SettingsAPISchema, SettingsWriteAPISchema
 from otklik_backend.api.dependencies import AILayerDep, DeploymentSecretsDep, SessionDep
 from otklik_backend.db.converters import settings_to_schema, settings_to_orm
@@ -34,6 +35,7 @@ async def update_settings_api(
         session=session,
         new_settings=settings_to_orm(schema=new_settings, deployments=deployments),
     )
+    apply_llm_proxy(settings.llm_proxy_url)
     ai_layer.rebuild(
         deployments=await secrets.resolve(deployments=settings.llm_deployments)
     )

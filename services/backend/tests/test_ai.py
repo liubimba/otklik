@@ -79,12 +79,25 @@ async def test_ai_generate_raises_when_router_fails(
     make_ai_layer, vacancy_model: VacancyAPISchema
 ) -> None:
     layer: AILayer = make_ai_layer([_resolved()])
-    layer._router.acompletion.side_effect = Exception("connection refused")
-    with pytest.raises(GenerationCoverLetterError, match="connection refused"):
+    layer._router.acompletion.side_effect = Exception("model exploded")
+    with pytest.raises(GenerationCoverLetterError, match="model exploded"):
         await layer.generate_cover_letter(
             vacancy_model=vacancy_model, resume="", style=""
         )
     layer._router.acompletion.assert_awaited_once()
+
+
+async def test_ai_generate_geo_block_error_points_to_the_proxy_setting(
+    make_ai_layer, vacancy_model: VacancyAPISchema
+) -> None:
+    layer: AILayer = make_ai_layer([_resolved()])
+    layer._router.acompletion.side_effect = Exception(
+        'GroqException - {"message":"Forbidden"}'
+    )
+    with pytest.raises(GenerationCoverLetterError, match="регион"):
+        await layer.generate_cover_letter(
+            vacancy_model=vacancy_model, resume="", style=""
+        )
 
 
 async def test_generate_cover_letter_makes_a_single_model_call(

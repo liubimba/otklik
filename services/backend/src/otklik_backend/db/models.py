@@ -96,6 +96,7 @@ class SettingsORM(Base):
         LLMDeploymentList, default=list
     )
     llm_system_prompt: Mapped[str | None] = mapped_column(default=None)
+    llm_proxy_url: Mapped[str | None] = mapped_column(default=None)
 
 
 class VacancyORM(Base):

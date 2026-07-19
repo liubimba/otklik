@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from otklik_backend.ai.layer import AILayer
+from otklik_backend.ai.proxy import apply_llm_proxy
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.browser.core import BrowserCore
 from otklik_backend.core.protocols import EventListener, Recoverable, Runnable
@@ -152,6 +153,7 @@ class BackendBuilder:
     async def _bootstrap_ai_layer(self, secret_store: SecretStore) -> AILayer:
         async with self._session_maker() as session:
             settings: SettingsORM = await SettingsRepository.get(session=session)
+        apply_llm_proxy(settings.llm_proxy_url)
         try:
             resolved = await DeploymentSecretsService(secret_store).resolve(
                 deployments=settings.llm_deployments

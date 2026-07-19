@@ -193,6 +193,7 @@ class LLMSettingsAPISchema(BaseModel):
     resume_text: str = ""
     letter_style: str = ""
     system_prompt: Optional[str] = None
+    proxy_url: Optional[str] = None
     deployments: list[LLMDeployment] = Field(default_factory=list)
 
 
@@ -207,6 +208,7 @@ class LLMSettingsWriteAPISchema(BaseModel):
     resume_text: str = ""
     letter_style: str = ""
     system_prompt: Optional[str] = None
+    proxy_url: Optional[str] = None
     deployments: list[LLMDeploymentWriteAPISchema] = Field(default_factory=list)
 
 

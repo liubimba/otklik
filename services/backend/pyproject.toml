@@ -22,6 +22,7 @@ dependencies = [
     "botocore>=1.43.18",
     "psutil>=7.2.2",
     "keyring>=25.7",
+    "httpx[socks]>=0.28.1",
 ]
 
 [project.scripts]

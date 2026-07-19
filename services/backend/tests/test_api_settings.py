@@ -42,6 +42,24 @@ def test_settings_update(client):
     assert updated_settings.llm.letter_style == "casual"
 
 
+def test_settings_proxy_url_roundtrips(client):
+    from otklik_backend.ai.proxy import apply_llm_proxy
+
+    body = SettingsAPISchema.model_validate(
+        client.get("/api/v1/settings").json()
+    ).model_dump(mode="json")
+    body["llm"]["proxy_url"] = "socks5://127.0.0.1:10808"
+
+    assert client.put("/api/v1/settings", json=body).status_code == 200
+
+    got = SettingsAPISchema.model_validate(client.get("/api/v1/settings").json())
+    assert got.llm.proxy_url == "socks5://127.0.0.1:10808"
+
+    body["llm"]["proxy_url"] = None
+    client.put("/api/v1/settings", json=body)
+    apply_llm_proxy(None)
+
+
 def test_settings_update_never_returns_api_key(client):
     body = SettingsAPISchema.model_validate(
         client.get("/api/v1/settings").json()

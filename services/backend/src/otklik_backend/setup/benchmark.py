@@ -6,6 +6,7 @@ from enum import Enum
 from pydantic import BaseModel
 
 from otklik_backend.ai.deployment import ResolvedDeployment
+from otklik_backend.ai.error_hints import humanize_llm_error
 from otklik_backend.ai.layer import AILayer
 from otklik_backend.ai.result import AICoverLetterResult
 from otklik_backend.log import get_logger
@@ -68,7 +69,7 @@ class BenchmarkRunner:
                 passed=False,
                 seconds=round(elapsed, 1),
                 failure_reason=BenchmarkFailureReason.MODEL_ERROR,
-                error=str(error),
+                error=humanize_llm_error(error),
             )
 
         elapsed = time.monotonic() - started

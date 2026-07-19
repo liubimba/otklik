@@ -37,6 +37,7 @@ def settings_to_orm(
         delay_jitter_ms=schema.rate_limits.delay_jitter_ms,
         llm_deployments=deployments,
         llm_system_prompt=schema.llm.system_prompt,
+        llm_proxy_url=schema.llm.proxy_url,
         auto_submit=schema.user.auto_submit,
         max_vacancies=schema.search.max_vacancies,
         max_pages=schema.search.max_pages,
@@ -54,6 +55,7 @@ def settings_to_schema(orm: SettingsORM) -> SettingsAPISchema:
         llm=LLMSettingsAPISchema(
             deployments=orm.llm_deployments,
             system_prompt=orm.llm_system_prompt,
+            proxy_url=orm.llm_proxy_url,
             letter_style=orm.letter_style,
             resume_text=orm.resume_text,
         ),

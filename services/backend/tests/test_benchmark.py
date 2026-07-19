@@ -89,7 +89,7 @@ async def test_run_honors_per_call_deadline_override():
 async def test_model_error_fails_the_benchmark() -> None:
     class _BrokenLayer:
         async def generate_cover_letter(self, **_: object) -> AICoverLetterResult:
-            raise RuntimeError("connection refused")
+            raise RuntimeError("model exploded")
 
     runner = BenchmarkRunner(deadline_sec=1.0, layer_factory=lambda _: _BrokenLayer())  # type: ignore[arg-type, return-value]
 
@@ -98,4 +98,18 @@ async def test_model_error_fails_the_benchmark() -> None:
     assert result.passed is False
     assert result.letter is None
     assert result.failure_reason is BenchmarkFailureReason.MODEL_ERROR
-    assert result.error == "connection refused"
+    assert result.error == "model exploded"
+
+
+async def test_geo_blocked_benchmark_error_points_to_the_proxy_setting() -> None:
+    class _BlockedLayer:
+        async def generate_cover_letter(self, **_: object) -> AICoverLetterResult:
+            raise RuntimeError('GroqException - {"message":"Forbidden"}')
+
+    runner = BenchmarkRunner(deadline_sec=1.0, layer_factory=lambda _: _BlockedLayer())  # type: ignore[arg-type, return-value]
+
+    result = await runner.run(deployment=DEPLOYMENT)
+
+    assert result.failure_reason is BenchmarkFailureReason.MODEL_ERROR
+    assert result.error is not None
+    assert "регион" in result.error

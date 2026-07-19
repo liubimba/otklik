@@ -3,6 +3,7 @@ from typing import cast
 
 from otklik_backend.ai.claude_code import register_claude_code_provider
 from otklik_backend.ai.deployment import ResolvedDeployment
+from otklik_backend.ai.error_hints import humanize_llm_error
 from otklik_backend.ai.postprocess import LetterCleaner
 from litellm import (
     AllMessageValues,
@@ -81,7 +82,7 @@ class AILayer:
             )
         except Exception as e:
             self._log.error("Failed to generate cover letter: %s", str(e))
-            raise GenerationCoverLetterError(detail=str(e))
+            raise GenerationCoverLetterError(detail=humanize_llm_error(e))
 
     async def stream_letter_chat(
         self,

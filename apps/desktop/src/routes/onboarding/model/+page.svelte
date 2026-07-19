@@ -1,10 +1,12 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
+import ExternalLinkButton from "$lib/components/external-link-button.svelte";
 import LiveStatus from "$lib/components/live-status.svelte";
 import { Badge } from "$lib/components/ui/badge";
 import { Button } from "$lib/components/ui/button";
 import { Input } from "$lib/components/ui/input";
 import { Separator } from "$lib/components/ui/separator";
+import { openExternal } from "$lib/open-external";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
@@ -259,12 +261,10 @@ const liveStatus = $derived.by(() => {
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <a
+                    <ExternalLinkButton
                             href="https://claude.com/product/claude-code"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="text-primary text-sm underline-offset-4 hover:underline"
-                    >{m.setup_claude_not_installed_link()}</a>
+                            class="text-primary cursor-pointer text-sm underline-offset-4 hover:underline"
+                    >{m.setup_claude_not_installed_link()}</ExternalLinkButton>
                     <Button variant="outline" class="cursor-pointer" onclick={goClaude}>
                         {m.setup_recheck()}
                     </Button>
@@ -379,7 +379,7 @@ const liveStatus = $derived.by(() => {
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <Button href={OLLAMA_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
+                        <Button class="cursor-pointer" onclick={() => openExternal(OLLAMA_DOWNLOAD_URL)}>
                             {m.setup_install_link()}
                         </Button>
                         <Button variant="outline" class="cursor-pointer" onclick={() => vm.local.refresh()}>
@@ -490,14 +490,12 @@ const liveStatus = $derived.by(() => {
                         {m.setup_cloud_key_title({ model: vm.cloud.selected?.label ?? "" })}
                     </h1>
                     {#if vm.cloud.selected?.key_url}
-                        <a
+                        <ExternalLinkButton
                                 href={vm.cloud.selected.key_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-primary text-sm underline-offset-4 hover:underline"
+                                class="text-primary cursor-pointer text-sm underline-offset-4 hover:underline"
                         >
                             {m.setup_cloud_key_get()}
-                        </a>
+                        </ExternalLinkButton>
                     {/if}
                 </div>
                 <Input

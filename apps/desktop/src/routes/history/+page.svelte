@@ -4,6 +4,7 @@ import { createActions } from "$lib/actions";
 import type { SearchHistory, SearchStatus } from "$lib/api/types";
 import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
+import ExternalLinkButton from "$lib/components/external-link-button.svelte";
 import ListSkeleton from "$lib/components/list-skeleton.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Badge } from "$lib/components/ui/badge";
@@ -158,16 +159,14 @@ async function confirmReplace() {
                             <Badge variant={statusVariant(run.status)}>
                                 {statusLabel(run.status)}
                             </Badge>
-                            <a
+                            <ExternalLinkButton
                                     href={run.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    aria-label={m.queue_card_open_external()}
-                                    class="text-muted-foreground hover:text-foreground inline-flex min-w-0 items-center gap-1 text-sm"
+                                    ariaLabel={m.queue_card_open_external()}
+                                    class="text-muted-foreground hover:text-foreground inline-flex min-w-0 cursor-pointer items-center gap-1 text-sm"
                             >
                                 <span class="truncate">{run.url}</span>
                                 <ExternalLink class="size-3.5 shrink-0"/>
-                            </a>
+                            </ExternalLinkButton>
                         </div>
                         <p class="font-mono text-sm">
                             {m.history_parsed({

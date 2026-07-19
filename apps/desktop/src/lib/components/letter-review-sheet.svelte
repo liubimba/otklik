@@ -1,5 +1,6 @@
 <script lang="ts">
 import { createActions } from "$lib/actions";
+import ExternalLinkButton from "$lib/components/external-link-button.svelte";
 import LiveStatus from "$lib/components/live-status.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Badge } from "$lib/components/ui/badge";
@@ -247,15 +248,13 @@ function onChatResizePointerDown(event: PointerEvent) {
                         `#${store.letter.review.vacancyId ?? ""}`}
                 </Sheet.Title>
                 {#if model.review.vacancy?.apply_link}
-                    <a
+                    <ExternalLinkButton
                         href={model.review.vacancy.apply_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={m.queue_card_open_external()}
-                        class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 -m-1 shrink-0 rounded p-1 focus-visible:outline-none focus-visible:ring-2"
+                        ariaLabel={m.queue_card_open_external()}
+                        class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 -m-1 shrink-0 cursor-pointer rounded p-1 focus-visible:outline-none focus-visible:ring-2"
                     >
                         <ExternalLink class="size-4" />
-                    </a>
+                    </ExternalLinkButton>
                 {/if}
             </div>
             <Sheet.Description class="truncate text-sm text-muted-foreground">

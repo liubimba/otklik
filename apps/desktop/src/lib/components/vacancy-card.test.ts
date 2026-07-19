@@ -1,4 +1,5 @@
 import type { Vacancy } from "$lib/api/types";
+import * as m from "$lib/paraglide/messages";
 import { render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +15,20 @@ vi.mock("$lib/queries/applications", () => ({
 	},
 }));
 
+const openUrl = vi.fn();
+vi.mock("@tauri-apps/plugin-opener", () => ({
+	openUrl: (url: string) => openUrl(url),
+}));
+
 import VacancyCard from "./vacancy-card.svelte";
+
+function cardEl(): HTMLElement {
+	const card = screen
+		.getAllByRole("button")
+		.find((el) => el.getAttribute("tabindex") === "0");
+	if (!card) throw new Error("card button not found");
+	return card;
+}
 
 function vacancy(overrides: Partial<Vacancy> = {}): Vacancy {
 	return {
@@ -68,14 +82,20 @@ describe("<VacancyCard>", () => {
 		expect(screen.queryAllByRole("paragraph")).toEqual([]);
 	});
 
-	it("apply_link points to the vacancy URL and opens in a new tab safely", () => {
+	it("opens the vacancy URL in the system browser, not via a dead anchor", async () => {
+		openUrl.mockReset();
+		openUrl.mockResolvedValue(undefined);
 		render(VacancyCard, {
 			vacancy: vacancy({ apply_link: "https://hh.ru/vacancy/42" }),
 		});
-		const link = screen.getByRole("link");
-		expect(link).toHaveAttribute("href", "https://hh.ru/vacancy/42");
-		expect(link).toHaveAttribute("target", "_blank");
-		expect(link).toHaveAttribute("rel", "noopener noreferrer");
+
+		await userEvent
+			.setup()
+			.click(
+				screen.getByRole("button", { name: m.queue_card_open_external() }),
+			);
+
+		expect(openUrl).toHaveBeenCalledWith("https://hh.ru/vacancy/42");
 	});
 
 	it("clicking the card invokes onclick with the vacancy", async () => {
@@ -83,17 +103,22 @@ describe("<VacancyCard>", () => {
 		const v = vacancy({ id: 77 });
 		render(VacancyCard, { vacancy: v, onclick });
 
-		const card = screen.getByRole("button");
-		await userEvent.setup().click(card);
+		await userEvent.setup().click(cardEl());
 
 		expect(onclick).toHaveBeenCalledWith(v);
 	});
 
 	it("clicking the external link does NOT propagate to the card handler", async () => {
+		openUrl.mockReset();
+		openUrl.mockResolvedValue(undefined);
 		const onclick = vi.fn();
 		render(VacancyCard, { vacancy: vacancy(), onclick });
 
-		await userEvent.setup().click(screen.getByRole("link"));
+		await userEvent
+			.setup()
+			.click(
+				screen.getByRole("button", { name: m.queue_card_open_external() }),
+			);
 		expect(onclick).not.toHaveBeenCalled();
 	});
 
@@ -102,8 +127,7 @@ describe("<VacancyCard>", () => {
 		const v = vacancy({ id: 3 });
 		render(VacancyCard, { vacancy: v, onclick });
 
-		const card = screen.getByRole("button");
-		card.focus();
+		cardEl().focus();
 		await userEvent.setup().keyboard("{Enter}");
 		expect(onclick).toHaveBeenCalledWith(v);
 	});
@@ -113,8 +137,7 @@ describe("<VacancyCard>", () => {
 		const v = vacancy({ id: 5 });
 		render(VacancyCard, { vacancy: v, onclick });
 
-		const card = screen.getByRole("button");
-		card.focus();
+		cardEl().focus();
 		await userEvent.setup().keyboard(" ");
 		expect(onclick).toHaveBeenCalledWith(v);
 	});
@@ -123,8 +146,7 @@ describe("<VacancyCard>", () => {
 		const onclick = vi.fn();
 		render(VacancyCard, { vacancy: vacancy(), onclick });
 
-		const card = screen.getByRole("button");
-		card.focus();
+		cardEl().focus();
 		await userEvent.setup().keyboard("a");
 		expect(onclick).not.toHaveBeenCalled();
 	});

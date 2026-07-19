@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { ProcessingState, Vacancy } from "$lib/api/types";
+import ExternalLinkButton from "$lib/components/external-link-button.svelte";
 import { Badge } from "$lib/components/ui/badge";
 import * as m from "$lib/paraglide/messages";
 import { createApplicationQuery } from "$lib/queries/applications";
@@ -83,16 +84,13 @@ function handleKeydown(e: KeyboardEvent) {
 	<div
 		class="flex shrink-0 flex-col items-end justify-between gap-2 self-stretch"
 	>
-		<a
+		<ExternalLinkButton
 			href={vacancy.apply_link}
-			target="_blank"
-			rel="noopener noreferrer"
-			onclick={(e) => e.stopPropagation()}
-			aria-label={m.queue_card_open_external()}
-			class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 -m-1 rounded p-1 focus-visible:outline-none focus-visible:ring-2"
+			ariaLabel={m.queue_card_open_external()}
+			class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 -m-1 cursor-pointer rounded p-1 focus-visible:outline-none focus-visible:ring-2"
 		>
 			<ExternalLink class="size-4" />
-		</a>
+		</ExternalLinkButton>
 		{#if statusBadge}
 			<Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
 		{/if}

@@ -21,6 +21,7 @@ hiddenimports += collect_submodules("uvicorn")
 hiddenimports += collect_submodules("aiosqlite")
 hiddenimports += ["tiktoken_ext", "tiktoken_ext.openai_public"]
 hiddenimports += collect_submodules("tiktoken_ext")
+hiddenimports += collect_submodules("socksio")
 
 a = Analysis(
     [str(root / "scripts" / "sidecar_entry.py")],

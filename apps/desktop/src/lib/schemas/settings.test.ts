@@ -28,6 +28,7 @@ describe("settingsFormSchema — defaults", () => {
 				resume_text: "",
 				letter_style: "",
 				system_prompt: "",
+				proxy_url: "",
 				deployments: [],
 			},
 		});

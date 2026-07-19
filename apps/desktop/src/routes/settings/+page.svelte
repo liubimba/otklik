@@ -43,6 +43,9 @@ const form = superForm(defaults(zod4(zform.settings.schema)), {
 					system_prompt: form.data.llm.system_prompt.trim()
 						? form.data.llm.system_prompt
 						: null,
+					proxy_url: form.data.llm.proxy_url.trim()
+						? form.data.llm.proxy_url.trim()
+						: null,
 					deployments: form.data.llm.deployments.map(formDeploymentToAPI),
 				},
 			});
@@ -68,6 +71,7 @@ $effect(() => {
 			resume_text: settings.data.llm.resume_text,
 			letter_style: settings.data.llm.letter_style,
 			system_prompt: settings.data.llm.system_prompt ?? "",
+			proxy_url: settings.data.llm.proxy_url ?? "",
 			deployments,
 		},
 	});

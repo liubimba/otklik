@@ -31,6 +31,7 @@ export const settingsFormSchema = z.object({
 		resume_text: z.string().default(""),
 		letter_style: z.string().default(""),
 		system_prompt: z.string().default(""),
+		proxy_url: z.string().default(""),
 		deployments: z.array(llmDeploymentSchema).default([]),
 	}),
 });

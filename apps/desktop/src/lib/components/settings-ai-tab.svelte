@@ -176,6 +176,25 @@ function deploymentBadge(index: number): string {
 		<Form.FieldErrors />
 	</Form.Field>
 
+	<Form.Field {form} name="llm.proxy_url">
+		<Form.Control>
+			{#snippet children({ props })}
+				<Form.Label>{m.settings_ai_proxy_label()}</Form.Label>
+				<Form.Description>
+					{m.settings_ai_proxy_hint()}
+				</Form.Description>
+				<Input
+					{...props}
+					bind:value={$formData.llm.proxy_url}
+					placeholder={m.settings_ai_proxy_placeholder()}
+					autocomplete="off"
+					spellcheck={false}
+				/>
+			{/snippet}
+		</Form.Control>
+		<Form.FieldErrors />
+	</Form.Field>
+
 	<div class="space-y-3">
 		<div class="flex flex-wrap items-start justify-between gap-3">
 			<div class="space-y-1">

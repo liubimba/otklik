@@ -226,6 +226,7 @@ export type LLMSettings = {
 	resume_text: string;
 	letter_style: string;
 	system_prompt?: string | null;
+	proxy_url?: string | null;
 	deployments: LLMDeployment[];
 };
 

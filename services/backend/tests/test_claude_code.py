@@ -1,5 +1,10 @@
 import asyncio
 import json
+import os
+import signal
+import tempfile
+import textwrap
+import time
 from unittest.mock import patch
 
 import litellm
@@ -19,7 +24,9 @@ from otklik_backend.ai.claude_code import (
 
 
 class _FakeProc:
-    def __init__(self, stdout: bytes = b"", stderr: bytes = b"", returncode: int = 0):
+    def __init__(
+        self, stdout: bytes = b"", stderr: bytes = b"", returncode: int | None = 0
+    ):
         self._stdout = stdout
         self._stderr = stderr
         self.returncode = returncode
@@ -222,7 +229,7 @@ async def test_acompletion_raises_on_non_json_stdout() -> None:
 
 async def test_acompletion_raises_and_kills_process_on_timeout() -> None:
     llm = ClaudeCodeLLM()
-    proc = _FakeProc()
+    proc = _FakeProc(returncode=None)
 
     async def _fake_wait_for(coro, timeout):
         coro.close()
@@ -453,6 +460,125 @@ async def test_astreaming_raises_and_kills_process_on_idle_timeout() -> None:
             ):
                 pass
     assert proc.returncode == -9
+
+
+def test_resolve_timeout_caps_the_router_default_at_the_ceiling() -> None:
+    from otklik_backend.ai.claude_code import DEFAULT_TIMEOUT_SEC, _resolve_timeout
+
+    assert _resolve_timeout(6000.0) == DEFAULT_TIMEOUT_SEC
+    assert _resolve_timeout(None) == DEFAULT_TIMEOUT_SEC
+    assert _resolve_timeout(0) == DEFAULT_TIMEOUT_SEC
+    assert _resolve_timeout(30) == 30.0
+
+
+def _spawning_claude_script(pidfile: str) -> str:
+    handle = tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False)
+    handle.write(
+        textwrap.dedent(
+            f"""#!/bin/sh
+            echo $$ >> "{pidfile}"
+            sleep 300 &
+            echo $! >> "{pidfile}"
+            sleep 300
+            """
+        )
+    )
+    handle.close()
+    os.chmod(handle.name, 0o755)
+    return handle.name
+
+
+def _is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _reap(pids: list[int]) -> list[int]:
+    survivors = [pid for pid in pids if _is_alive(pid)]
+    for pid in survivors:
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    return survivors
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process-group kill is posix-only")
+async def test_acompletion_timeout_kills_whole_process_tree_without_stalling(
+    tmp_path,
+) -> None:
+    pidfile = tmp_path / "pids"
+    pidfile.write_text("")
+    script = _spawning_claude_script(str(pidfile))
+    llm = ClaudeCodeLLM()
+    with patch(
+        "otklik_backend.ai.claude_code.resolve_claude_binary", return_value=script
+    ):
+        start = time.monotonic()
+        with pytest.raises(ClaudeCodeError, match="timed out"):
+            await asyncio.wait_for(
+                llm.acompletion(
+                    model="claude-code/opus",
+                    messages=[{"role": "user", "content": "go"}],
+                    model_response=ModelResponse(),
+                    timeout=1.0,
+                ),
+                timeout=20,
+            )
+        elapsed = time.monotonic() - start
+    await asyncio.sleep(0.3)
+    pids = [int(x) for x in pidfile.read_text().split()]
+    survivors = _reap(pids)
+    assert elapsed < 15
+    assert survivors == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process-group kill is posix-only")
+async def test_acompletion_cancellation_kills_the_process_tree(tmp_path) -> None:
+    pidfile = tmp_path / "pids"
+    pidfile.write_text("")
+    script = _spawning_claude_script(str(pidfile))
+    llm = ClaudeCodeLLM()
+    with patch(
+        "otklik_backend.ai.claude_code.resolve_claude_binary", return_value=script
+    ):
+        task = asyncio.create_task(
+            llm.acompletion(
+                model="claude-code/opus",
+                messages=[{"role": "user", "content": "go"}],
+                model_response=ModelResponse(),
+                timeout=300,
+            )
+        )
+        for _ in range(100):
+            await asyncio.sleep(0.05)
+            if len(pidfile.read_text().split()) >= 2:
+                break
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    await asyncio.sleep(0.3)
+    pids = [int(x) for x in pidfile.read_text().split()]
+    survivors = _reap(pids)
+    assert survivors == []
+
+
+def test_clean_env_skips_socks_proxy_claude_cannot_use() -> None:
+    set_claude_proxy("socks5://127.0.0.1:10808")
+    try:
+        env = _clean_env()
+        assert "HTTPS_PROXY" not in env or not env["HTTPS_PROXY"].startswith("socks")
+        assert "ALL_PROXY" not in env or not env["ALL_PROXY"].startswith("socks")
+    finally:
+        set_claude_proxy(None)
 
 
 def test_clean_env_strips_api_key_and_auth_token() -> None:

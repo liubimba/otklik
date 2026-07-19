@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import shutil
+import signal
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -20,6 +21,8 @@ DEFAULT_TIMEOUT_SEC = 180.0
 
 STREAM_IDLE_TIMEOUT_SEC = 120.0
 
+REAP_TIMEOUT_SEC = 5.0
+
 
 class ClaudeCodeError(Exception): ...
 
@@ -30,6 +33,34 @@ _PROXY: str | None = None
 def set_claude_proxy(proxy_url: str | None) -> None:
     global _PROXY
     _PROXY = (proxy_url or "").strip() or None
+
+
+async def _terminate(proc: Any) -> None:
+    if proc.returncode is not None:
+        return
+    pid = getattr(proc, "pid", None)
+    killed = False
+    if pid is not None:
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+            killed = True
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    if not killed:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+    try:
+        await asyncio.wait_for(proc.wait(), REAP_TIMEOUT_SEC)
+    except (asyncio.TimeoutError, TimeoutError):
+        pass
+
+
+def _resolve_timeout(raw: Any) -> float:
+    if isinstance(raw, (int, float)) and raw > 0:
+        return min(float(raw), DEFAULT_TIMEOUT_SEC)
+    return DEFAULT_TIMEOUT_SEC
 
 
 def _error_detail(stdout: bytes, stderr: bytes) -> str:
@@ -73,7 +104,7 @@ def _clean_env() -> dict[str, str]:
     env = dict(os.environ)
     env.pop("ANTHROPIC_API_KEY", None)
     env.pop("ANTHROPIC_AUTH_TOKEN", None)
-    if _PROXY:
+    if _PROXY and _PROXY.lower().startswith(("http://", "https://")):
         for var in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"):
             env[var] = _PROXY
     return env
@@ -136,12 +167,13 @@ class ClaudeCodeLLM(CustomLLM):
             stderr=asyncio.subprocess.PIPE,
             cwd=_clean_cwd(),
             env=_clean_env(),
+            start_new_session=True,
         )
 
     async def acompletion(self, *args: Any, **kwargs: Any) -> ModelResponse:
         model: str = kwargs["model"]
         messages: list[dict[str, Any]] = kwargs["messages"]
-        timeout: float = kwargs.get("timeout") or DEFAULT_TIMEOUT_SEC
+        timeout = _resolve_timeout(kwargs.get("timeout"))
         binary = resolve_claude_binary()
         if binary is None:
             log.warning("claude-code: binary not found")
@@ -159,36 +191,40 @@ class ClaudeCodeLLM(CustomLLM):
                 f"failed to spawn `claude` binary at {binary!r}: {exc}"
             ) from exc
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
-        except (asyncio.TimeoutError, TimeoutError) as exc:
-            proc.kill()
-            await proc.wait()
-            log.warning("claude-code: `claude -p` timed out after %.0fs", timeout)
-            raise ClaudeCodeError(
-                f"`claude -p` timed out after {timeout:.0f}s"
-            ) from exc
-        if proc.returncode != 0:
-            detail = _error_detail(stdout, stderr)
-            log.warning(
-                "claude-code: `claude -p` exited %s: %s", proc.returncode, detail
-            )
-            raise ClaudeCodeError(f"`claude -p` exited {proc.returncode}: {detail}")
-        try:
-            data = json.loads(stdout.decode(errors="replace"))
-        except json.JSONDecodeError as exc:
-            log.warning("claude-code: `claude -p` returned non-JSON output: %s", exc)
-            raise ClaudeCodeError(
-                f"`claude -p` returned non-JSON output: {exc}"
-            ) from exc
-        if data.get("is_error"):
-            log.warning(
-                "claude-code: `claude -p` reported an error: %s",
-                str(data.get("result", ""))[:300],
-            )
-            raise ClaudeCodeError(
-                f"`claude -p` reported an error: {str(data.get('result', ''))[:300]}"
-            )
-        return self._to_response(model, data)
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout)
+            except (asyncio.TimeoutError, TimeoutError) as exc:
+                log.warning("claude-code: `claude -p` timed out after %.0fs", timeout)
+                raise ClaudeCodeError(
+                    f"`claude -p` timed out after {timeout:.0f}s"
+                ) from exc
+            if proc.returncode != 0:
+                detail = _error_detail(stdout, stderr)
+                log.warning(
+                    "claude-code: `claude -p` exited %s: %s", proc.returncode, detail
+                )
+                raise ClaudeCodeError(f"`claude -p` exited {proc.returncode}: {detail}")
+            try:
+                data = json.loads(stdout.decode(errors="replace"))
+            except json.JSONDecodeError as exc:
+                log.warning(
+                    "claude-code: `claude -p` returned non-JSON output: %s", exc
+                )
+                raise ClaudeCodeError(
+                    f"`claude -p` returned non-JSON output: {exc}"
+                ) from exc
+            if data.get("is_error"):
+                log.warning(
+                    "claude-code: `claude -p` reported an error: %s",
+                    str(data.get("result", ""))[:300],
+                )
+                raise ClaudeCodeError(
+                    f"`claude -p` reported an error: "
+                    f"{str(data.get('result', ''))[:300]}"
+                )
+            return self._to_response(model, data)
+        finally:
+            await _terminate(proc)
 
     async def astreaming(  # type: ignore[override]
         self, *args: Any, **kwargs: Any
@@ -278,9 +314,7 @@ class ClaudeCodeLLM(CustomLLM):
                     f"`claude -p` (stream) exited {proc.returncode}: {stderr_tail}"
                 )
         finally:
-            if proc.returncode is None:
-                proc.kill()
-                await proc.wait()
+            await _terminate(proc)
             if stderr_task is not None and not stderr_task.done():
                 stderr_task.cancel()
                 try:

@@ -19,6 +19,10 @@ class BrowserPage:
         except TimeoutError as e:
             raise OpenPageTimeoutError() from e
 
+    @property
+    def raw_page(self) -> Page:
+        return self._context
+
     def get_url(self) -> str:
         return self._context.url
 

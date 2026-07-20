@@ -1,5 +1,6 @@
 import uuid
 from typing import Self
+from urllib.parse import urlparse
 
 from pydantic import HttpUrl, ValidationError
 
@@ -12,11 +13,14 @@ from otklik_backend.orchestrator.exceptions import (
     InvalidSearchURLError,
 )
 
+SEARCH_URL = "https://hh.ru/search/vacancy"
+
 
 class FilterSession:
-    def __init__(self, page: BrowserPage) -> None:
+    def __init__(self, core: BrowserCore, page: BrowserPage) -> None:
         self._id = str(uuid.uuid4())
         self._log = get_logger(self.__class__.__name__)
+        self._core = core
         self._page = page
         self._confirmed = False
 
@@ -46,11 +50,13 @@ class FilterSession:
             self._log.error("Invalid browser page URL", error=str(exc))
             raise InvalidSearchURLError() from exc
         finally:
+            await self._core.unlock_window()
             self._log.info("Closing browser page")
             await self._page.close()
 
     async def cancel(self) -> None:
         self._log.info("Cancelling filter session")
+        await self._core.unlock_window()
         if not self._page.is_closed():
             self._log.info("Closing browser page")
             await self._page.close()
@@ -59,5 +65,7 @@ class FilterSession:
 
     @classmethod
     async def execute(cls, core: BrowserCore) -> Self:
-        page: BrowserPage = await core.new_page("https://hh.ru/search/vacancy")
-        return cls(page=page)
+        page: BrowserPage = await core.new_page(SEARCH_URL)
+        host = urlparse(SEARCH_URL).hostname or ""
+        await core.lock_window(page, host)
+        return cls(core=core, page=page)

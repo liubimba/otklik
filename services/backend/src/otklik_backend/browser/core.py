@@ -12,6 +12,7 @@ from patchright.async_api import (
 )
 
 from otklik_backend.browser.exceptions import BrowserNetworkError
+from otklik_backend.browser.guard import SinglePageGuard
 from otklik_backend.browser.page import BrowserPage
 from otklik_backend.browser.window import (
     CDPWindowController,
@@ -47,6 +48,8 @@ class BrowserCore:
         self._context: BrowserContext | None = None
         self._playwright: Playwright | None = None
         self._cdp: CDPSession | None = None
+        self._guard: SinglePageGuard | None = None
+        self._guard_tasks: set[asyncio.Task[None]] = set()
         self._start_lock = asyncio.Lock()
         self._window = window or CDPWindowController(self._open_cdp_session)
 
@@ -73,12 +76,14 @@ class BrowserCore:
             args=CHROMIUM_ARGS,
         )
         self._context.on("close", self._on_context_closed)
+        self._context.on("page", self._on_new_page)
         await self._window.hide()
 
     def _on_context_closed(self, *_: object) -> None:
         self.logger.info("Browser context closed")
         self._context = None
         self._cdp = None
+        self._guard = None
 
     async def _open_cdp_session(self) -> CDPSession | None:
         context = self._context
@@ -93,6 +98,47 @@ class BrowserCore:
             self.logger.warning("Failed to open CDP session", error=str(exc))
             self._cdp = None
             return None
+
+    def _on_new_page(self, page: Page) -> None:
+        if self._guard is None or not self._guard.is_foreign(page):
+            return
+        task = asyncio.create_task(self._close_foreign(page))
+        self._guard_tasks.add(task)
+        task.add_done_callback(self._guard_tasks.discard)
+
+    async def _close_foreign(self, page: Page) -> None:
+        self.logger.info("Closing a tab opened by the user in the locked window")
+        try:
+            await page.close()
+        except Error as exc:
+            self.logger.warning("Failed to close foreign page", error=str(exc))
+
+    async def drain_guard_tasks(self) -> None:
+        if self._guard_tasks:
+            await asyncio.gather(*self._guard_tasks, return_exceptions=True)
+
+    async def lock_window(self, page: BrowserPage, allowed_host: str) -> None:
+        raw = page.raw_page
+        guard = SinglePageGuard(allowed_host)
+        guard.lock(raw)
+        self._guard = guard
+        try:
+            await raw.route("**/*", guard.guard_route)
+        except Error as exc:
+            self.logger.warning("Failed to install navigation guard", error=str(exc))
+
+    async def unlock_window(self) -> None:
+        guard = self._guard
+        if guard is None:
+            return
+        raw = guard.locked_page
+        if raw is not None:
+            try:
+                await raw.unroute("**/*", guard.guard_route)
+            except Error as exc:
+                self.logger.warning("Failed to remove navigation guard", error=str(exc))
+        guard.unlock()
+        self._guard = None
 
     async def show_window(self) -> None:
         await self._window.show_near_app()

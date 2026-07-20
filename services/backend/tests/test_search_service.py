@@ -41,6 +41,8 @@ class FakeBrowserCore:
     def __init__(self) -> None:
         self.opened_urls: list[str] = []
         self.pages: list[FakeBrowserPage] = []
+        self.hide_calls = 0
+        self.show_calls = 0
 
     async def new_page(self, url: str) -> FakeBrowserPage:
         self.opened_urls.append(url)
@@ -48,14 +50,28 @@ class FakeBrowserCore:
         self.pages.append(page)
         return page
 
+    async def hide_window(self) -> None:
+        self.hide_calls += 1
+
+    async def show_window(self) -> None:
+        self.show_calls += 1
+
 
 class UnreachableBrowserCore:
     def __init__(self) -> None:
         self.calls = 0
+        self.hide_calls = 0
+        self.show_calls = 0
 
     async def new_page(self, url: str) -> FakeBrowserPage:
         self.calls += 1
         raise BrowserNetworkError()
+
+    async def hide_window(self) -> None:
+        self.hide_calls += 1
+
+    async def show_window(self) -> None:
+        self.show_calls += 1
 
 
 class FakeParser:
@@ -227,15 +243,19 @@ async def test_cancel_running_search(
     search_id = search_task.id
 
     await wait_until(
-        lambda: search_task.state_machine.current_state_value
-        == SearchStatusAPISchema.RUNNING
+        lambda: (
+            search_task.state_machine.current_state_value
+            == SearchStatusAPISchema.RUNNING
+        )
     )
 
     cancelled = await svc.cancel_search_session(search_id=search_id)
     assert cancelled is True
     await wait_until(
-        lambda: search_task.state_machine.current_state_value
-        == SearchStatusAPISchema.CANCELED
+        lambda: (
+            search_task.state_machine.current_state_value
+            == SearchStatusAPISchema.CANCELED
+        )
     )
 
     assert svc.find_search_task(search_id=search_id) is None
@@ -386,6 +406,67 @@ async def test_failed_search_does_not_block_the_next_one(
     second = await svc.open_search_session(request=_filter())
     await second.task
     assert second.id != first.id
+
+
+async def test_finished_search_hides_the_browser_window(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    parser = FakeParser([[_vacancy(1)]])
+    svc = _make_service(
+        fake_browser_core, parser, recording_broadcaster, session_factory
+    )
+
+    search_task = await svc.open_search_session(request=_filter(max_pages=1))
+    await search_task.task
+
+    assert fake_browser_core.hide_calls >= 1, "browser must hide when the search ends"
+
+
+async def test_failed_search_hides_the_browser_window(
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    browser = UnreachableBrowserCore()
+    svc = _make_service(
+        browser,  # type: ignore[arg-type]
+        FakeParser([]),
+        recording_broadcaster,
+        session_factory,
+    )
+
+    search_task = await svc.open_search_session(request=_filter())
+    await search_task.task
+
+    assert browser.hide_calls >= 1, "browser must hide even when the search fails"
+
+
+async def test_cancelled_search_hides_the_browser_window(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    svc = _make_service(
+        fake_browser_core,
+        SlowParser(),
+        recording_broadcaster,
+        session_factory,
+    )
+    search_task = await svc.open_search_session(request=_filter())
+    search_id = search_task.id
+
+    await wait_until(
+        lambda: (
+            search_task.state_machine.current_state_value
+            == SearchStatusAPISchema.RUNNING
+        )
+    )
+    await svc.cancel_search_session(search_id=search_id)
+
+    assert (
+        fake_browser_core.hide_calls >= 1
+    ), "browser must hide when the search cancels"
 
 
 async def test_shutdown_cancels_running_tasks(

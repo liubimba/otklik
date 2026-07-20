@@ -200,6 +200,7 @@ class SearchSession:
         finally:
             if search_page is not None:
                 await search_page.close()
+            await self._safe_hide_window()
 
         if task.is_active:
             task.state_machine.send(SearchStateEvent.FINISHED.value)
@@ -212,6 +213,16 @@ class SearchSession:
         )
         await self._update_search_history(task, error=error)
         await self._publish_search_event(task)
+
+    async def _safe_hide_window(self) -> None:
+        try:
+            await self._core.hide_window()
+        except Exception as error:  # noqa: BLE001
+            self._log.warning(
+                "Failed to hide window after search",
+                search_id=self._id,
+                error=str(error),
+            )
 
     @staticmethod
     def _describe(exc: Exception) -> str:

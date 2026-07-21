@@ -24,6 +24,11 @@ fn get_backend_port(port: tauri::State<BackendPort>) -> u16 {
     port.0
 }
 
+#[tauri::command]
+fn shutdown_backend(backend: tauri::State<BackendProcess>) {
+    backend.kill();
+}
+
 fn free_port() -> u16 {
     TcpListener::bind("127.0.0.1:0")
         .expect("no free port available")
@@ -74,7 +79,7 @@ pub fn run() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![get_backend_port])
+        .invoke_handler(tauri::generate_handler![get_backend_port, shutdown_backend])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,4 +1,5 @@
 import { getLogger } from "$lib/log";
+import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { type Update, check } from "@tauri-apps/plugin-updater";
 
@@ -49,7 +50,9 @@ class Updater {
 		this.installing = true;
 		this.error = null;
 		try {
-			await this.available.downloadAndInstall();
+			await this.available.download();
+			await invoke("shutdown_backend");
+			await this.available.install();
 			await relaunch();
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);

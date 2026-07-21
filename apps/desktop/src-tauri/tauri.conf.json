@@ -50,6 +50,11 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
-		"resources": ["resources/backend/**/*"]
+		"resources": ["resources/backend/**/*"],
+		"windows": {
+			"nsis": {
+				"installerHooks": "./installer-hooks.nsh"
+			}
+		}
 	}
 }

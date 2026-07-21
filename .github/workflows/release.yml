@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -62,6 +62,7 @@ jobs:
           cache-dependency-glob: services/backend/uv.lock
 
       - name: Build backend sidecar
+        shell: bash
         run: cd services/backend && uv sync && ./scripts/build_sidecar.sh
 
       - name: Build, sign and publish

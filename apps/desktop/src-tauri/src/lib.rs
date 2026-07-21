@@ -50,10 +50,14 @@ pub fn run() {
             let port = free_port();
             app.manage(BackendPort(port));
 
-            let exe = app.path().resolve(
-                "resources/backend/otklik-backend",
-                tauri::path::BaseDirectory::Resource,
-            )?;
+            let binary = if cfg!(windows) {
+                "resources/backend/otklik-backend.exe"
+            } else {
+                "resources/backend/otklik-backend"
+            };
+            let exe = app
+                .path()
+                .resolve(binary, tauri::path::BaseDirectory::Resource)?;
             let (_rx, child) = app
                 .shell()
                 .command(exe)

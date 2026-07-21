@@ -33,7 +33,7 @@
 			"endpoints": [
 				"https://github.com/liubimba/otklik/releases/latest/download/latest.json"
 			],
-			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCREQ1QjQ0MEJFQTg4MTcKUldRWGlPb0xSRnZkYXpSSWZqaWdUM1RzWnpvMUdlcDVhUlZVaUswYnJGMnJwMC9Nb2d1SU90bzkK",
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhBNzU3MjAxRjAxRkU0NTcKUldSWDVCL3dBWEoxaXJTUjVkQzFPakxWdTBRcDF6cDlUb2VZbGEwdnhZM3NkMjlsSVVEdURDbVUK",
 			"windows": {
 				"installMode": "passive"
 			}

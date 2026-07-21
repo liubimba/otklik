@@ -1,4 +1,5 @@
 <script lang="ts">
+import { afterNavigate, beforeNavigate } from "$app/navigation";
 import { page } from "$app/state";
 import { createEventSync } from "$lib/api/event-sync";
 import { EventsWebSocket } from "$lib/api/events";
@@ -53,6 +54,21 @@ onMount(() => {
 		listener.close();
 	};
 });
+
+let mainEl: HTMLElement;
+const scrollPositions = new Map<string, number>();
+
+beforeNavigate(({ from }) => {
+	if (from && mainEl) {
+		scrollPositions.set(from.url.pathname, mainEl.scrollTop);
+	}
+});
+
+afterNavigate(({ to }) => {
+	if (to && mainEl) {
+		mainEl.scrollTop = scrollPositions.get(to.url.pathname) ?? 0;
+	}
+});
 </script>
 
 <ModeWatcher/>
@@ -75,7 +91,7 @@ onMount(() => {
                 <AppSidebar/>
             {/if}
 
-            <main class="relative min-w-0 flex-1 overflow-y-auto">
+            <main bind:this={mainEl} class="relative min-w-0 flex-1 overflow-y-auto">
                 {@render children()}
             </main>
         </div>

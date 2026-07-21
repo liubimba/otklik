@@ -1,4 +1,4 @@
-OLLAMA_HOST = "http://localhost:11434"
+OLLAMA_HOST = "http://127.0.0.1:11434"
 
 LOCAL_MODEL_TAG = "qwen2.5:7b"
 LOCAL_MODEL = f"ollama_chat/{LOCAL_MODEL_TAG}"

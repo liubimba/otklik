@@ -1,3 +1,4 @@
+import asyncio
 import json
 import shutil
 from collections.abc import AsyncIterator
@@ -35,9 +36,10 @@ class OllamaGate:
     async def state(self) -> OllamaState:
         tags: list[str] | None = await self._list_tags()
         if tags is None:
+            binary = await asyncio.to_thread(shutil.which, "ollama")
             return (
                 OllamaState.NOT_RUNNING
-                if shutil.which("ollama") is not None
+                if binary is not None
                 else OllamaState.NOT_INSTALLED
             )
         return (
@@ -49,7 +51,9 @@ class OllamaGate:
 
     async def _list_tags(self) -> list[str] | None:
         try:
-            async with httpx.AsyncClient(timeout=TAGS_TIMEOUT_SEC) as client:
+            async with httpx.AsyncClient(
+                timeout=TAGS_TIMEOUT_SEC, trust_env=False
+            ) as client:
                 response = await client.get(f"{self._host}/api/tags")
                 response.raise_for_status()
                 payload: dict[str, Any] = response.json()
@@ -69,7 +73,9 @@ class OllamaGate:
             return None
 
     async def pull(self) -> AsyncIterator[PullProgress]:
-        async with httpx.AsyncClient(timeout=PULL_TIMEOUT_SEC) as client:
+        async with httpx.AsyncClient(
+            timeout=PULL_TIMEOUT_SEC, trust_env=False
+        ) as client:
             async with client.stream(
                 "POST",
                 f"{self._host}/api/pull",
@@ -108,8 +114,7 @@ class OllamaGate:
 
         if completed_raw is None or total_raw is None:
             raise TypeError(
-                f"Null value in response: completed={completed_raw}, "
-                f"total={total_raw}"
+                f"Null value in response: completed={completed_raw}, total={total_raw}"
             )
 
         completed = int(completed_raw)

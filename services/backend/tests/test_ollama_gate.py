@@ -3,11 +3,29 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
+from otklik_backend.setup.constants import OLLAMA_HOST
 from otklik_backend.setup.ollama import (
     OllamaGate,
     OllamaState,
     OllamaPullError,
 )
+
+
+def test_probe_targets_the_loopback_address_not_localhost() -> None:
+    assert "localhost" not in OLLAMA_HOST
+    assert "127.0.0.1" in OLLAMA_HOST
+
+
+async def test_probe_never_goes_through_a_proxy() -> None:
+    with (
+        patch("otklik_backend.setup.ollama.shutil.which", return_value=None),
+        patch("otklik_backend.setup.ollama.httpx.AsyncClient") as client_cls,
+    ):
+        client = client_cls.return_value.__aenter__.return_value
+        client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
+        await _gate().state()
+
+    assert client_cls.call_args.kwargs.get("trust_env") is False
 
 
 def _gate() -> OllamaGate:

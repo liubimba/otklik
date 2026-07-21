@@ -1,6 +1,6 @@
 [package]
 name = "otklik"
-version = "0.2.0"
+version = "0.2.1"
 description = "Otklik — desktop shell"
 authors = ["bimba"]
 edition = "2021"

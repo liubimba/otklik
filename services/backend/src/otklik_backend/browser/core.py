@@ -29,7 +29,6 @@ CHROMIUM_ARGS = [
     "--disable-backgrounding-occluded-windows",
     "--disable-renderer-backgrounding",
     "--disable-background-timer-throttling",
-    "--window-position=-32000,-32000",
 ]
 
 

@@ -5,6 +5,9 @@ from otklik_backend.log import get_logger
 
 CDPSessionProvider = Callable[[], Awaitable[Any]]
 
+OFF_SCREEN_LIMIT = -10000
+RESCUE_ORIGIN = {"left": 80, "top": 80}
+
 
 @dataclass(frozen=True)
 class Rect:
@@ -67,9 +70,11 @@ class CDPWindowController:
         await self._set_window_state("minimized")
 
     async def show_near_app(self) -> None:
-        await self._set_window_state("normal")
+        await self._set_window_state("normal", rescue_off_screen=True)
 
-    async def _set_window_state(self, state: str) -> None:
+    async def _set_window_state(
+        self, state: str, rescue_off_screen: bool = False
+    ) -> None:
         try:
             session = await self._session_provider()
             if session is None:
@@ -82,9 +87,23 @@ class CDPWindowController:
                 {"windowId": window_id, "bounds": {"windowState": state}},
             )
             self._log.info("Browser window state set", window_state=state)
+            if rescue_off_screen and self._is_off_screen(info.get("bounds")):
+                await session.send(
+                    "Browser.setWindowBounds",
+                    {"windowId": window_id, "bounds": dict(RESCUE_ORIGIN)},
+                )
+                self._log.info("Browser window pulled back onto the screen")
         except Exception as exc:
             self._log.warning(
                 "Failed to set browser window state via CDP",
                 window_state=state,
                 error=str(exc),
             )
+
+    def _is_off_screen(self, bounds: Any) -> bool:
+        if not isinstance(bounds, dict):
+            return False
+        return any(
+            isinstance(bounds.get(edge), int) and bounds[edge] <= OFF_SCREEN_LIMIT
+            for edge in ("left", "top")
+        )

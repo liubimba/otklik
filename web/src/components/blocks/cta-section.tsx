@@ -1,4 +1,4 @@
-import { AppleIcon, MonitorIcon, TerminalIcon } from "lucide-react";
+import { MonitorIcon, TerminalIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Confetti } from "@/components/ui/confetti";
@@ -13,7 +13,6 @@ import { links } from "@/lib/links";
 
 const PLATFORMS = [
 	{ label: "Linux", href: links.download.linux, Icon: TerminalIcon },
-	{ label: "macOS", href: links.download.macos, Icon: AppleIcon },
 	{ label: "Windows", href: links.download.windows, Icon: MonitorIcon },
 ] as const;
 

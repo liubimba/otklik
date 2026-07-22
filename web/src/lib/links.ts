@@ -1,9 +1,7 @@
-// Сверено с `git remote -v`: git@github.com:liubimba/otklik.git.
 const GITHUB_OWNER = "liubimba";
 const GITHUB_REPO = "otklik";
 
 const REPO_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
-// Релизы ещё не опубликованы — ссылка будет пустой до первой сборки.
 const LATEST_RELEASE = `${REPO_URL}/releases/latest`;
 
 export const links = {
@@ -13,7 +11,6 @@ export const links = {
 	license: `${REPO_URL}/blob/main/LICENSE`,
 	download: {
 		linux: LATEST_RELEASE,
-		macos: LATEST_RELEASE,
 		windows: LATEST_RELEASE,
 	},
 	ollama: "https://ollama.com",

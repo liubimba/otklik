@@ -1,0 +1,66 @@
+name: Landing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build (static export)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+      - name: Install deps
+        working-directory: web
+        run: npm ci
+      - name: Build
+        working-directory: web
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: npm run build
+      - name: Every screenshot the page references must exist in the export
+        working-directory: web
+        run: |
+          missing=0
+          for path in $(grep -rhoE '"/(screens/)?[a-zA-Z0-9._-]+\.(png|svg)"' src/ | tr -d '"' | sort -u); do
+            if [ ! -f "out${path}" ]; then
+              echo "missing: out${path}"
+              missing=1
+            fi
+          done
+          exit $missing
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/out
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

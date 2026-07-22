@@ -1,5 +1,6 @@
 import Image from "next/image";
 
+import { asset } from "@/lib/asset";
 import { cn } from "@/lib/utils";
 
 export type Shot = {
@@ -45,10 +46,20 @@ export function AppShot({
 	const shot = (
 		<>
 			<Placeholder src={placeholder?.light} className="dark:hidden">
-				<Image {...common} src={light} alt={alt} className="h-auto w-full" />
+				<Image
+					{...common}
+					src={asset(light)}
+					alt={alt}
+					className="h-auto w-full"
+				/>
 			</Placeholder>
 			<Placeholder src={placeholder?.dark} className="hidden dark:block">
-				<Image {...common} src={dark} alt={alt} className="h-auto w-full" />
+				<Image
+					{...common}
+					src={asset(dark)}
+					alt={alt}
+					className="h-auto w-full"
+				/>
 			</Placeholder>
 		</>
 	);
@@ -79,7 +90,7 @@ function Placeholder({
 	return (
 		<div
 			className={cn("w-full bg-cover bg-center", className)}
-			style={src ? { backgroundImage: `url(${src})` } : undefined}
+			style={src ? { backgroundImage: `url(${asset(src)})` } : undefined}
 		>
 			{children}
 		</div>

@@ -46,6 +46,13 @@ uv run --project ../services/backend python scripts/verify-page.py [порт]
 
 Скриншоты приложения генерирует `npm run gen:screens`.
 
+## Иконка
+
+`src/app/favicon.ico` — копия `apps/desktop/src-tauri/icons/icon.ico`, а
+`src/app/apple-icon.png` сжат из `icon.png` до 180×180. Меняете иконку
+приложения — обновите обе. Ссылки в `<head>` пишет Next по конвенции
+App Router, поэтому `basePath` к ним подставляется сам.
+
 ## Деплой
 
 Автоматический: `.github/workflows/pages.yml` собирает экспорт и публикует его

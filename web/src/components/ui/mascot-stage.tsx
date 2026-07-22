@@ -3,9 +3,9 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const TONE = {
-	brand: "bg-brand",
-	accent1: "bg-accent-1",
-	accent2: "bg-accent-2",
+	brand: "bg-[var(--light-brand)]",
+	accent1: "bg-[var(--light-accent-1)]",
+	accent2: "bg-[var(--light-accent-2)]",
 } as const;
 
 /**
@@ -51,13 +51,12 @@ export function MascotStage({
 				style={shape === "slab" ? { rotate: `${tilt}deg` } : undefined}
 			>
 				{/* Клякса — единственная органическая форма на всей странице: она и
-				    даёт персонажу «землю под ногами». Красится фоном, поэтому в тёмной
-				    теме тёмная, в светлой светлая — и в обеих читается на цвете. */}
+				    даёт персонажу «землю под ногами». */}
 				<svg
 					aria-hidden="true"
 					focusable="false"
 					viewBox="0 0 100 100"
-					className="absolute inset-0 size-full text-background"
+					className="absolute inset-0 size-full text-[var(--light-background)]"
 					preserveAspectRatio="none"
 				>
 					<path
@@ -70,22 +69,22 @@ export function MascotStage({
 			{/* Тень: маскот стоит, а не висит. */}
 			<div
 				aria-hidden="true"
-				className="absolute bottom-[6%] left-1/2 h-[3%] w-[46%] -translate-x-1/2 rounded-[50%] bg-foreground/20"
+				className="absolute bottom-[6%] left-1/2 h-[3%] w-[46%] -translate-x-1/2 rounded-[50%] bg-[var(--light-foreground)]/20"
 			/>
 
 			{/* Мелочь вокруг — та же геометрия, что в конфетти страницы. Статичная:
 			    у маскота она держит композицию, а не привлекает внимание. */}
 			<span
 				aria-hidden="true"
-				className="absolute top-[6%] left-[4%] size-2 rounded-full bg-accent-1"
+				className="absolute top-[6%] left-[4%] size-2 rounded-full bg-[var(--light-accent-1)]"
 			/>
 			<span
 				aria-hidden="true"
-				className="absolute top-[20%] right-0 size-3 rotate-45 bg-brand"
+				className="absolute top-[20%] right-0 size-3 rotate-45 bg-[var(--light-brand)]"
 			/>
 			<span
 				aria-hidden="true"
-				className="absolute bottom-[16%] left-0 size-2.5 rotate-45 bg-accent-2"
+				className="absolute bottom-[16%] left-0 size-2.5 rotate-45 bg-[var(--light-accent-2)]"
 			/>
 
 			<div className="relative z-10">{children}</div>

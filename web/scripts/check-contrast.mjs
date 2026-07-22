@@ -31,10 +31,23 @@ function block(name) {
 	const re = new RegExp(`${name}\\s*\\{([\\s\\S]*?)\\n\\}`, "m");
 	const m = CSS.match(re);
 	if (!m) throw new Error(`Не найден блок ${name} в globals.css`);
-	const tokens = {};
+	const raw = {};
 	for (const line of m[1].split("\n")) {
-		const t = line.match(/(--[\w-]+):\s*(oklch\([^)]*\))/);
-		if (t) tokens[t[1]] = t[2];
+		const t = line.match(
+			/(--[\w-]+):\s*(oklch\([^)]*\)|var\(\s*--[\w-]+\s*\))/,
+		);
+		if (t) raw[t[1]] = t[2];
+	}
+	const tokens = {};
+	for (const [token, declared] of Object.entries(raw)) {
+		let value = declared;
+		for (let hop = 0; value?.startsWith("var(") && hop < 8; hop++) {
+			const ref = value.slice(4, -1).trim();
+			value = raw[ref];
+		}
+		if (!value?.startsWith("oklch("))
+			throw new Error(`${name}: не разрешил ${token} → ${declared}`);
+		tokens[token] = value;
 	}
 	return tokens;
 }

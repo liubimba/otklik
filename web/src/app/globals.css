@@ -111,15 +111,22 @@
 }
 
 :root {
-	--background: oklch(0.985 0.003 255);
-	--foreground: oklch(0.2 0.015 255);
-	--brand: oklch(0.505 0.213 27.518);
+	--light-background: oklch(0.985 0.003 255);
+	--light-foreground: oklch(0.2 0.015 255);
+	--light-brand: oklch(0.505 0.213 27.518);
+	--light-accent-1: oklch(0.86 0.16 92);
+	--light-accent-2: oklch(0.52 0.22 275);
+	--light-destructive: oklch(0.44 0.235 27.5);
+
+	--background: var(--light-background);
+	--foreground: var(--light-foreground);
+	--brand: var(--light-brand);
 	--brand-foreground: oklch(0.62 0.2 28);
 	/* Акценты ТОЛЬКО для декора: плашки, конфетти, пометки. Никогда на кнопках,
 	   статусах и ссылках — иначе развалится система, где красный = действие,
 	   а destructive = опасность. */
-	--accent-1: oklch(0.86 0.16 92);
-	--accent-2: oklch(0.52 0.22 275);
+	--accent-1: var(--light-accent-1);
+	--accent-2: var(--light-accent-2);
 	--accent-ink: oklch(0.2 0.015 255);
 	/* Футер — единственная плита сплошного цвета на странице: подвал, а не ещё
 	   одна секция. Поэтому он тёмный в обеих темах и не несёт фактур. */
@@ -139,7 +146,7 @@
 	--muted-foreground: oklch(0.46 0.015 255);
 	--accent: oklch(0.945 0.006 255);
 	--accent-foreground: oklch(0.2 0.015 255);
-	--destructive: oklch(0.44 0.235 27.5);
+	--destructive: var(--light-destructive);
 	--border: oklch(0.88 0.008 255);
 	--input: oklch(0.88 0.008 255);
 	--ring: oklch(0.505 0.213 27.518);

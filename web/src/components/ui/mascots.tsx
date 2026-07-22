@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
  * переменные документа внутрь него не проникают — заливка слетела бы в чёрный.
  *
  * Цвет держится на трёх переменных: --body (тело), --ink (контур и реквизит),
- * --paper (глаза, блики). Контур завязан на foreground, поэтому в тёмной теме он
- * сам становится светлым, и фигура не превращается в чёрное пятно.
+ * --paper (глаза, блики). Все три взяты из светлой палитры (--light-*), которую
+ * тема не переопределяет: маскот выглядит одинаково в обеих темах.
  *
  * Тело красим ТОЛЬКО акцентами. Брендовый красный на лендинге означает действие
  * (кнопки) и опасность (баны) — фигура в полный рост, залитая красным,
@@ -23,19 +23,19 @@ type Tone = "accent1" | "accent2" | "danger";
 
 const TONE: Record<Tone, CSSProperties> = {
 	accent1: {
-		"--body": "var(--accent-1)",
-		"--ink": "var(--foreground)",
-		"--paper": "var(--background)",
+		"--body": "var(--light-accent-1)",
+		"--ink": "var(--light-foreground)",
+		"--paper": "var(--light-background)",
 	} as CSSProperties,
 	accent2: {
-		"--body": "var(--accent-2)",
-		"--ink": "var(--foreground)",
-		"--paper": "var(--background)",
+		"--body": "var(--light-accent-2)",
+		"--ink": "var(--light-foreground)",
+		"--paper": "var(--light-background)",
 	} as CSSProperties,
 	danger: {
-		"--body": "var(--destructive)",
-		"--ink": "var(--foreground)",
-		"--paper": "var(--background)",
+		"--body": "var(--light-destructive)",
+		"--ink": "var(--light-foreground)",
+		"--paper": "var(--light-background)",
 	} as CSSProperties,
 };
 

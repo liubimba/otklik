@@ -1,96 +1,110 @@
 # Otklik
 
-Десктоп-приложение для откликов на вакансии hh.ru: парсит вакансию, генерирует
-сопроводительное письмо с помощью LLM на основе описания вакансии, вашего резюме
-и пожеланий, даёт чат по каждому письму и — опционально — откликается за вас.
+[liubimba.github.io/otklik](https://liubimba.github.io/otklik/) ·
+[Releases](https://github.com/liubimba/otklik/releases) ·
+[Читать по-русски](./README.ru.md)
 
-Всё работает локально, на вашем устройстве. Сервера у проекта нет: ни аккаунтов,
-ни телеметрии, ни облака. За токены LLM платите только вы, напрямую своему
-провайдеру по своему ключу.
+A desktop app that applies to jobs on [hh.ru](https://hh.ru) for you. It reads a
+vacancy, writes a cover letter with an LLM from the job description and your CV,
+lets you rework that letter in a chat, and can send the application.
 
-> **Версия ранняя (0.1.x).** Прежде чем устанавливать, прочитайте раздел
-> [«Риски»](#риски) — это не формальность.
+Everything runs on your machine. The project has no server: no accounts, no
+telemetry, no cloud. You pay for LLM tokens directly to your own provider with
+your own key.
 
-## ⚠️ Риски
+![Otklik](./web/public/app-dark.png)
 
-**Правила hh.ru формально запрещают автоматизацию откликов.** Использование
-приложения может привести к временной или постоянной блокировке аккаунта.
-Используйте его **на свой риск** и **не запускайте на основном рабочем аккаунте
-hh.ru**. Гарантий не даёт никто.
+> **Early version (0.2.x).** Read [Risks](#risks) before installing. It is not
+> boilerplate.
 
-Приложение работает под вашей собственной сессией hh.ru (вход вы выполняете
-руками один раз в обычном окне браузера) и не использует официальный API hh.
-Автоматический отклик по умолчанию **выключен** — включается осознанно.
+## Risks
 
-Что приложение делает, чтобы снизить риск:
+**hh.ru rules formally prohibit automated applications.** Using this app may get
+your account suspended, temporarily or permanently. Use it **at your own risk**
+and **not on the hh.ru account your career depends on**. Nobody can promise you
+otherwise.
 
-- **Консервативные лимиты по умолчанию** — не больше 30 откликов в день и 5 в час,
-  с задержкой 800 мс ± 400 мс между действиями. Значения настраиваются, но чем
-  агрессивнее, тем выше риск.
-- **Обычный браузер, обычный профиль** — Chromium с постоянным профилем: один
-  ручной вход, без флагов «новое устройство» при каждом запуске.
-- **Капча — к вам, а не в обход** — увидев капчу, приложение останавливается и
-  зовёт вас. Никаких 2captcha / anti-captcha: активный обход резко повышает шанс
-  перманентного бана.
+The app works inside your own hh.ru session (you log in by hand, once, in an
+ordinary browser window) and does not use the official hh API. Automatic sending
+is **off by default** and has to be turned on deliberately.
 
-При первом запуске приложение показывает это предупреждение и требует явного
-согласия, прежде чем продолжить.
+What the app does to keep the risk down:
 
-## Приватность
+- **Conservative limits out of the box.** No more than 30 applications a day and
+  5 an hour, with an 800 ms ± 400 ms pause between actions. You can raise these,
+  and the more aggressive you get, the more you risk.
+- **A normal browser with a normal profile.** Chromium keeps its profile between
+  runs, so you log in once and hh does not see a brand new device every time.
+- **Captchas go to you, not around you.** When a captcha appears the app stops
+  and calls you over. No 2captcha, no anti-captcha: solving them automatically
+  is a fast way to turn a temporary block into a permanent one.
 
-- **Нет сервера, аккаунтов и телеметрии.** Данные не покидают ваше устройство.
-- **Локальное хранилище.** Настройки, история и сессия hh лежат в `~/.otklik/`
-  (SQLite + профиль Chromium).
-- **LLM по вашему ключу.** Запросы уходят напрямую вашему провайдеру
-  (OpenAI, Anthropic, локальная модель через Ollama — всё, что понимает LiteLLM).
-  При облачной модели описание вакансии и резюме отправляются в API этого
-  провайдера — это плата за качество генерации.
+On first launch the app shows this warning and asks for explicit consent before
+going any further.
 
-> Известное ограничение: API-ключи пока хранятся в локальной базе, а не в
-> системном хранилище паролей. Перенос в keychain запланирован.
+## Privacy
 
-## Возможности
+- **No server, no accounts, no telemetry.** Your data does not leave your
+  machine.
+- **Local storage.** Settings, history and the hh session live in `~/.otklik/`
+  (SQLite plus a Chromium profile).
+- **Your own LLM key.** Requests go straight to your provider: OpenAI,
+  Anthropic, a local model through [Ollama](https://ollama.com), anything
+  [LiteLLM](https://docs.litellm.ai/docs/providers) speaks. With a cloud model
+  the job description and your CV are sent to that provider's API, which is the
+  price of good generation. With Ollama nothing leaves the machine at all.
 
-- Парсинг вакансий hh.ru по поисковому запросу.
-- Генерация сопроводительного письма из описания вакансии, резюме и ваших
-  пожеланий по тону и содержанию.
-- Чат с AI по каждому письму — доработать, переписать, сменить тон.
-- Ручная отправка отклика по кнопке или автоматический отклик (по умолчанию
-  выключен).
+> Known limitation: API keys are still kept in the local database rather than in
+> the system keychain. Moving them is planned.
 
-Генерацией писем и чатом можно пользоваться независимо от автоотклика.
+## What it does
 
-## Стек
+- Finds hh.ru vacancies by a search query.
+- Writes a cover letter from the job description, your CV and your notes on tone
+  and content.
+- Gives you a chat per letter, to rewrite it, shorten it or change its tone.
+- Sends the application, either by a button or automatically (off by default).
 
-- **Десктоп-оболочка:** Tauri 2 (Rust) + SvelteKit.
-- **Автоматизация и API:** локальный Python-бэкенд (FastAPI).
-- **LLM:** LiteLLM (провайдер выбирается строкой модели, ключ — ваш).
+Letter generation and the chat are useful on their own, with auto-send left off.
 
-```
-apps/desktop      — Tauri + Svelte UI
-services/backend  — локальный FastAPI-бэкенд (парсинг, генерация, отклики)
-web               — лендинг (Next.js)
-```
+## Install
 
-## Установка
+Installers for Windows and Linux are on the
+[Releases](https://github.com/liubimba/otklik/releases) page:
 
-Готовые установщики для Windows, macOS и Linux — в разделе
-[Releases](https://github.com/liubimba/otklik/releases).
+| Platform | Files |
+|---|---|
+| Windows | `.exe` installer, `.msi` |
+| Linux | `.AppImage`, `.deb`, `.rpm` |
 
-### Сборка из исходников
+There is no macOS build yet. Updates are signed and install themselves.
 
-Нужны Node.js (см. `.nvmrc`), pnpm, Rust и Python с [uv](https://docs.astral.sh/uv/).
+### Build from source
+
+You will need Node.js (see `.nvmrc`), pnpm, Rust, and Python with
+[uv](https://docs.astral.sh/uv/).
 
 ```bash
 pnpm install
-# бэкенд
 cd services/backend && uv sync && cd ../..
-# запуск десктоп-приложения в режиме разработки
 pnpm --filter desktop tauri dev
 ```
 
-## Лицензия
+## How it is put together
 
-[MIT](./LICENSE). Программа распространяется «как есть», без каких-либо гарантий.
-Ответственность за использование, включая соблюдение правил hh.ru, лежит на
-пользователе.
+- **Desktop shell:** Tauri 2 (Rust) with a SvelteKit UI.
+- **Automation and API:** a local Python backend on FastAPI, shipped alongside
+  the app as its own binary.
+- **LLM:** LiteLLM, so the provider is picked by a model string and the key is
+  yours.
+
+```
+apps/desktop      Tauri + Svelte UI
+services/backend  local FastAPI backend (parsing, generation, applying)
+web               landing page (Next.js)
+```
+
+## License
+
+[MIT](./LICENSE). The software is provided as is, without warranty of any kind.
+You are responsible for how you use it, hh.ru's rules included.

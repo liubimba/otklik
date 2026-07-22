@@ -30,7 +30,7 @@ export default function Home() {
 					actions={[
 						{
 							text: "Скачать приложение",
-							href: links.releases,
+							href: "#download",
 							variant: "default",
 							icon: <DownloadIcon className="size-5" aria-hidden="true" />,
 						},

@@ -6,6 +6,8 @@ on:
     paths:
       - "web/**"
       - ".github/workflows/pages.yml"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -38,7 +40,17 @@ jobs:
         working-directory: web
         env:
           NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: npm run build
+      - name: Download buttons must point at release assets, not at the releases page
+        working-directory: web
+        run: |
+          for pattern in 'releases/download/[^"]*\.AppImage' 'releases/download/[^"]*-setup\.exe'; do
+            if ! grep -qE "$pattern" out/index.html; then
+              echo "not resolved: $pattern"
+              exit 1
+            fi
+          done
       - name: Every screenshot the page references must exist in the export
         working-directory: web
         run: |

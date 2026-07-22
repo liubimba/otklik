@@ -9,10 +9,6 @@ export const links = {
 	releases: LATEST_RELEASE,
 	issues: `${REPO_URL}/issues`,
 	license: `${REPO_URL}/blob/main/LICENSE`,
-	download: {
-		linux: LATEST_RELEASE,
-		windows: LATEST_RELEASE,
-	},
 	ollama: "https://ollama.com",
 	litellm: "https://docs.litellm.ai/docs/providers",
 } as const;

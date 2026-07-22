@@ -48,14 +48,16 @@ going any further.
   machine.
 - **Local storage.** Settings, history and the hh session live in `~/.otklik/`
   (SQLite plus a Chromium profile).
+- **API keys in the system keychain.** Keys go to the operating system's
+  credential store under the name `ai.otklik.app`, not into the database. If no
+  keychain is available, which happens on a headless Linux box without
+  gnome-keyring or kwallet, the app falls back to `~/.otklik/secrets.json` with
+  `0600` permissions and tells you which of the two it ended up using.
 - **Your own LLM key.** Requests go straight to your provider: OpenAI,
   Anthropic, a local model through [Ollama](https://ollama.com), anything
   [LiteLLM](https://docs.litellm.ai/docs/providers) speaks. With a cloud model
   the job description and your CV are sent to that provider's API, which is the
   price of good generation. With Ollama nothing leaves the machine at all.
-
-> Known limitation: API keys are still kept in the local database rather than in
-> the system keychain. Moving them is planned.
 
 ## What it does
 

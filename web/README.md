@@ -1,60 +1,85 @@
-# Лендинг Otklik
+# Otklik landing page
 
-Одностраничный сайт проекта: [liubimba.github.io/otklik](https://liubimba.github.io/otklik/).
-Next.js 16 (App Router), Tailwind 4, shadcn. Серверной логики нет, поэтому
-собирается статическим экспортом в `out/`.
+The project's single page site: [liubimba.github.io/otklik](https://liubimba.github.io/otklik/).
+Next.js 16 (App Router), Tailwind 4, shadcn. There is no server-side logic, so
+it is built as a static export into `out/`.
 
-Пакеты ставятся через npm: этот воркспейс не входит в корневой pnpm-workspace,
-у него свой `package-lock.json`.
+Packages are installed with npm. This workspace is not part of the root pnpm
+workspace and keeps its own `package-lock.json`.
 
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm run build    # статический экспорт в out/
+npm run build    # static export into out/
 ```
 
 ## basePath
 
-GitHub Pages отдаёт проектный сайт из подпути `/otklik`, локальный dev-сервер из
-корня. Префикс приходит переменной `NEXT_PUBLIC_BASE_PATH` на этапе сборки и
-инлайнится в бандл:
+GitHub Pages serves a project site from the `/otklik` sub-path while the local
+dev server serves it from the root. The prefix arrives as
+`NEXT_PUBLIC_BASE_PATH` at build time and is inlined into the bundle:
 
 ```bash
 NEXT_PUBLIC_BASE_PATH=/otklik npm run build
 ```
 
-Есть две ловушки, из-за которых ссылки на файлы из `public/` идут через
-`asset()` из `src/lib/asset.ts`, а не пишутся напрямую:
+Two traps are the reason every path into `public/` goes through `asset()` from
+`src/lib/asset.ts` instead of being written out directly:
 
-- `next/link` префикс подставляет сам, а `next/image` в Next 16 нет. Об этом
-  прямо сказано в `node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/basePath.md`.
-- Инлайновый `background-image: url(...)` не префиксуется ничем.
+- `next/link` applies the prefix on its own, `next/image` in Next 16 does not.
+  Its own documentation says so, in
+  `node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/basePath.md`.
+- An inline `background-image: url(...)` is prefixed by nothing at all.
 
-Обе ломаются только в проде на подпути, локально всё выглядит нормально.
+Both break only in production on the sub-path. Locally everything looks fine.
 
-## Проверки
+## Download buttons
+
+The buttons in the final section link to the installers themselves rather than
+to the releases page. Asset names carry the version, so there is no permanent
+URL to write down, and the one stable name in a release, `latest.json`, is
+served without CORS headers, so the browser cannot read it either.
+
+So `src/lib/downloads.ts` asks the GitHub API while the page is being
+generated, and the direct links end up in the HTML. No JavaScript at runtime,
+no rate limit. If the API is unreachable the build does not fail, it falls back
+to the releases page, and a gate in the workflow then fails the run, because a
+silent fallback looks exactly like success.
+
+The links go stale when a release ships, which is why the workflow rebuilds on
+`release: published` as well as on a push.
+
+## Checks
 
 ```bash
 npm run lint
 npm run check:contrast
 npm run check:fonts
-uv run --project ../services/backend python scripts/verify-page.py [порт]
+uv run --project ../services/backend python scripts/verify-page.py [port]
 ```
 
-`verify-page.py` ходит по поднятому серверу и проверяет якоря, гидратацию и
-кадры скриншотов.
+`verify-page.py` drives a running server and checks anchors, hydration and the
+screenshot frames. `check:contrast` reads the tokens out of `globals.css` and
+computes WCAG ratios, following a `var()` reference when a token points at
+another one.
 
-Скриншоты приложения генерирует `npm run gen:screens`.
+`npm run gen:screens` generates the application screenshots.
 
-## Иконка
+## Icon
 
-`src/app/favicon.ico` — копия `apps/desktop/src-tauri/icons/icon.ico`, а
-`src/app/apple-icon.png` сжат из `icon.png` до 180×180. Меняете иконку
-приложения — обновите обе. Ссылки в `<head>` пишет Next по конвенции
-App Router, поэтому `basePath` к ним подставляется сам.
+`src/app/favicon.ico` is a copy of `apps/desktop/src-tauri/icons/icon.ico`, and
+`src/app/apple-icon.png` is the same drawing resized to 180×180. Change the
+application icon and both need updating.
 
-## Деплой
+The `<head>` links are written by Next through its App Router file convention,
+so `basePath` is applied to them automatically. Do not add an `icon.png` next
+to the `.ico`: Next then stops emitting a link to `favicon.ico`, and on a
+sub-path the browser would look for an icon at the domain root, where there is
+none.
 
-Автоматический: `.github/workflows/pages.yml` собирает экспорт и публикует его
-на GitHub Pages при пуше в `main`, если менялось что-то в `web/`. Префикс путей
-воркфлоу берёт из `actions/configure-pages`, руками он нигде не записан.
+## Deploy
+
+`.github/workflows/pages.yml` builds the export and publishes it to GitHub
+Pages on a push to `main` that touches `web/`, and on a published release. The
+path prefix comes from `actions/configure-pages`, so it is never written down
+by hand.

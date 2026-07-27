@@ -40,9 +40,17 @@ async def _terminate(proc: Any) -> None:
         return
     pid = getattr(proc, "pid", None)
     killed = False
-    if pid is not None:
+    killpg = getattr(os, "killpg", None)
+    getpgid = getattr(os, "getpgid", None)
+    sigkill = getattr(signal, "SIGKILL", None)
+    if (
+        pid is not None
+        and killpg is not None
+        and getpgid is not None
+        and sigkill is not None
+    ):
         try:
-            os.killpg(os.getpgid(pid), signal.SIGKILL)
+            killpg(getpgid(pid), sigkill)
             killed = True
         except (ProcessLookupError, PermissionError, OSError):
             pass

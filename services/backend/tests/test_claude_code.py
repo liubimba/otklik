@@ -571,6 +571,23 @@ async def test_acompletion_cancellation_kills_the_process_tree(tmp_path) -> None
     assert survivors == []
 
 
+async def test_terminate_falls_back_to_kill_where_process_groups_are_unavailable(
+    monkeypatch,
+) -> None:
+    from otklik_backend.ai import claude_code
+
+    monkeypatch.delattr(claude_code.os, "killpg", raising=False)
+    monkeypatch.delattr(claude_code.os, "getpgid", raising=False)
+    monkeypatch.delattr(claude_code.signal, "SIGKILL", raising=False)
+
+    proc = _FakeProc(returncode=None)
+    proc.pid = 4321
+
+    await claude_code._terminate(proc)
+
+    assert proc.returncode == -9
+
+
 def test_clean_env_skips_socks_proxy_claude_cannot_use() -> None:
     set_claude_proxy("socks5://127.0.0.1:10808")
     try:

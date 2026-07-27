@@ -76,7 +76,7 @@ async def test_install_runs_the_patchright_node_driver_not_the_python_executable
                 pass
 
     assert spawned["argv"][0] != sys.executable
-    assert spawned["argv"][0].endswith("node")
+    assert Path(spawned["argv"][0]).stem == "node"
     assert spawned["argv"][1].endswith("cli.js")
     assert spawned["argv"][2:] == ("install", "chromium")
     assert spawned["env"]["PLAYWRIGHT_BROWSERS_PATH"] == str(tmp_path)

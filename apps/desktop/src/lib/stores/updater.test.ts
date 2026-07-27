@@ -9,6 +9,13 @@ vi.mock("@tauri-apps/api/core", () => ({
 	invoke: (cmd: string) => invoke(cmd),
 }));
 
+vi.mock("@tauri-apps/plugin-log", () => ({
+	debug: vi.fn(async () => {}),
+	info: vi.fn(async () => {}),
+	warn: vi.fn(async () => {}),
+	error: vi.fn(async () => {}),
+}));
+
 import { updater } from "./updater.svelte";
 
 describe("updater.check", () => {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geologica, Golos_Text, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
@@ -61,6 +62,11 @@ export default function RootLayout({
 					<ScrollProgress />
 					{children}
 				</ThemeProvider>
+				<Script
+					src="https://static.cloudflareinsights.com/beacon.min.js"
+					strategy="afterInteractive"
+					data-cf-beacon='{"token": "98a72adf1e9142429229a84103d15d80"}'
+				/>
 			</body>
 		</html>
 	);

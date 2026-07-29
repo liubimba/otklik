@@ -31,6 +31,7 @@ class Selectors:
         respond_button: str
         open_letter_textarea_button: str
         letter_textarea: str
+        relocation_confirm: str
         success_marker: str | None = None
 
     @dataclass(frozen=True)
@@ -67,6 +68,7 @@ HHRU_SELECTORS = Selectors(
         respond_button='[data-qa="vacancy-response-submit-popup"]',
         letter_textarea='[data-qa="vacancy-response-popup-form-letter-input"]',
         open_letter_textarea_button='[data-qa="add-cover-letter"]',
+        relocation_confirm='[data-qa="relocation-warning-confirm"]',
     ),
     captcha=Selectors.Captcha(),
 )

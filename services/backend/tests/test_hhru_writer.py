@@ -69,6 +69,51 @@ def writer(stub_core: _StubCore) -> HHRUWriter:
     )
 
 
+class _RelocationStubPage(_StubPage):
+    def __init__(self) -> None:
+        super().__init__(body_text="")
+        self._confirmed = False
+
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        confirm = HHRU_SELECTORS.response.relocation_confirm
+        if selector == confirm and not self._confirmed:
+            return object()
+        return None
+
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        self.events.append(("click", selector))
+        if selector == HHRU_SELECTORS.response.relocation_confirm:
+            self._confirmed = True
+
+    async def text_content(self, selector: str) -> str | None:
+        self.events.append(("text", selector))
+        if self._confirmed:
+            return "Вы откликнулись"
+        return "Вы откликаетесь на вакансию в другой стране"
+
+
+async def test_writer_confirms_cross_country_relocation_warning_and_still_submits() -> (
+    None
+):
+    page = _RelocationStubPage()
+    core = _StubCore(page)
+    writer = HHRUWriter(
+        core=core,  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://hh.ru/vacancy/999", letter_text="dear team"
+    )
+
+    confirm = HHRU_SELECTORS.response.relocation_confirm
+    assert ("click", confirm) in page.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
 async def test_writer_opens_modal_before_touching_textarea(
     writer: HHRUWriter, stub_core: _StubCore, stub_page: _StubPage
 ) -> None:

@@ -88,6 +88,8 @@ class HHRUWriter:
             if await self._captcha_present(page=page):
                 return SubmissionResult.captcha()
 
+            await self._confirm_relocation_if_present(page=page)
+
             body_text = await page.text_content("body")
             if body_text is not None:
                 normalized = normalize(body_text)
@@ -98,6 +100,14 @@ class HHRUWriter:
             await asyncio.sleep(poll_interval_sec)
 
         return SubmissionResult.failed(reason="verification timeout")
+
+    async def _confirm_relocation_if_present(self, page: BrowserPage) -> None:
+        confirm = self._selectors.response.relocation_confirm
+        if await page.query_selector(selector=confirm) is None:
+            return
+        self._logger.info("Relocation warning shown, confirming the response")
+        await page.click(selector=confirm, timeout=self._timeout)
+        await self._human_delay()
 
     async def _captcha_present(self, page: BrowserPage) -> bool:
         marker = self._selectors.captcha.marker

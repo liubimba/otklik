@@ -83,11 +83,13 @@ class SearchService:
             settings = await SettingsRepository.get(session=session)
 
         max_pages = (
-            request.max_pages if request.max_pages is not None else settings.max_pages
+            request.max_pages
+            if request.max_pages is not None and request.max_pages > 0
+            else settings.max_pages
         )
         max_vacancies = (
             request.max_vacancies
-            if request.max_vacancies is not None
+            if request.max_vacancies is not None and request.max_vacancies > 0
             else settings.max_vacancies
         )
 

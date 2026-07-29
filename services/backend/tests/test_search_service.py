@@ -228,6 +228,26 @@ async def test_max_vacancies_cap_respected(
     assert task.parsed_count == 2
 
 
+async def test_zero_limits_from_the_filter_fall_back_to_settings_not_stop_after_one(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    parser = FakeParser([[_vacancy(1), _vacancy(2), _vacancy(3), _vacancy(4)]])
+    svc = _make_service(
+        fake_browser_core, parser, recording_broadcaster, session_factory
+    )
+
+    search_task = await svc.open_search_session(
+        request=_filter(max_vacancies=0, max_pages=0)
+    )
+    await search_task.task
+
+    task = svc.find_search_task(search_id=search_task.id)
+    assert task is not None
+    assert task.parsed_count == 4
+
+
 async def test_cancel_running_search(
     fake_browser_core: FakeBrowserCore,
     recording_broadcaster: RecordingBroadcaster,

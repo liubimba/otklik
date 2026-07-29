@@ -44,7 +44,10 @@ function handleOpenChange(open: boolean) {
 </script>
 
 <Dialog open={true} onOpenChange={handleOpenChange}>
-    <DialogContent>
+    <DialogContent
+            interactOutsideBehavior="ignore"
+            escapeKeydownBehavior="ignore"
+    >
         <DialogHeader>
             <DialogTitle>{m.onboarding_title()}</DialogTitle>
             <DialogDescription>

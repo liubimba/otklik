@@ -16,6 +16,7 @@ const bitsUiSubmodule = (name) =>
 const bitsUiDropdownMenuEntry = bitsUiSubmodule("dropdown-menu");
 const bitsUiAccordionEntry = bitsUiSubmodule("accordion");
 const bitsUiLabelEntry = bitsUiSubmodule("label");
+const bitsUiDialogEntry = bitsUiSubmodule("dialog");
 
 const bitsUiTestShimId = "\0virtual:bits-ui-test-shim";
 
@@ -49,6 +50,7 @@ export default defineConfig(
 							`export { DropdownMenu } from ${JSON.stringify(bitsUiDropdownMenuEntry)};`,
 							`export { Accordion } from ${JSON.stringify(bitsUiAccordionEntry)};`,
 							`export { Label } from ${JSON.stringify(bitsUiLabelEntry)};`,
+							`export { Dialog } from ${JSON.stringify(bitsUiDialogEntry)};`,
 						].join("\n");
 					},
 				},

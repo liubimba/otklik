@@ -32,6 +32,8 @@ class Selectors:
         open_letter_textarea_button: str
         letter_textarea: str
         relocation_confirm: str
+        respond_no_test_button: str
+        employer_test_marker: str
         success_marker: str | None = None
 
     @dataclass(frozen=True)
@@ -67,8 +69,12 @@ HHRU_SELECTORS = Selectors(
     response=Selectors.VacancyResponsePage(
         respond_button='[data-qa="vacancy-response-submit-popup"]',
         letter_textarea='[data-qa="vacancy-response-popup-form-letter-input"]',
-        open_letter_textarea_button='[data-qa="add-cover-letter"]',
+        open_letter_textarea_button=(
+            '[data-qa="add-cover-letter"], [data-qa="vacancy-response-letter-toggle"]'
+        ),
         relocation_confirm='[data-qa="relocation-warning-confirm"]',
+        respond_no_test_button='[data-qa="vacancy-response-link-no-questions"]',
+        employer_test_marker='[data-qa="employer-asking-for-test"]',
     ),
     captcha=Selectors.Captcha(),
 )

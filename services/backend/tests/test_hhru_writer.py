@@ -69,6 +69,70 @@ def writer(stub_core: _StubCore) -> HHRUWriter:
     )
 
 
+class _FormStubPage(_StubPage):
+    def __init__(self, present: set[str]) -> None:
+        super().__init__(body_text="")
+        self._present = present
+        self._submitted = False
+
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        return object() if selector in self._present else None
+
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        self.events.append(("click", selector))
+        response = HHRU_SELECTORS.response
+        if selector in (response.respond_button, response.respond_no_test_button):
+            self._submitted = True
+
+    async def text_content(self, selector: str) -> str | None:
+        self.events.append(("text", selector))
+        return "Вы откликнулись" if self._submitted else ""
+
+
+async def test_writer_responds_without_the_test_when_the_employer_test_is_optional() -> (
+    None
+):
+    response = HHRU_SELECTORS.response
+    page = _FormStubPage(
+        present={response.employer_test_marker, response.respond_no_test_button}
+    )
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://hh.ru/vacancy/135583370", letter_text="dear team"
+    )
+
+    assert ("click", response.respond_no_test_button) in page.events
+    assert ("click", response.respond_button) not in page.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
+async def test_writer_skips_the_vacancy_when_the_employer_test_is_mandatory() -> None:
+    response = HHRU_SELECTORS.response
+    page = _FormStubPage(present={response.employer_test_marker})
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://hh.ru/vacancy/135583370", letter_text="dear team"
+    )
+
+    assert result.type == SubmissionResultType.FAILED
+    assert result.reason is not None and "тест" in result.reason.lower()
+    assert ("click", response.respond_button) not in page.events
+    assert ("click", response.respond_no_test_button) not in page.events
+
+
 class _RelocationStubPage(_StubPage):
     def __init__(self) -> None:
         super().__init__(body_text="")

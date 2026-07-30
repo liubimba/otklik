@@ -12,6 +12,10 @@ SUCCESS_PHRASES_NORMALIZED: tuple[str, ...] = tuple(
     normalize(p) for p in ("Вы откликнулись", "Вас пригласили")
 )
 
+MANDATORY_TEST_REASON = (
+    "Работодатель требует пройти тест — откликнитесь на эту вакансию вручную"
+)
+
 
 class HHRUWriter:
     def __init__(
@@ -54,6 +58,9 @@ class HHRUWriter:
             if await self._captcha_present(page=page):
                 return SubmissionResult.captcha()
 
+            if await self._mandatory_test_blocks_submission(page=page):
+                return SubmissionResult.failed(reason=MANDATORY_TEST_REASON)
+
             await page.click(
                 selector=selectors.response.open_letter_textarea_button,
                 timeout=self._timeout,
@@ -70,7 +77,7 @@ class HHRUWriter:
             await self._human_delay()
 
             await page.click(
-                selector=selectors.response.respond_button, timeout=self._timeout
+                selector=await self._submit_selector(page=page), timeout=self._timeout
             )
             return await self._verify(page=page)
         except Exception as e:
@@ -100,6 +107,21 @@ class HHRUWriter:
             await asyncio.sleep(poll_interval_sec)
 
         return SubmissionResult.failed(reason="verification timeout")
+
+    async def _mandatory_test_blocks_submission(self, page: BrowserPage) -> bool:
+        response = self._selectors.response
+        if await page.query_selector(selector=response.employer_test_marker) is None:
+            return False
+        return (
+            await page.query_selector(selector=response.respond_no_test_button) is None
+        )
+
+    async def _submit_selector(self, page: BrowserPage) -> str:
+        response = self._selectors.response
+        if await page.query_selector(selector=response.respond_no_test_button) is None:
+            return response.respond_button
+        self._logger.info("Employer test is optional, responding without it")
+        return response.respond_no_test_button
 
     async def _confirm_relocation_if_present(self, page: BrowserPage) -> None:
         confirm = self._selectors.response.relocation_confirm

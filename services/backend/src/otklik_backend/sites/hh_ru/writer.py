@@ -50,6 +50,8 @@ class HHRUWriter:
                 selector=selectors.vacancy.respond_link_top, timeout=self._timeout
             )
 
+            await self._pass_relocation_gate(page=page)
+
             await page.wait_for_selector(
                 selector=selectors.response.respond_button, timeout=self._timeout
             )
@@ -122,6 +124,21 @@ class HHRUWriter:
             return response.respond_button
         self._logger.info("Employer test is optional, responding without it")
         return response.respond_no_test_button
+
+    async def _pass_relocation_gate(self, page: BrowserPage) -> None:
+        response = self._selectors.response
+        try:
+            await page.wait_for_selector(
+                selector=f"{response.relocation_confirm}, {response.respond_button}",
+                timeout=self._timeout,
+            )
+        except Exception as error:  # noqa: BLE001
+            self._logger.warning(
+                "Neither the relocation modal nor the response form appeared",
+                error=str(error),
+            )
+            return
+        await self._confirm_relocation_if_present(page=page)
 
     async def _confirm_relocation_if_present(self, page: BrowserPage) -> None:
         confirm = self._selectors.response.relocation_confirm

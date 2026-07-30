@@ -178,6 +178,51 @@ async def test_writer_confirms_cross_country_relocation_warning_and_still_submit
     assert result.type == SubmissionResultType.SUBMITTED
 
 
+class _PreFormRelocationStubPage(_StubPage):
+    def __init__(self) -> None:
+        super().__init__(body_text="Вы откликнулись")
+        self._confirmed = False
+
+    async def wait_for_selector(
+        self, selector: str, timeout: float | None = None
+    ) -> Any:
+        self.events.append(("wait", selector))
+        respond_button = HHRU_SELECTORS.response.respond_button
+        if selector == respond_button and not self._confirmed:
+            raise RuntimeError("Timeout: response form is blocked by the modal")
+        return object()
+
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        confirm = HHRU_SELECTORS.response.relocation_confirm
+        if selector == confirm and not self._confirmed:
+            return object()
+        return None
+
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        self.events.append(("click", selector))
+        if selector == HHRU_SELECTORS.response.relocation_confirm:
+            self._confirmed = True
+
+
+async def test_writer_confirms_relocation_modal_that_blocks_the_response_form() -> None:
+    page = _PreFormRelocationStubPage()
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://hh.ru/vacancy/999", letter_text="dear team"
+    )
+
+    confirm = HHRU_SELECTORS.response.relocation_confirm
+    assert ("click", confirm) in page.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
 async def test_writer_opens_modal_before_touching_textarea(
     writer: HHRUWriter, stub_core: _StubCore, stub_page: _StubPage
 ) -> None:
@@ -194,19 +239,21 @@ async def test_writer_opens_modal_before_touching_textarea(
     ]
     respond_link_top = HHRU_SELECTORS.vacancy.respond_link_top
     respond_button = HHRU_SELECTORS.response.respond_button
+    relocation_confirm = HHRU_SELECTORS.response.relocation_confirm
     open_letter = HHRU_SELECTORS.response.open_letter_textarea_button
     textarea = HHRU_SELECTORS.response.letter_textarea
 
     assert driving[0] == ("wait", respond_link_top)
     assert driving[1] == ("click", respond_link_top)
 
-    assert driving[2] == ("wait", respond_button)
+    assert driving[2] == ("wait", f"{relocation_confirm}, {respond_button}")
+    assert driving[3] == ("wait", respond_button)
 
-    assert driving[3] == ("click", open_letter)
-    assert driving[4] == ("wait", textarea)
-    assert driving[5] == ("fill", textarea)
+    assert driving[4] == ("click", open_letter)
+    assert driving[5] == ("wait", textarea)
+    assert driving[6] == ("fill", textarea)
 
-    assert driving[6] == ("click", respond_button)
+    assert driving[7] == ("click", respond_button)
 
     assert result.type == SubmissionResultType.SUBMITTED
     assert stub_page.closed

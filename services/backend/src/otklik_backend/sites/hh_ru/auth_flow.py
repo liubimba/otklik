@@ -40,6 +40,7 @@ class HHRUAuthFlow:
             self._log.warning("Auth priming navigation failed", error=str(error))
             return
         await self._safe_close_page(page)
+        await self._safe_hide_window()
 
     async def wait_for_login(self, poll_interval: float = 1.0) -> None:
         self._log.info("Waiting for user to log in")

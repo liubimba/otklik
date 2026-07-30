@@ -80,6 +80,7 @@ async def test_get_auth_status_primes_hh_navigation_for_a_logged_in_cold_profile
 
     assert status.status == "authorized"
     assert browser.new_page_calls == 1
+    assert browser.hidden is True
 
 
 async def test_get_auth_status_primes_only_once_when_really_logged_out() -> None:

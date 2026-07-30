@@ -1,0 +1,73 @@
+name: Dev Build
+
+# Manually-triggered Linux build for hand-installed testing. Produces unsigned
+# installers (deb/rpm/AppImage) and uploads them as a run artifact — no release,
+# no tag, no auto-update. createUpdaterArtifacts is overridden off so the signing
+# key (which belongs to release.yml) is never needed here.
+on:
+  workflow_dispatch:
+
+env:
+  PNPM_VERSION: "9.15.4"
+
+concurrency:
+  group: dev-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install Linux Tauri deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            file
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/backend/uv.lock
+
+      - name: Build backend sidecar
+        run: cd services/backend && uv sync && ./scripts/build_sidecar.sh
+
+      - name: Build unsigned installers
+        working-directory: apps/desktop
+        run: pnpm exec tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otklik-linux-installers
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/rpm/*.rpm
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 14

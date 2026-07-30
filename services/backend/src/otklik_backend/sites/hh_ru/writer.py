@@ -63,13 +63,7 @@ class HHRUWriter:
             if await self._mandatory_test_blocks_submission(page=page):
                 return SubmissionResult.failed(reason=MANDATORY_TEST_REASON)
 
-            await page.click(
-                selector=selectors.response.open_letter_textarea_button,
-                timeout=self._timeout,
-            )
-            await page.wait_for_selector(
-                selector=selectors.response.letter_textarea, timeout=self._timeout
-            )
+            await self._reveal_letter_field(page=page)
             await self._human_delay()
             await page.fill(
                 selector=selectors.response.letter_textarea,
@@ -124,6 +118,21 @@ class HHRUWriter:
             return response.respond_button
         self._logger.info("Employer test is optional, responding without it")
         return response.respond_no_test_button
+
+    async def _reveal_letter_field(self, page: BrowserPage) -> None:
+        response = self._selectors.response
+        if await page.query_selector(selector=response.letter_textarea) is not None:
+            return
+        if (
+            await page.query_selector(selector=response.open_letter_textarea_button)
+            is not None
+        ):
+            await page.click(
+                selector=response.open_letter_textarea_button, timeout=self._timeout
+            )
+        await page.wait_for_selector(
+            selector=response.letter_textarea, timeout=self._timeout
+        )
 
     async def _pass_relocation_gate(self, page: BrowserPage) -> None:
         response = self._selectors.response

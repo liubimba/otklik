@@ -29,6 +29,8 @@ class _StubPage:
 
     async def query_selector(self, selector: str) -> Any:
         self.events.append(("query", selector))
+        if selector == HHRU_SELECTORS.response.open_letter_textarea_button:
+            return object()
         return None
 
     async def text_content(self, selector: str) -> str | None:
@@ -220,6 +222,38 @@ async def test_writer_confirms_relocation_modal_that_blocks_the_response_form() 
 
     confirm = HHRU_SELECTORS.response.relocation_confirm
     assert ("click", confirm) in page.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
+class _BottomSheetStubPage(_StubPage):
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        if selector == HHRU_SELECTORS.response.letter_textarea:
+            return object()
+        return None
+
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        self.events.append(("click", selector))
+        if selector == HHRU_SELECTORS.response.open_letter_textarea_button:
+            raise RuntimeError("Timeout: this form has no cover-letter toggle")
+
+
+async def test_writer_fills_the_letter_when_the_field_is_already_open() -> None:
+    page = _BottomSheetStubPage()
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://hh.ru/vacancy/999", letter_text="dear team"
+    )
+
+    response = HHRU_SELECTORS.response
+    assert ("click", response.open_letter_textarea_button) not in page.events
+    assert ("fill", response.letter_textarea) in page.events
     assert result.type == SubmissionResultType.SUBMITTED
 
 

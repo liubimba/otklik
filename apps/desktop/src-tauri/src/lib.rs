@@ -56,8 +56,7 @@ pub fn run() {
             app.manage(BackendPort(port));
 
             let (_rx, child) = if tauri::is_dev() {
-                let backend_dir =
-                    concat!(env!("CARGO_MANIFEST_DIR"), "/../../../services/backend");
+                let backend_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../services/backend");
                 let backend_bin = if cfg!(windows) {
                     format!("{backend_dir}/.venv/Scripts/otklik-backend.exe")
                 } else {

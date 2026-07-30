@@ -62,6 +62,48 @@ def _flow(browser: _FakeBrowser) -> HHRUAuthFlow:
     return HHRUAuthFlow(browser)  # type: ignore[arg-type]
 
 
+class _ColdProfileBrowser(_FakeBrowser):
+    async def cookies(self, base_url: str) -> list[dict[str, str]]:
+        self._cookie_calls += 1
+        if self.new_page_calls > 0:
+            return [{"name": "hhrole", "value": "applicant"}]
+        return []
+
+
+async def test_get_auth_status_primes_hh_navigation_for_a_logged_in_cold_profile() -> (
+    None
+):
+    browser = _ColdProfileBrowser()
+    flow = _flow(browser)
+
+    status = await flow.get_auth_status()
+
+    assert status.status == "authorized"
+    assert browser.new_page_calls == 1
+
+
+async def test_get_auth_status_primes_only_once_when_really_logged_out() -> None:
+    browser = _FakeBrowser(cookies=[])
+    flow = _flow(browser)
+
+    first = await flow.get_auth_status()
+    second = await flow.get_auth_status()
+
+    assert first.status == "unauthorized"
+    assert second.status == "unauthorized"
+    assert browser.new_page_calls == 1
+
+
+async def test_get_auth_status_skips_priming_when_cookie_already_shows_auth() -> None:
+    browser = _FakeBrowser(cookies=[{"name": "hhrole", "value": "applicant"}])
+    flow = _flow(browser)
+
+    status = await flow.get_auth_status()
+
+    assert status.status == "authorized"
+    assert browser.new_page_calls == 0
+
+
 async def test_get_auth_status_is_unauthorized_when_browser_is_dead() -> None:
     status = await _flow(_FakeBrowser(raise_on_cookies=True)).get_auth_status()
     assert status.status == "unauthorized"

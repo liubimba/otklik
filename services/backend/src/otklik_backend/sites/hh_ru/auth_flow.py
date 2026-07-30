@@ -17,14 +17,29 @@ class HHRUAuthFlow:
         self._browser = browser
         self._log = get_logger(self.__class__.__name__)
         self._auth_status = AuthStatusAPISchema.unauthorized()
+        self._primed = False
 
     async def get_auth_status(self) -> AuthStatusAPISchema:
         if self._auth_status.status == "authorizing":
             return self._auth_status
+        authenticated = await self._is_authorized()
+        if not authenticated and not self._primed:
+            self._primed = True
+            await self._prime_from_hh()
+            authenticated = await self._is_authorized()
         self._auth_status = AuthStatusAPISchema.from_boolean(
-            authenticated=await self._is_authorized()
+            authenticated=authenticated
         )
         return self._auth_status
+
+    async def _prime_from_hh(self) -> None:
+        self._log.info("Priming auth check with a hidden hh.ru navigation")
+        try:
+            page = await self._browser.new_page(BASE_URL)
+        except Exception as error:  # noqa: BLE001
+            self._log.warning("Auth priming navigation failed", error=str(error))
+            return
+        await self._safe_close_page(page)
 
     async def wait_for_login(self, poll_interval: float = 1.0) -> None:
         self._log.info("Waiting for user to log in")

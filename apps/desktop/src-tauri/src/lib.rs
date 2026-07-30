@@ -55,21 +55,35 @@ pub fn run() {
             let port = free_port();
             app.manage(BackendPort(port));
 
-            let binary = if cfg!(windows) {
-                "resources/backend/otklik-backend.exe"
+            let (_rx, child) = if tauri::is_dev() {
+                let backend_dir =
+                    concat!(env!("CARGO_MANIFEST_DIR"), "/../../services/backend");
+                let backend_bin = if cfg!(windows) {
+                    format!("{backend_dir}/.venv/Scripts/otklik-backend.exe")
+                } else {
+                    format!("{backend_dir}/.venv/bin/otklik-backend")
+                };
+                app.shell()
+                    .command(backend_bin)
+                    .args(["--port", &port.to_string()])
+                    .current_dir(backend_dir)
+                    .spawn()?
             } else {
-                "resources/backend/otklik-backend"
+                let binary = if cfg!(windows) {
+                    "resources/backend/otklik-backend.exe"
+                } else {
+                    "resources/backend/otklik-backend"
+                };
+                let exe = app
+                    .path()
+                    .resolve(binary, tauri::path::BaseDirectory::Resource)?;
+                app.shell()
+                    .command(exe)
+                    .args(["--port", &port.to_string()])
+                    .spawn()?
             };
-            let exe = app
-                .path()
-                .resolve(binary, tauri::path::BaseDirectory::Resource)?;
-            let (_rx, child) = app
-                .shell()
-                .command(exe)
-                .args(["--port", &port.to_string()])
-                .spawn()?;
             app.manage(BackendProcess(Mutex::new(Some(child))));
-            tauri_plugin_log::log::info!("backend sidecar spawned on port {port}");
+            tauri_plugin_log::log::info!("backend spawned on port {port}");
             Ok(())
         })
         .on_window_event(|window, event| {

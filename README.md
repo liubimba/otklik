@@ -4,6 +4,8 @@
 [Releases](https://github.com/liubimba/otklik/releases) ·
 [Читать по-русски](./README.ru.md)
 
+![Otklik applying to jobs on hh.ru with LLM-written cover letters](./web/public/readme-demo.gif)
+
 A desktop app that applies to jobs on [hh.ru](https://hh.ru) for you. It reads a
 vacancy, writes a cover letter with an LLM from the job description and your CV,
 lets you rework that letter in a chat, and can send the application.

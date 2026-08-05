@@ -1,4 +1,5 @@
 import { DownloadIcon } from "lucide-react";
+import Link from "next/link";
 
 import { CtaSection } from "@/components/blocks/cta-section";
 import { FeaturesSection } from "@/components/blocks/features-section";
@@ -20,7 +21,15 @@ export default function Home() {
 					<span className="font-heading text-lg font-extrabold tracking-tight">
 						Otklik
 					</span>
-					<ThemeToggle />
+					<div className="flex items-center gap-1">
+						<Link
+							href="/help"
+							className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+						>
+							Как пользоваться?
+						</Link>
+						<ThemeToggle />
+					</div>
 				</header>
 
 				<HeroSection

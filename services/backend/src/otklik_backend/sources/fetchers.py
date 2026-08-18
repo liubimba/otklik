@@ -7,6 +7,7 @@ from selectolax.parser import HTMLParser
 
 SOURCE_CONTENT_LIMIT = 8000
 GITHUB_README_COUNT = 3
+GITHUB_README_EXCERPT_LIMIT = 800
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,6 @@ class GitHubSourceFetcher:
         top_repos = sorted(
             repos, key=lambda repo: repo.get("stargazers_count") or 0, reverse=True
         )[:GITHUB_README_COUNT]
-        top_names = {repo["name"] for repo in top_repos}
 
         readmes: dict[str, str] = {}
         for repo in top_repos:
@@ -73,7 +73,9 @@ class GitHubSourceFetcher:
                 timeout=15.0,
             )
             if readme_response.is_success:
-                readmes[repo["name"]] = readme_response.text
+                readmes[repo["name"]] = readme_response.text.strip()[
+                    :GITHUB_README_EXCERPT_LIMIT
+                ]
 
         lines = [bio] if bio else []
         for repo in repos:
@@ -82,8 +84,11 @@ class GitHubSourceFetcher:
             language = repo.get("language") or ""
             stars = repo.get("stargazers_count") or 0
             lines.append(f"{name} — {description} [{language}, ★{stars}]")
-            if name in top_names and name in readmes:
-                lines.append(readmes[name].strip())
+
+        for repo in top_repos:
+            name = repo.get("name", "")
+            if name in readmes:
+                lines.append(readmes[name])
 
         content = "\n".join(lines)
         return FetchedSource(content=content[:SOURCE_CONTENT_LIMIT])

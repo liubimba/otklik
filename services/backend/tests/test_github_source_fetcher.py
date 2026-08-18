@@ -2,6 +2,7 @@ import httpx
 
 from otklik_backend.sources.fetchers import (
     GITHUB_README_COUNT,
+    GITHUB_README_EXCERPT_LIMIT,
     SOURCE_CONTENT_LIMIT,
     GitHubSourceFetcher,
 )
@@ -116,6 +117,39 @@ async def test_parse_user_strips_trailing_path_and_suffixes():
         GitHubSourceFetcher._parse_user("https://github.com/octocat#readme")
         == "octocat"
     )
+
+
+async def test_fetch_caps_readme_excerpts_so_bio_and_repos_survive():
+    long_readme = "B" * 20000
+    readme_bodies = {
+        "beta": long_readme,
+        "gamma": "# Gamma\nA typed frontend toolkit.",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/users/octocat":
+            return httpx.Response(200, json=PROFILE)
+        if path == "/users/octocat/repos":
+            return httpx.Response(200, json=REPOS)
+        if path.startswith("/repos/octocat/") and path.endswith("/readme"):
+            repo = path.split("/")[3]
+            if repo not in readme_bodies:
+                return httpx.Response(404)
+            return httpx.Response(200, text=readme_bodies[repo])
+        raise AssertionError(f"unexpected path {path}")
+
+    fetcher = GitHubSourceFetcher(client=make_client(handler))
+
+    result = await fetcher.fetch("https://github.com/octocat")
+
+    assert "Builder of small useful things." in result.content
+    assert "alpha — First repo [Python, ★5]" in result.content
+    assert "beta — Second repo [Rust, ★50]" in result.content
+    assert "gamma — Third repo [TypeScript, ★20]" in result.content
+    assert "delta — Fourth repo [Go, ★1]" in result.content
+    assert "A typed frontend toolkit." in result.content
+    assert "B" * (GITHUB_README_EXCERPT_LIMIT + 1) not in result.content
 
 
 async def test_fetch_truncates_content_to_source_content_limit():

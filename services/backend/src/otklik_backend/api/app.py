@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from otklik_backend.api.errors import register_error_handlers
 from otklik_backend.api.routes import (
+    ai,
     application,
     auth,
     context_sources,
@@ -95,6 +96,7 @@ async def lifespan(app: FastAPI) -> Any:
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(vacancies.vacancies_router)
+router.include_router(ai.ai_router)
 router.include_router(application.application_router)
 router.include_router(application.applications_router)
 router.include_router(auth.auth_router)

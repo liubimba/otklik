@@ -107,6 +107,19 @@ class AICoverLetterAPISchema(BaseModel):
     cost_usd: Optional[float] = None
 
 
+class PreviewCoverLetterRequestAPISchema(BaseModel):
+    title: str
+    description: str
+    company_name: Optional[str] = None
+    salary: Optional[str] = None
+    work_location: Optional[str] = None
+    work_formats: list[WorkFormat] = Field(default_factory=lambda: [WorkFormat.UNKNOWN])
+    employment_types: list[EmploymentType] = Field(
+        default_factory=lambda: [EmploymentType.UNKNOWN]
+    )
+    work_experience: Optional[str] = None
+
+
 class AIHealthStatusAPISchema(BaseModel):
     status: str
 

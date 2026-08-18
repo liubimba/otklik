@@ -76,9 +76,11 @@ class ContextSourceService:
             if updated is None:
                 return None
             if url_changed:
-                updated.kind = detect_kind(url)
-                await session.commit()
-                await session.refresh(updated)
+                updated = await ContextSourceRepository.set_kind(
+                    session=session, source_id=source_id, kind=detect_kind(url)
+                )
+                if updated is None:
+                    return None
         if url_changed:
             return await self._fetch_into(source_id, url)
         return updated

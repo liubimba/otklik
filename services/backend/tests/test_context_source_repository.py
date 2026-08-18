@@ -208,6 +208,44 @@ async def test_update_fields_returns_none_when_missing(
         assert result is None
 
 
+async def test_set_kind_changes_kind(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        created = await ContextSourceRepository.create(
+            session=session,
+            label="Site",
+            url="https://old.example.com",
+            description=None,
+            kind=ContextSourceKind.WEB,
+        )
+        source_id = created.id
+
+    async with session_factory() as session:
+        updated = await ContextSourceRepository.set_kind(
+            session=session, source_id=source_id, kind=ContextSourceKind.GITHUB
+        )
+        assert updated is not None
+        assert updated.kind == ContextSourceKind.GITHUB
+
+    async with session_factory() as session:
+        fetched = await ContextSourceRepository.get_by_id(
+            session=session, source_id=source_id
+        )
+        assert fetched is not None
+        assert fetched.kind == ContextSourceKind.GITHUB
+
+
+async def test_set_kind_returns_none_when_missing(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        result = await ContextSourceRepository.set_kind(
+            session=session, source_id=999, kind=ContextSourceKind.GITHUB
+        )
+        assert result is None
+
+
 async def test_delete_removes_source_and_returns_true(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

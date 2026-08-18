@@ -88,6 +88,21 @@ class ContextSourceRepository:
         return source
 
     @classmethod
+    async def set_kind(
+        cls,
+        session: AsyncSession,
+        source_id: int,
+        *,
+        kind: ContextSourceKind,
+    ) -> ContextSourceORM | None:
+        source = await cls.get_by_id(session=session, source_id=source_id)
+        if source is None:
+            return None
+        source.kind = kind
+        await session.commit()
+        return source
+
+    @classmethod
     async def delete(cls, session: AsyncSession, source_id: int) -> bool:
         source = await cls.get_by_id(session=session, source_id=source_id)
         if source is None:

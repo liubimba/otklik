@@ -24,9 +24,13 @@ class FakeFetcher:
 class FakeRegistry:
     def __init__(self) -> None:
         self.fetcher = FakeFetcher(content="snapshot text")
+        self.aclose_calls = 0
 
     def for_url(self, url: str) -> FakeFetcher:
         return self.fetcher
+
+    async def aclose(self) -> None:
+        self.aclose_calls += 1
 
 
 def make_service(
@@ -221,6 +225,28 @@ async def test_update_returns_none_for_missing_source(
         999, label="X", url="https://example.com/x", description=None
     )
     assert result is None
+
+
+async def test_init_sets_logger_before_first_use(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    registry = FakeRegistry()
+    service = make_service(session_factory, registry)
+
+    assert service._log is not None
+
+
+async def test_aclose_delegates_to_registry_and_keeps_logger(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    registry = FakeRegistry()
+    service = make_service(session_factory, registry)
+    log_before = service._log
+
+    await service.aclose()
+
+    assert registry.aclose_calls == 1
+    assert service._log is log_before
 
 
 async def test_list_ok_for_llm_returns_only_ok_sources_as_llm_sources(

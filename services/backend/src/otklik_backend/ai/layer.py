@@ -5,14 +5,17 @@ from otklik_backend.ai.claude_code import register_claude_code_provider
 from otklik_backend.ai.deployment import ResolvedDeployment
 from otklik_backend.ai.error_hints import humanize_llm_error
 from otklik_backend.ai.postprocess import LetterCleaner
+from otklik_backend.ai.source_tools import LLMSource, SourceToolProvider
 from litellm import (
     AllMessageValues,
+    ChatCompletionToolMessage,
     CustomStreamWrapper,
     DeploymentTypedDict,
     LiteLLMParamsTypedDict,
     ModelResponse,
 )
 from litellm.router import Router
+from litellm.utils import supports_function_calling
 from otklik_backend.api.schemas import VacancyAPISchema
 from otklik_backend.ai.result import AICoverLetterResult
 from otklik_backend.ai.prompts import PromptBuilder
@@ -20,6 +23,8 @@ from otklik_backend.ai.exceptions import GenerationCoverLetterError
 from otklik_backend.ai.health import AILayerHealthStatus
 from otklik_backend.setup.constants import GIGACHAT_PREFIX
 from otklik_backend.log import get_logger
+
+MAX_TOOL_ITERATIONS = 5
 
 
 class AILayer:
@@ -36,6 +41,7 @@ class AILayer:
         resume: str,
         style: str,
         system_prompt: str | None = None,
+        sources: list[LLMSource] | None = None,
     ) -> AICoverLetterResult:
         self._log.info(
             "Generating cover letter with vacancy_model: %s, resume length: %d, style: %s",
@@ -50,40 +56,200 @@ class AILayer:
             raise GenerationCoverLetterError("no deployments configured")
         try:
             llm: ResolvedDeployment = self._get_primary_llm()
-            messages: list[AllMessageValues] = (
-                self._prompt_builder.build_cover_letter_prompt(
+            if sources:
+                return await self._generate_with_sources(
+                    llm=llm,
                     vacancy_model=vacancy_model,
                     resume=resume,
                     style=style,
                     system_prompt=system_prompt,
+                    sources=sources,
                 )
-            )
-            self._log.info(
-                "Sending request to AI model: %s with messages: %s",
-                llm.deployment.model,
-                messages,
-            )
-            response: ModelResponse = await self._router.acompletion(
-                model=llm.deployment.model, messages=messages
-            )
-            self._log.info(
-                "Received response from AI model: %s with content: %s",
-                response.model,
-                response.choices[0].message.content,
-            )
-            return AICoverLetterResult(
-                text=self._cleaner.clean(response.choices[0].message.content or ""),
-                model_used=response.model,
-                prompt_tokens=response.usage.prompt_tokens,
-                completion_tokens=response.usage.completion_tokens,
-                total_tokens=response.usage.total_tokens,
-                was_fallback=response._hidden_params.get("model_id", llm.deployment.id)
-                != llm.deployment.id,
-                cost_usd=response._hidden_params.get("response_cost", 0.0),
+            return await self._generate_single_shot(
+                llm=llm,
+                vacancy_model=vacancy_model,
+                resume=resume,
+                style=style,
+                system_prompt=system_prompt,
             )
         except Exception as e:
             self._log.error("Failed to generate cover letter: %s", str(e))
             raise GenerationCoverLetterError(detail=humanize_llm_error(e))
+
+    async def _generate_single_shot(
+        self,
+        llm: ResolvedDeployment,
+        vacancy_model: VacancyAPISchema,
+        resume: str,
+        style: str,
+        system_prompt: str | None,
+    ) -> AICoverLetterResult:
+        messages: list[AllMessageValues] = (
+            self._prompt_builder.build_cover_letter_prompt(
+                vacancy_model=vacancy_model,
+                resume=resume,
+                style=style,
+                system_prompt=system_prompt,
+            )
+        )
+        self._log.info(
+            "Sending request to AI model: %s with messages: %s",
+            llm.deployment.model,
+            messages,
+        )
+        response: ModelResponse = await self._router.acompletion(
+            model=llm.deployment.model, messages=messages
+        )
+        self._log.info(
+            "Received response from AI model: %s with content: %s",
+            response.model,
+            response.choices[0].message.content,
+        )
+        return self._build_result(response=response, llm=llm)
+
+    async def _generate_with_sources(
+        self,
+        llm: ResolvedDeployment,
+        vacancy_model: VacancyAPISchema,
+        resume: str,
+        style: str,
+        system_prompt: str | None,
+        sources: list[LLMSource],
+    ) -> AICoverLetterResult:
+        provider = SourceToolProvider(sources)
+        if supports_function_calling(llm.deployment.model):
+            return await self._run_tool_loop(
+                llm=llm,
+                vacancy_model=vacancy_model,
+                resume=resume,
+                style=style,
+                system_prompt=system_prompt,
+                provider=provider,
+            )
+        return await self._generate_with_injected_snapshots(
+            llm=llm,
+            vacancy_model=vacancy_model,
+            resume=resume,
+            style=style,
+            system_prompt=system_prompt,
+            provider=provider,
+        )
+
+    async def _generate_with_injected_snapshots(
+        self,
+        llm: ResolvedDeployment,
+        vacancy_model: VacancyAPISchema,
+        resume: str,
+        style: str,
+        system_prompt: str | None,
+        provider: SourceToolProvider,
+    ) -> AICoverLetterResult:
+        messages: list[AllMessageValues] = (
+            self._prompt_builder.build_cover_letter_prompt(
+                vacancy_model=vacancy_model,
+                resume=resume,
+                style=style,
+                system_prompt=system_prompt,
+                injected_snapshots=provider.snapshots_text(),
+            )
+        )
+        response: ModelResponse = await self._router.acompletion(
+            model=llm.deployment.model, messages=messages
+        )
+        return self._build_result(response=response, llm=llm)
+
+    async def _run_tool_loop(
+        self,
+        llm: ResolvedDeployment,
+        vacancy_model: VacancyAPISchema,
+        resume: str,
+        style: str,
+        system_prompt: str | None,
+        provider: SourceToolProvider,
+    ) -> AICoverLetterResult:
+        messages: list[AllMessageValues] = (
+            self._prompt_builder.build_cover_letter_prompt(
+                vacancy_model=vacancy_model,
+                resume=resume,
+                style=style,
+                system_prompt=system_prompt,
+                available_sources=provider.available_text(),
+            )
+        )
+        tools = [provider.tool_param()]
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        cost_usd = 0.0
+        response: ModelResponse | None = None
+        for _ in range(MAX_TOOL_ITERATIONS):
+            turn: ModelResponse = await self._router.acompletion(
+                model=llm.deployment.model, messages=messages, tools=tools
+            )
+            response = turn
+            prompt_tokens += turn.usage.prompt_tokens
+            completion_tokens += turn.usage.completion_tokens
+            total_tokens += turn.usage.total_tokens
+            cost_usd += turn._hidden_params.get("response_cost", 0.0)
+            message = turn.choices[0].message
+            if not message.tool_calls:
+                break
+            messages.append(message.model_dump())
+            for call in message.tool_calls:
+                messages.append(
+                    ChatCompletionToolMessage(
+                        role="tool",
+                        tool_call_id=call.id,
+                        content=provider.execute(
+                            call.function.name or "", call.function.arguments
+                        ),
+                    )
+                )
+        assert response is not None
+        return self._build_result(
+            response=response,
+            llm=llm,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            cost_usd=cost_usd,
+        )
+
+    def _build_result(
+        self,
+        response: ModelResponse,
+        llm: ResolvedDeployment,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+        cost_usd: float | None = None,
+    ) -> AICoverLetterResult:
+        return AICoverLetterResult(
+            text=self._cleaner.clean(response.choices[0].message.content or ""),
+            model_used=response.model,
+            prompt_tokens=(
+                prompt_tokens
+                if prompt_tokens is not None
+                else response.usage.prompt_tokens
+            ),
+            completion_tokens=(
+                completion_tokens
+                if completion_tokens is not None
+                else response.usage.completion_tokens
+            ),
+            total_tokens=(
+                total_tokens
+                if total_tokens is not None
+                else response.usage.total_tokens
+            ),
+            was_fallback=response._hidden_params.get("model_id", llm.deployment.id)
+            != llm.deployment.id,
+            cost_usd=(
+                cost_usd
+                if cost_usd is not None
+                else response._hidden_params.get("response_cost", 0.0)
+            ),
+        )
 
     async def stream_letter_chat(
         self,

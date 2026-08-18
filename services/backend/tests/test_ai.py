@@ -3,6 +3,7 @@ from otklik_backend.ai.health import AILayerHealthStatus
 from otklik_backend.ai.result import AICoverLetterResult
 from otklik_backend.ai.exceptions import GenerationCoverLetterError
 from otklik_backend.ai.deployment import LLMDeployment, ResolvedDeployment
+from otklik_backend.ai.source_tools import LLMSource
 from otklik_backend.api.schemas import VacancyAPISchema
 from litellm import ModelResponse
 from pydantic import SecretStr
@@ -30,6 +31,37 @@ def _fake_model_response(*, content: str, model: str = "test-model") -> ModelRes
         ],
         model=model,
         usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    )
+
+
+def _fake_tool_call_response(
+    *,
+    arguments: str,
+    call_id: str = "c1",
+    name: str = "fetch_source",
+    model: str = "test-model",
+) -> ModelResponse:
+    return ModelResponse(
+        id="test",
+        choices=[
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": call_id,
+                            "type": "function",
+                            "function": {"name": name, "arguments": arguments},
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+        model=model,
+        usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
     )
 
 
@@ -151,3 +183,83 @@ def test_ai_layer_keeps_ssl_verify_for_other_providers(make_ai_layer) -> None:
     layer: AILayer = make_ai_layer([])
     deploy = layer._map_llm_to_deploy(_resolved(model="groq/llama-3.3-70b-versatile"))
     assert "ssl_verify" not in deploy["litellm_params"]
+
+
+async def test_tool_capable_model_runs_fetch_source_loop(
+    make_ai_layer, vacancy_model: VacancyAPISchema, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "otklik_backend.ai.layer.supports_function_calling", lambda *a, **k: True
+    )
+    layer: AILayer = make_ai_layer([_resolved()])
+    layer._router.acompletion.side_effect = [
+        _fake_tool_call_response(arguments='{"source_id": 1}'),
+        _fake_model_response(content="letter"),
+    ]
+    sources = [
+        LLMSource(id=1, label="GH", description=None, url="u", content="SNAP-CONTENT")
+    ]
+    result = await layer.generate_cover_letter(
+        vacancy_model=vacancy_model, resume="резюме", style="", sources=sources
+    )
+    assert layer._router.acompletion.await_count == 2
+    second_call = layer._router.acompletion.await_args_list[1]
+    tool_messages = [
+        m for m in second_call.kwargs["messages"] if m.get("role") == "tool"
+    ]
+    assert len(tool_messages) == 1
+    assert tool_messages[0]["content"] == "SNAP-CONTENT"
+    assert result.text == "letter"
+
+
+async def test_tool_loop_caps_iterations(
+    make_ai_layer, vacancy_model: VacancyAPISchema, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "otklik_backend.ai.layer.supports_function_calling", lambda *a, **k: True
+    )
+    layer: AILayer = make_ai_layer([_resolved()])
+    layer._router.acompletion.side_effect = lambda **_: _fake_tool_call_response(
+        arguments='{"source_id": 1}'
+    )
+    sources = [
+        LLMSource(id=1, label="GH", description=None, url="u", content="SNAP-CONTENT")
+    ]
+    result = await layer.generate_cover_letter(
+        vacancy_model=vacancy_model, resume="резюме", style="", sources=sources
+    )
+    assert layer._router.acompletion.await_count == 5
+    assert isinstance(result, AICoverLetterResult)
+
+
+async def test_non_tool_model_injects_snapshots(
+    make_ai_layer, vacancy_model: VacancyAPISchema, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "otklik_backend.ai.layer.supports_function_calling", lambda *a, **k: False
+    )
+    layer: AILayer = make_ai_layer([_resolved()])
+    layer._router.acompletion.return_value = _fake_model_response(content="letter")
+    sources = [
+        LLMSource(id=1, label="GH", description=None, url="u", content="SNAP-CONTENT")
+    ]
+    await layer.generate_cover_letter(
+        vacancy_model=vacancy_model, resume="резюме", style="", sources=sources
+    )
+    assert layer._router.acompletion.await_count == 1
+    call = layer._router.acompletion.await_args_list[0]
+    assert "tools" not in call.kwargs
+    assert "SNAP-CONTENT" in str(call.kwargs["messages"])
+
+
+async def test_no_sources_keeps_single_shot(
+    make_ai_layer, vacancy_model: VacancyAPISchema
+) -> None:
+    layer: AILayer = make_ai_layer([_resolved()])
+    layer._router.acompletion.return_value = _fake_model_response(content="letter")
+    await layer.generate_cover_letter(
+        vacancy_model=vacancy_model, resume="резюме", style="", sources=None
+    )
+    assert layer._router.acompletion.await_count == 1
+    call = layer._router.acompletion.await_args_list[0]
+    assert "tools" not in call.kwargs

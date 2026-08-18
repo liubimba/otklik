@@ -198,9 +198,7 @@ async def _seed_app(
                 VacancyAPISchema(title="t", apply_link=apply_link, description="d")
             ),
         )
-        app = await ApplicationRepository.create(
-            session=session, vacancy_id=vacancy.id
-        )
+        app = await ApplicationRepository.create(session=session, vacancy_id=vacancy.id)
         app.status = status
         await session.commit()
         return app.id

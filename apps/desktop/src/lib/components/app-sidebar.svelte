@@ -15,6 +15,7 @@ import { query } from "$lib/queries";
 import { connection } from "$lib/stores/connection.svelte";
 import type { Icon as IconType } from "@lucide/svelte";
 import Briefcase from "@lucide/svelte/icons/briefcase";
+import FlaskConical from "@lucide/svelte/icons/flask-conical";
 import History from "@lucide/svelte/icons/history";
 import Inbox from "@lucide/svelte/icons/inbox";
 import Info from "@lucide/svelte/icons/info";
@@ -86,6 +87,12 @@ const items: NavItem[] = $derived([
 		href: "/settings",
 		label: m.nav_settings(),
 		icon: Settings,
+		group: "config",
+	},
+	{
+		href: "/playground",
+		label: m.nav_playground(),
+		icon: FlaskConical,
 		group: "config",
 	},
 	{ href: "/about", label: m.nav_about(), icon: Info, group: "config" },

@@ -1,5 +1,6 @@
 import { createAICoverLetterActions } from "$lib/actions/ai";
 import { createLetterReviewActions } from "$lib/actions/letter-review";
+import { createPreviewActions } from "$lib/actions/preview";
 import { createSourcesActions } from "$lib/actions/sources";
 import { createVacanciesActions } from "$lib/actions/vacancies";
 import { store } from "$lib/stores";
@@ -27,5 +28,6 @@ export function createActions(queryClient: QueryClient) {
 			review: createLetterReviewActions(queryClient),
 		},
 		sources: createSourcesActions(queryClient),
+		preview: createPreviewActions(queryClient),
 	};
 }

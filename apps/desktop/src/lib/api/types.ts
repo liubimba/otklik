@@ -367,3 +367,12 @@ export type ContextSourceWrite = {
 	url: string;
 	description?: string | null;
 };
+
+export type PreviewCoverLetterRequest = {
+	title: string;
+	description: string;
+	company_name?: string | null;
+	salary?: string | null;
+	work_location?: string | null;
+	work_experience?: string | null;
+};

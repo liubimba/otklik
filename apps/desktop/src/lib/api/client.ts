@@ -2,6 +2,7 @@ import { getLogger } from "$lib/log";
 import { backendOrigin } from "./backend-address";
 import { APIError } from "./error";
 import type {
+	AICoverLetterResponse,
 	APIRequestError,
 	APIResponse,
 	ApplicationDetail,
@@ -20,6 +21,7 @@ import type {
 	LocalSetupState,
 	NewFilterSession,
 	OrchestratorStatus,
+	PreviewCoverLetterRequest,
 	PullProgress,
 	RateLimitsBudget,
 	SearchData,
@@ -320,6 +322,13 @@ export const API = {
 			}),
 		deployment: (body: LLMDeploymentWrite) =>
 			api<Settings>("setup/deployment", {
+				method: "POST",
+				body: JSON.stringify(body),
+			}),
+	},
+	ai: {
+		previewCoverLetter: (body: PreviewCoverLetterRequest) =>
+			api<AICoverLetterResponse>("ai/preview_cover_letter", {
 				method: "POST",
 				body: JSON.stringify(body),
 			}),

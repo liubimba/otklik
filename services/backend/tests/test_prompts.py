@@ -186,6 +186,46 @@ def test_default_system_prompt_forbids_signature() -> None:
     assert "[Ваше имя]" in system
 
 
+def test_available_sources_appended_to_system_message() -> None:
+    system: str = _system(
+        PromptBuilder().build_cover_letter_prompt(
+            vacancy_model=_make_vacancy(),
+            resume="resume",
+            style="",
+            available_sources="SRC-LIST",
+        )
+    )
+    assert "SRC-LIST" in system
+    assert "fetch_source" in system
+
+
+def test_injected_snapshots_appended_to_user_message() -> None:
+    user: str = _user(
+        PromptBuilder().build_cover_letter_prompt(
+            vacancy_model=_make_vacancy(),
+            resume="resume",
+            style="",
+            injected_snapshots="SNAP",
+        )
+    )
+    assert "SNAP" in user
+
+
+def test_default_call_has_no_sources_or_snapshots_sections() -> None:
+    baseline = PromptBuilder().build_cover_letter_prompt(
+        vacancy_model=_make_vacancy(), resume="resume", style=""
+    )
+    messages = PromptBuilder().build_cover_letter_prompt(
+        vacancy_model=_make_vacancy(), resume="resume", style=""
+    )
+    assert messages == baseline
+    system: str = _system(messages)
+    user: str = _user(messages)
+    assert "Available sources" not in system
+    assert "fetch_source" not in system
+    assert "Дополнительный контекст обо мне" not in user
+
+
 def test_build_ping_returns_single_user_message() -> None:
     messages = PromptBuilder().build_ping()
     assert len(messages) == 1

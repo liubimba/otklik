@@ -61,12 +61,20 @@ class PromptBuilder:
         resume: str,
         style: str,
         system_prompt: str | None = None,
+        available_sources: str | None = None,
+        injected_snapshots: str | None = None,
     ) -> List[AllMessageValues]:
         base_system: str = (
             system_prompt if system_prompt is not None else self.__default_system_prompt
         )
         if style.strip():
             base_system = f"{base_system}\n\nТон и стиль письма: {style.strip()}."
+        if available_sources:
+            base_system = (
+                f"{base_system}\n\n# Available sources\n"
+                "You may call the fetch_source tool to retrieve any of these when relevant:\n"
+                f"{available_sources}"
+            )
 
         user_text: str = (
             "# Vacancy\n"
@@ -77,6 +85,8 @@ class PromptBuilder:
             f"{resume}\n\n"
             "Write the cover letter now."
         )
+        if injected_snapshots:
+            user_text = f"{user_text}\n\n# Дополнительный контекст обо мне\n{injected_snapshots}"
 
         system_message: ChatCompletionSystemMessage = ChatCompletionSystemMessage(
             role="system", content=base_system

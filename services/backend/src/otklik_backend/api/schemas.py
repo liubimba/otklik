@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from otklik_backend.ai.deployment import LLMDeployment
 
+from otklik_backend.core.context_source import ContextSourceKind, ContextSourceStatus
 from otklik_backend.core.state import ErrorDomain as ErrorDomain
 from otklik_backend.core.state import ProcessingState as ProcessingState
 from otklik_backend.secrets.store import SecretStorageMode
@@ -320,3 +321,42 @@ class ClaudeSetupStateAPISchema(BaseModel):
 class TrialRequestAPISchema(BaseModel):
     deployment: LLMDeploymentWriteAPISchema
     deadline_sec: float
+
+
+def _validate_http_url(v: str) -> str:
+    HttpUrl(v)
+    return v
+
+
+class ContextSourceAPISchema(BaseModel):
+    id: int
+    label: str
+    url: str
+    description: Optional[str] = None
+    kind: ContextSourceKind
+    status: ContextSourceStatus
+    error: Optional[str] = None
+    fetched_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class ContextSourceWriteAPISchema(BaseModel):
+    label: str
+    url: str
+    description: Optional[str] = None
+
+    @field_validator("url")
+    @classmethod
+    def _url_is_http_or_https(cls, v: str) -> str:
+        return _validate_http_url(v)
+
+
+class ContextSourceUpdateAPISchema(BaseModel):
+    label: str
+    url: str
+    description: Optional[str] = None
+
+    @field_validator("url")
+    @classmethod
+    def _url_is_http_or_https(cls, v: str) -> str:
+        return _validate_http_url(v)

@@ -5,6 +5,7 @@ from otklik_backend.db.models import (
     SearchHistoryORM,
     ApplicationORM,
     CoverLetterORM,
+    ContextSourceORM,
 )
 from otklik_backend.core.state import ProcessingState
 from otklik_backend.api.schemas import (
@@ -21,6 +22,7 @@ from otklik_backend.api.schemas import (
     UserSettingsAPISchema,
     ApplicationAPISchema,
     CoverLetterAPISchema,
+    ContextSourceAPISchema,
 )
 
 
@@ -139,4 +141,18 @@ def application_to_schema(orm: ApplicationORM) -> ApplicationAPISchema:
 def cover_letter_to_schema(orm: CoverLetterORM) -> CoverLetterAPISchema:
     return CoverLetterAPISchema(
         version=orm.version, text=orm.text, created_at=orm.created_at
+    )
+
+
+def context_source_to_schema(orm: ContextSourceORM) -> ContextSourceAPISchema:
+    return ContextSourceAPISchema(
+        id=orm.id,
+        label=orm.label,
+        url=orm.url,
+        description=orm.description,
+        kind=orm.kind,
+        status=orm.status,
+        error=orm.error,
+        fetched_at=orm.fetched_at,
+        created_at=orm.created_at,
     )

@@ -5,9 +5,12 @@ from urllib.parse import urlsplit
 import httpx
 from selectolax.parser import HTMLParser
 
+from otklik_backend.core.context_source import ContextSourceKind
+
 SOURCE_CONTENT_LIMIT = 8000
 GITHUB_README_COUNT = 3
 GITHUB_README_EXCERPT_LIMIT = 800
+GITHUB_HOSTS = {"github.com", "www.github.com"}
 
 
 @dataclass(frozen=True)
@@ -92,3 +95,20 @@ class GitHubSourceFetcher:
 
         content = "\n".join(lines)
         return FetchedSource(content=content[:SOURCE_CONTENT_LIMIT])
+
+
+def detect_kind(url: str) -> ContextSourceKind:
+    host = urlsplit(url).hostname or ""
+    if host.lower() in GITHUB_HOSTS:
+        return ContextSourceKind.GITHUB
+    return ContextSourceKind.WEB
+
+
+class SourceFetcherRegistry:
+    def __init__(self, client: httpx.AsyncClient) -> None:
+        self._client = client
+
+    def for_url(self, url: str) -> SourceFetcher:
+        if detect_kind(url) is ContextSourceKind.GITHUB:
+            return GitHubSourceFetcher(self._client)
+        return WebPageSourceFetcher(self._client)

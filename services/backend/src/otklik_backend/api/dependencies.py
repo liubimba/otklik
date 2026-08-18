@@ -25,6 +25,7 @@ from otklik_backend.paths import AppPaths
 from otklik_backend.setup.ollama import OllamaGate
 from otklik_backend.sites.hh_ru.auth_flow import HHRUAuthFlow
 from otklik_backend.sites.hh_ru.writer import HHRUWriter
+from otklik_backend.sources.service import ContextSourceService
 
 
 def get_browser(request: HTTPConnection) -> BrowserCore:
@@ -73,6 +74,10 @@ def get_authorization_service(request: HTTPConnection) -> AuthorizationService:
 
 def get_state_service(request: HTTPConnection) -> StateTransitionService:
     return request.app.state.state_service  # type: ignore[no-any-return]
+
+
+def get_context_source_service(request: HTTPConnection) -> ContextSourceService:
+    return request.app.state.context_source_service  # type: ignore[no-any-return]
 
 
 def get_secret_store(request: HTTPConnection) -> SecretStore:
@@ -128,4 +133,7 @@ ClaudeCodeGateDep = Annotated[ClaudeCodeGate, Depends(get_claude_code_gate)]
 BenchmarkRunnerDep = Annotated[BenchmarkRunner, Depends(get_benchmark_runner)]
 DeploymentSecretsDep = Annotated[
     DeploymentSecretsService, Depends(get_deployment_secrets)
+]
+ContextSourceServiceDep = Annotated[
+    ContextSourceService, Depends(get_context_source_service)
 ]

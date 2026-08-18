@@ -18,6 +18,9 @@ class ContextSourceService:
     ) -> None:
         self._session_maker = session_maker
         self._registry = registry
+
+    async def aclose(self) -> None:
+        await self._registry.aclose()
         self._log = get_logger(__name__)
 
     async def add(

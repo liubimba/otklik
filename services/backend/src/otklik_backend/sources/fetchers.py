@@ -112,3 +112,6 @@ class SourceFetcherRegistry:
         if detect_kind(url) is ContextSourceKind.GITHUB:
             return GitHubSourceFetcher(self._client)
         return WebPageSourceFetcher(self._client)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()

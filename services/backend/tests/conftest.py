@@ -189,6 +189,11 @@ class FakeSecretStore:
         self.items.pop(account, None)
 
 
+class FakeContextSourceService:
+    async def list_ok_for_llm(self) -> list:
+        return []
+
+
 class FakeWriter:
     def __init__(self, results: list[SubmissionResult] | None = None) -> None:
         self._results: list[SubmissionResult] = list(results) if results else []
@@ -365,6 +370,7 @@ async def client(
         session_maker=session_factory,
         ai_layer=ai_layer_with_router,
         state_service=fake_state_service,
+        context_source_service=FakeContextSourceService(),
     )
 
     app.dependency_overrides[get_session] = override_session

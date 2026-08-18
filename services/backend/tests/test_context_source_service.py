@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
+from otklik_backend.ai.source_tools import LLMSource
 from otklik_backend.core.context_source import ContextSourceKind, ContextSourceStatus
 from otklik_backend.db.repositories.context_sources import ContextSourceRepository
 from otklik_backend.sources.fetchers import FetchedSource
@@ -220,3 +221,24 @@ async def test_update_returns_none_for_missing_source(
         999, label="X", url="https://example.com/x", description=None
     )
     assert result is None
+
+
+async def test_list_ok_for_llm_returns_only_ok_sources_as_llm_sources(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    registry = FakeRegistry()
+    service = make_service(session_factory, registry)
+
+    await service.add(label="One", url="https://example.com/1", description="d1")
+    await service.add(label="Two", url="https://example.com/2", description=None)
+    registry.fetcher = FakeFetcher(error=RuntimeError("boom"))
+    await service.add(
+        label="Broken", url="https://example.com/broken", description=None
+    )
+
+    sources = await service.list_ok_for_llm()
+
+    assert len(sources) == 2
+    assert all(isinstance(s, LLMSource) for s in sources)
+    assert {s.content for s in sources} == {"snapshot text"}
+    assert {s.label for s in sources} == {"One", "Two"}

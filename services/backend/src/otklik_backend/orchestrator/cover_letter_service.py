@@ -12,6 +12,7 @@ from otklik_backend.exceptions import ApplicationNotFoundError, VacancyNotFoundE
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.state_machine import ApplicationEvent
 from otklik_backend.orchestrator.state_service import StateTransitionService
+from otklik_backend.sources.service import ContextSourceService
 
 
 class CoverLetterService:
@@ -20,10 +21,12 @@ class CoverLetterService:
         session_maker: async_sessionmaker[AsyncSession],
         ai_layer: AILayer,
         state_service: StateTransitionService,
+        context_source_service: ContextSourceService,
     ) -> None:
         self._session_maker = session_maker
         self._ai_layer = ai_layer
         self._state_service = state_service
+        self._context_source_service = context_source_service
         self._log = get_logger(__name__)
 
     async def regenerate(self, vacancy_id: int) -> AICoverLetterResult:
@@ -41,12 +44,14 @@ class CoverLetterService:
             if application is None:
                 raise ApplicationNotFoundError()
             settings: SettingsORM = await SettingsRepository.get(session=session)
+            sources = await self._context_source_service.list_ok_for_llm()
             cover_result: AICoverLetterResult = (
                 await self._ai_layer.generate_cover_letter(
                     vacancy_model=vacancy_to_schema(vacancy_orm),
                     resume=settings.resume_text,
                     style=settings.letter_style,
                     system_prompt=settings.llm_system_prompt,
+                    sources=sources,
                 )
             )
             await CoverLetterRepository.create(

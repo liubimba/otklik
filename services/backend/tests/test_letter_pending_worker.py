@@ -20,6 +20,7 @@ from otklik_backend.orchestrator.cover_letter_service import CoverLetterService
 from otklik_backend.orchestrator.state_machine import ApplicationEvent
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.letter_pending import LetterPendingWorker
+from tests.conftest import FakeContextSourceService
 
 
 async def wait_until(predicate, timeout: float = 2.0, interval: float = 0.02) -> None:
@@ -72,6 +73,7 @@ async def test_worker_picks_up_pending_event_and_completes_generation(
         session_maker=session_factory,
         ai_layer=ai_layer_with_router,
         state_service=fake_state_service,
+        context_source_service=FakeContextSourceService(),
     )
     worker = LetterPendingWorker(
         cover_letter_service=service,

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from otklik_backend.ai.layer import AILayer
@@ -27,6 +28,8 @@ from otklik_backend.secrets.migrator import SecretMigrator
 from otklik_backend.secrets.service import DeploymentSecretsService
 from otklik_backend.secrets.store import SecretStore
 from otklik_backend.sites.hh_ru import HHRUAuthFlow, HHRUParser, HHRUWriter
+from otklik_backend.sources.fetchers import SourceFetcherRegistry
+from otklik_backend.sources.service import ContextSourceService
 
 logger = get_logger(__name__)
 
@@ -49,6 +52,7 @@ class AppContext:
     auto_apply_listener: AutoApplyListener
     authorization_service: AuthorizationService
     auto_apply_canceller: AutoApplyCanceller
+    context_source_service: ContextSourceService
 
     def runnables(self) -> list[Runnable]:
         return [self.letter_sending_worker, self.letter_pending_worker]
@@ -105,10 +109,15 @@ class BackendBuilder:
             broadcaster=broadcaster,
         )
         ai_layer = await self._bootstrap_ai_layer(secret_store=secret_store)
+        context_source_service = ContextSourceService(
+            session_maker=self._session_maker,
+            registry=SourceFetcherRegistry(client=httpx.AsyncClient()),
+        )
         cover_letter_service = CoverLetterService(
             session_maker=self._session_maker,
             ai_layer=ai_layer,
             state_service=state_service,
+            context_source_service=context_source_service,
         )
         letter_chat_service = LetterChatService(
             session_maker=self._session_maker,
@@ -157,6 +166,7 @@ class BackendBuilder:
             auto_apply_listener=auto_apply_listener,
             authorization_service=authorization_service,
             auto_apply_canceller=auto_apply_canceller,
+            context_source_service=context_source_service,
         )
 
     async def _bootstrap_ai_layer(self, secret_store: SecretStore) -> AILayer:

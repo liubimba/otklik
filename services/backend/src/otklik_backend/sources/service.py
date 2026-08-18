@@ -2,6 +2,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
+from otklik_backend.ai.source_tools import LLMSource
 from otklik_backend.core.context_source import ContextSourceStatus
 from otklik_backend.db.models import ContextSourceORM
 from otklik_backend.db.repositories.context_sources import ContextSourceRepository
@@ -51,6 +52,20 @@ class ContextSourceService:
         for source_id, url in targets:
             await self._fetch_into(source_id, url)
         return len(targets)
+
+    async def list_ok_for_llm(self) -> list[LLMSource]:
+        async with self._session_maker() as session:
+            rows = await ContextSourceRepository.list_ok(session=session)
+        return [
+            LLMSource(
+                id=row.id,
+                label=row.label,
+                description=row.description,
+                url=row.url,
+                content=row.content or "",
+            )
+            for row in rows
+        ]
 
     async def list(self) -> Sequence[ContextSourceORM]:
         async with self._session_maker() as session:

@@ -35,6 +35,8 @@ const statusBadge = $derived.by((): StatusBadge | null => {
 			return { label: m.card_status_letter_ready(), variant: "default" };
 		case "letter_reviewing":
 			return { label: m.card_status_letter_reviewing(), variant: "secondary" };
+		case "letter_queued":
+			return { label: m.card_status_letter_queued(), variant: "secondary" };
 		case "letter_sending":
 			return { label: m.card_status_letter_sending(), variant: "secondary" };
 		case "letter_sent":

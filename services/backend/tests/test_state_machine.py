@@ -29,21 +29,27 @@ def _skip_succeeds_from(state: ProcessingState) -> bool:
     return True
 
 
-def test_submit_from_letter_ready_moves_to_letter_sending() -> None:
+def test_submit_from_letter_ready_moves_to_letter_queued() -> None:
     sm = _at(ProcessingState.LETTER_READY)
     sm.send(ApplicationEvent.SUBMIT.value)
-    assert sm.current_state_value == ProcessingState.LETTER_SENDING
+    assert sm.current_state_value == ProcessingState.LETTER_QUEUED
 
 
-def test_submit_from_letter_reviewing_moves_to_letter_sending() -> None:
+def test_submit_from_letter_reviewing_moves_to_letter_queued() -> None:
     sm = _at(ProcessingState.LETTER_REVIEWING)
     sm.send(ApplicationEvent.SUBMIT.value)
-    assert sm.current_state_value == ProcessingState.LETTER_SENDING
+    assert sm.current_state_value == ProcessingState.LETTER_QUEUED
 
 
-def test_submit_from_error_moves_to_letter_sending() -> None:
+def test_submit_from_error_moves_to_letter_queued() -> None:
     sm = _at(ProcessingState.ERROR)
     sm.send(ApplicationEvent.SUBMIT.value)
+    assert sm.current_state_value == ProcessingState.LETTER_QUEUED
+
+
+def test_start_sending_from_letter_queued_moves_to_letter_sending() -> None:
+    sm = _at(ProcessingState.LETTER_QUEUED)
+    sm.send(ApplicationEvent.START_SENDING.value)
     assert sm.current_state_value == ProcessingState.LETTER_SENDING
 
 
@@ -51,7 +57,28 @@ def test_submit_from_error_moves_to_letter_sending() -> None:
     "state",
     [
         ProcessingState.PARSED,
+        ProcessingState.LETTER_READY,
+        ProcessingState.LETTER_REVIEWING,
+        ProcessingState.LETTER_SENDING,
+        ProcessingState.LETTER_SENT,
+        ProcessingState.ERROR,
+        ProcessingState.SKIPPED,
+    ],
+)
+def test_start_sending_forbidden_from_non_queued_states(
+    state: ProcessingState,
+) -> None:
+    sm = _at(state)
+    with pytest.raises(TransitionNotAllowed):
+        sm.send(ApplicationEvent.START_SENDING.value)
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        ProcessingState.PARSED,
         ProcessingState.LETTER_PENDING,
+        ProcessingState.LETTER_QUEUED,
         ProcessingState.LETTER_SENDING,
         ProcessingState.LETTER_SENT,
         ProcessingState.SKIPPED,
@@ -63,6 +90,22 @@ def test_submit_forbidden_from_non_authoring_states(
     sm = _at(state)
     with pytest.raises(TransitionNotAllowed):
         sm.send(ApplicationEvent.SUBMIT.value)
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        ProcessingState.LETTER_PENDING,
+        ProcessingState.LETTER_QUEUED,
+        ProcessingState.LETTER_SENDING,
+    ],
+)
+def test_cancel_from_in_flight_states_moves_to_skipped(
+    state: ProcessingState,
+) -> None:
+    sm = _at(state)
+    sm.send(ApplicationEvent.CANCEL.value)
+    assert sm.current_state_value == ProcessingState.SKIPPED
 
 
 def test_skip_from_error_moves_to_skipped() -> None:
@@ -100,6 +143,7 @@ def test_skip_arcs_match_exactly_the_states_the_sheet_footer_offers() -> None:
     [
         ProcessingState.PARSED,
         ProcessingState.LETTER_PENDING,
+        ProcessingState.LETTER_QUEUED,
         ProcessingState.LETTER_SENDING,
         ProcessingState.LETTER_SENT,
         ProcessingState.SKIPPED,
@@ -121,7 +165,7 @@ def test_retry_from_error_moves_to_letter_pending() -> None:
 
 def test_error_state_offers_both_submit_and_retry_paths() -> None:
     for event, expected in (
-        (ApplicationEvent.SUBMIT, ProcessingState.LETTER_SENDING),
+        (ApplicationEvent.SUBMIT, ProcessingState.LETTER_QUEUED),
         (ApplicationEvent.RETRY, ProcessingState.LETTER_PENDING),
     ):
         sm = _at(ProcessingState.ERROR)
@@ -156,6 +200,7 @@ def test_letter_generated_succeeds_from_every_letter_authoring_state(
     "state",
     [
         ProcessingState.PARSED,
+        ProcessingState.LETTER_QUEUED,
         ProcessingState.LETTER_SENDING,
         ProcessingState.LETTER_SENT,
         ProcessingState.SKIPPED,

@@ -25,13 +25,13 @@ from otklik_backend.db.repositories.vacancies import VacancyRepository
 from sqlalchemy import select, func
 
 
-async def test_recover_picks_up_letter_sending_only(
+async def test_recover_picks_up_queued_and_stale_sending(
     fake_orchestrator: LetterSendingWorker,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     picked: list[int] = []
     async with session_factory() as session:
-        for index in range(4):
+        for index in range(5):
             await VacancyRepository.create(
                 session=session,
                 vacancy=vacancy_to_orm(
@@ -42,26 +42,27 @@ async def test_recover_picks_up_letter_sending_only(
             )
 
         for vacancy_id, status in (
-            (1, ProcessingState.LETTER_SENDING),
-            (2, ProcessingState.LETTER_SENDING),
-            (3, ProcessingState.LETTER_SENT),
-            (4, ProcessingState.SKIPPED),
+            (1, ProcessingState.LETTER_QUEUED),
+            (2, ProcessingState.LETTER_QUEUED),
+            (3, ProcessingState.LETTER_SENDING),
+            (4, ProcessingState.LETTER_SENT),
+            (5, ProcessingState.SKIPPED),
         ):
             app = await ApplicationRepository.create(
                 session=session, vacancy_id=vacancy_id
             )
             app.status = status
-            if status == ProcessingState.LETTER_SENDING:
+            if status in (
+                ProcessingState.LETTER_QUEUED,
+                ProcessingState.LETTER_SENDING,
+            ):
                 picked.append(app.id)
         await session.commit()
 
         recovered = await fake_orchestrator.recover(session=session)
         assert recovered == len(picked)
         assert fake_orchestrator.qsize() == len(picked)
-        drained = {
-            await fake_orchestrator.get_next(),
-            await fake_orchestrator.get_next(),
-        }
+        drained = {await fake_orchestrator.get_next() for _ in range(len(picked))}
         assert drained == set(picked)
         assert fake_orchestrator.qsize() == 0
 
@@ -96,6 +97,77 @@ async def seed_app_in_letter_sending(
         )
         await session.commit()
         return app.id
+
+
+async def seed_app_in_letter_queued(
+    session_factory: async_sessionmaker[AsyncSession],
+    apply_link: str = "https://hh.ru/vacancy/1",
+) -> int:
+    async with session_factory() as session:
+        await VacancyRepository.create(
+            session=session,
+            vacancy=vacancy_to_orm(
+                VacancyAPISchema(
+                    title="t",
+                    apply_link=apply_link,
+                    description="d",
+                )
+            ),
+        )
+        app = await ApplicationRepository.create(session=session, vacancy_id=1)
+        app.status = ProcessingState.LETTER_QUEUED
+        await CoverLetterRepository.create(
+            session=session, application_id=app.id, text="hi"
+        )
+        await session.commit()
+        return app.id
+
+
+async def test_process_one_flips_queued_to_sending_before_writer(
+    fake_orchestrator: LetterSendingWorker,
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    app_id = await seed_app_in_letter_queued(session_factory)
+    fake_writer.queue(SubmissionResult.submitted())
+
+    submitted = await fake_orchestrator._process_one(application_id=app_id)
+
+    assert submitted is True
+    assert len(fake_writer.calls) == 1
+
+    statuses = [
+        e.data.status
+        for e in recording_broadcaster.events
+        if isinstance(e, ApplicationWSEvent) and e.data.application_id == app_id
+    ]
+    assert ProcessingState.LETTER_SENDING in statuses
+    assert statuses.index(ProcessingState.LETTER_SENDING) < statuses.index(
+        ProcessingState.LETTER_SENT
+    )
+
+    async with session_factory() as s:
+        app = await ApplicationRepository.get_by_id(session=s, application_id=app_id)
+        assert app is not None
+        assert app.status == ProcessingState.LETTER_SENT
+
+
+async def test_process_one_skips_application_still_in_letter_ready(
+    fake_orchestrator: LetterSendingWorker,
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    app_id = await _seed_app(
+        session_factory, "https://hh.ru/vacancy/77", ProcessingState.LETTER_READY
+    )
+
+    submitted = await fake_orchestrator._process_one(application_id=app_id)
+
+    assert submitted is False
+    assert fake_writer.calls == []
 
 
 async def start_consumer(

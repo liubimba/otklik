@@ -22,6 +22,7 @@ const FILTERS: { value: VacancyStatusFilter; label: () => string }[] = [
 	{ value: "letter_pending", label: m.card_status_letter_pending },
 	{ value: "letter_ready", label: m.card_status_letter_ready },
 	{ value: "letter_reviewing", label: m.card_status_letter_reviewing },
+	{ value: "letter_queued", label: m.card_status_letter_queued },
 	{ value: "letter_sending", label: m.card_status_letter_sending },
 	{ value: "letter_sent", label: m.card_status_letter_sent },
 	{ value: "error", label: m.card_status_error },

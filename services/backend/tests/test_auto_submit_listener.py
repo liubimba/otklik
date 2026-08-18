@@ -138,4 +138,4 @@ async def test_auto_submit_fires_when_worker_is_running(
             session=session, application_id=application_id
         )
         assert application is not None
-        assert application.status == ProcessingState.LETTER_SENDING
+        assert application.status == ProcessingState.LETTER_QUEUED

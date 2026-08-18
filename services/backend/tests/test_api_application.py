@@ -150,6 +150,11 @@ async def test_submission_failed_transition_tags_error_domain_as_submission(
         await ApplicationRepository.transition(
             session=session,
             application_id=app_id,
+            to_state=ApplicationEvent.START_SENDING,
+        )
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
             to_state=ApplicationEvent.SUBMISSION_FAILED,
             error_message="verification timeout",
         )
@@ -195,7 +200,7 @@ async def test_submit_transitions_and_atomically_saves_text(client, session_fact
     )
     assert response.status_code == 200
     detail = ApplicationDetailAPISchema.model_validate(response.json())
-    assert detail.status == ProcessingState.LETTER_SENDING
+    assert detail.status == ProcessingState.LETTER_QUEUED
     assert detail.latest_letter is not None
     assert detail.latest_letter.text == "Final draft"
 
@@ -209,7 +214,7 @@ async def test_submit_without_text_uses_existing_letter(client, session_factory)
     )
     assert response.status_code == 200
     detail = ApplicationDetailAPISchema.model_validate(response.json())
-    assert detail.status == ProcessingState.LETTER_SENDING
+    assert detail.status == ProcessingState.LETTER_QUEUED
     assert detail.latest_letter is not None
     assert detail.latest_letter.text == "Seed letter"
 
@@ -246,7 +251,7 @@ async def test_submit_from_error_state_transitions_and_saves_text(
     )
     assert response.status_code == 200
     result = ApplicationDetailAPISchema.model_validate(response.json())
-    assert result.status == ProcessingState.LETTER_SENDING
+    assert result.status == ProcessingState.LETTER_QUEUED
     assert result.latest_letter is not None
     assert result.latest_letter.text == "Edited after failure"
 
@@ -294,6 +299,11 @@ async def test_generate_returns_409_when_application_is_terminal(
         await ApplicationRepository.transition(
             session=session,
             application_id=app_id,
+            to_state=ApplicationEvent.START_SENDING,
+        )
+        await ApplicationRepository.transition(
+            session=session,
+            application_id=app_id,
             to_state=ApplicationEvent.SUBMISSION_OK,
         )
 
@@ -319,7 +329,7 @@ async def test_submit_from_error_without_text_reuses_existing_letter(
     )
     assert response.status_code == 200
     result = ApplicationDetailAPISchema.model_validate(response.json())
-    assert result.status == ProcessingState.LETTER_SENDING
+    assert result.status == ProcessingState.LETTER_QUEUED
     assert result.latest_letter is not None
     assert result.latest_letter.text == "Seed letter"
 

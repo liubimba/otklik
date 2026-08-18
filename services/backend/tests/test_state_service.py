@@ -99,6 +99,11 @@ async def test_broadcast_carries_submission_error_domain_on_submission_failed(
         await state_service.transition(
             session=session,
             application_id=app_id,
+            event=ApplicationEvent.START_SENDING,
+        )
+        await state_service.transition(
+            session=session,
+            application_id=app_id,
             event=ApplicationEvent.SUBMISSION_FAILED,
             reason="verification timeout",
         )

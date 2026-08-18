@@ -31,6 +31,7 @@ class Review {
 	readonly isError: boolean;
 	readonly vacancy: Vacancy | null;
 	readonly isGenerating: boolean;
+	readonly isQueued: boolean;
 	readonly isSubmitting: boolean;
 	readonly canSubmit: boolean;
 	readonly canRegenerate: boolean;
@@ -63,6 +64,7 @@ class Review {
 		});
 
 		this.isGenerating = $derived(this.status === "letter_pending");
+		this.isQueued = $derived(this.status === "letter_queued");
 		this.isSubmitting = $derived(this.status === "letter_sending");
 
 		this.canSubmit = $derived(
@@ -117,7 +119,8 @@ class LetterReviewSheetCoverLetter {
 		);
 
 		this.isReadOnly = $derived(
-			this.applicationStatus.data?.status === "letter_sending" ||
+			this.applicationStatus.data?.status === "letter_queued" ||
+				this.applicationStatus.data?.status === "letter_sending" ||
 				this.applicationStatus.data?.status === "letter_sent" ||
 				this.applicationStatus.data?.status === "skipped",
 		);

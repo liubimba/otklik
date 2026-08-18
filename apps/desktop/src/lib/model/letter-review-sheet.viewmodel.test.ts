@@ -178,6 +178,29 @@ describe("Review — derived state from ApplicationQuery", () => {
 			isError: false,
 		});
 		expect(sent.review.isSubmitting).toBe(false);
+
+		const queued = makeVM({
+			data: detail({ status: "letter_queued" }),
+			isPending: false,
+			isError: false,
+		});
+		expect(queued.review.isSubmitting).toBe(false);
+	});
+
+	it("isQueued is true only in letter_queued", () => {
+		const queued = makeVM({
+			data: detail({ status: "letter_queued" }),
+			isPending: false,
+			isError: false,
+		});
+		expect(queued.review.isQueued).toBe(true);
+
+		const sending = makeVM({
+			data: detail({ status: "letter_sending" }),
+			isPending: false,
+			isError: false,
+		});
+		expect(sending.review.isQueued).toBe(false);
 	});
 
 	it("mirrors isPending/isError from the underlying query", () => {
@@ -212,6 +235,7 @@ describe("Review — derived state from ApplicationQuery", () => {
 		["error", true],
 		["parsed", false],
 		["letter_pending", false],
+		["letter_queued", false],
 		["letter_sending", false],
 		["letter_sent", false],
 		["skipped", false],
@@ -239,6 +263,7 @@ describe("Review — derived state from ApplicationQuery", () => {
 		["error", true],
 		["parsed", false],
 		["letter_pending", false],
+		["letter_queued", false],
 		["letter_sending", false],
 		["letter_sent", false],
 		["skipped", false],
@@ -426,6 +451,7 @@ describe("LetterReviewSheetCoverLetter — editability", () => {
 		["letter_reviewing", true],
 		["error", true],
 		["letter_pending", false],
+		["letter_queued", false],
 		["letter_sending", false],
 		["letter_sent", false],
 		["skipped", false],
@@ -470,6 +496,7 @@ describe("LetterReviewSheetCoverLetter — editability", () => {
 	});
 
 	it.each<[ProcessingState, boolean]>([
+		["letter_queued", true],
 		["letter_sending", true],
 		["letter_sent", true],
 		["skipped", true],

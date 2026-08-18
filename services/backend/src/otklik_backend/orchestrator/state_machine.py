@@ -9,6 +9,7 @@ class ApplicationEvent(str, Enum):
     LETTER_GENERATED = "letter_generated"
     SEND_FOR_REVIEW = "send_for_review"
     SUBMIT = "submit"
+    START_SENDING = "start_sending"
     SKIP = "skip"
     CANCEL = "cancel"
     SUBMISSION_OK = "submission_ok"
@@ -40,16 +41,21 @@ class ProcessingStateMachine(StateMachine):
     )
     send_for_review = _.LETTER_READY.to(_.LETTER_REVIEWING)
     submit = (
-        _.LETTER_READY.to(_.LETTER_SENDING)
-        | _.LETTER_REVIEWING.to(_.LETTER_SENDING)
-        | _.ERROR.to(_.LETTER_SENDING)
+        _.LETTER_READY.to(_.LETTER_QUEUED)
+        | _.LETTER_REVIEWING.to(_.LETTER_QUEUED)
+        | _.ERROR.to(_.LETTER_QUEUED)
     )
+    start_sending = _.LETTER_QUEUED.to(_.LETTER_SENDING)
     skip = (
         _.LETTER_READY.to(_.SKIPPED)
         | _.LETTER_REVIEWING.to(_.SKIPPED)
         | _.ERROR.to(_.SKIPPED)
     )
-    cancel = _.LETTER_PENDING.to(_.SKIPPED) | _.LETTER_SENDING.to(_.SKIPPED)
+    cancel = (
+        _.LETTER_PENDING.to(_.SKIPPED)
+        | _.LETTER_QUEUED.to(_.SKIPPED)
+        | _.LETTER_SENDING.to(_.SKIPPED)
+    )
     submission_ok = _.LETTER_SENDING.to(_.LETTER_SENT)
     submission_failed = _.LETTER_SENDING.to(_.ERROR)
     retry = _.ERROR.to(_.LETTER_PENDING)

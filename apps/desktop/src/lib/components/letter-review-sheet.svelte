@@ -65,6 +65,7 @@ const view = lifecycle.letter.review.view(
 
 const liveStatus = $derived.by(() => {
 	if (model.review.isGenerating) return m.review_generating_title();
+	if (model.review.isQueued) return m.review_queued_status();
 	if (model.review.isSubmitting) return m.review_sending_status();
 	if (model.chat.isStreaming) return m.review_chat_streaming();
 	if (model.review.status === "letter_sent") return m.review_sent_status();
@@ -340,7 +341,16 @@ function onChatResizePointerDown(event: PointerEvent) {
                         class="flex min-h-0 flex-1 flex-col gap-3 p-6"
                         bind:clientHeight={editorAreaHeight}
                     >
-                        {#if model.review.isSubmitting}
+                        {#if model.review.isQueued}
+                            <p
+                                class="flex items-center gap-2 text-sm text-muted-foreground"
+                            >
+                                <span
+                                    class="size-2 animate-pulse rounded-full bg-sky-500"
+                                ></span>
+                                {m.review_queued_status()}
+                            </p>
+                        {:else if model.review.isSubmitting}
                             <p
                                 class="flex items-center gap-2 text-sm text-muted-foreground"
                             >

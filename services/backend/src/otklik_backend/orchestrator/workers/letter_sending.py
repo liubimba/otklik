@@ -29,7 +29,12 @@ from otklik_backend.orchestrator.workers.base import Worker
 
 
 class LetterSendingWorker(Worker):
-    handled_status = ProcessingState.LETTER_SENDING
+    handled_status = ProcessingState.LETTER_QUEUED
+
+    RECOVERABLE_STATES = (
+        ProcessingState.LETTER_QUEUED,
+        ProcessingState.LETTER_SENDING,
+    )
 
     def __init__(
         self,
@@ -140,12 +145,23 @@ class LetterSendingWorker(Worker):
                 self._log.warning("Application missing", application_id=application_id)
                 return False
 
-            if app.status != ProcessingState.LETTER_SENDING:
+            if app.status not in (
+                ProcessingState.LETTER_QUEUED,
+                ProcessingState.LETTER_SENDING,
+            ):
                 self._log.warning(
-                    "Skipping application not in LETTER_SENDING",
+                    "Skipping application not queued for sending",
                     application_id=app.id,
+                    status=app.status,
                 )
                 return False
+
+            if app.status == ProcessingState.LETTER_QUEUED:
+                await self._state_service.transition(
+                    session=session,
+                    application_id=app.id,
+                    event=ApplicationEvent.START_SENDING,
+                )
 
             match await auth_gate(auth_flow=self._auth_flow):
                 case GateResult.NOT_AUTHORIZED:
@@ -238,6 +254,17 @@ class LetterSendingWorker(Worker):
                         reason=result.reason or "unknown",
                     )
         return False
+
+    async def recover(self, session: AsyncSession) -> int:
+        recovered = 0
+        for status in self.RECOVERABLE_STATES:
+            applications = await ApplicationRepository.list_by_status(
+                session=session, status=status
+            )
+            for application in applications:
+                await self.enqueue(application_id=application.id)
+                recovered += 1
+        return recovered
 
     async def _pace_after_submission(self) -> None:
         async with self._session_maker() as session:

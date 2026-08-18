@@ -29,6 +29,7 @@ import {
 	secretStorageQueryKey,
 } from "$lib/queries/secret_storage";
 import { createSettingsQuery, settingsQueryKey } from "$lib/queries/settings";
+import { createSourcesQuery, sourcesQueryKey } from "$lib/queries/sources";
 import {
 	createSummaryQuery,
 	invalidateSummary,
@@ -69,6 +70,10 @@ export const query = {
 	secret_storage: {
 		key: secretStorageQueryKey,
 		create: createSecretStorageQuery,
+	},
+	sources: {
+		key: sourcesQueryKey,
+		create: createSourcesQuery,
 	},
 	auth: {
 		key: authQueryKey,

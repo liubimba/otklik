@@ -1,5 +1,6 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
+import ContextSourcesEditor from "$lib/components/context-sources-editor.svelte";
 import SortableDeployment from "$lib/components/sortable-deployment.svelte";
 import * as Accordion from "$lib/components/ui/accordion";
 import { Badge } from "$lib/components/ui/badge";
@@ -419,4 +420,6 @@ function deploymentBadge(index: number): string {
 			{m.settings_ai_add_deployment()}
 		</Button>
 	</div>
+
+	<ContextSourcesEditor />
 </div>

@@ -10,7 +10,26 @@ vi.mock("$lib/queries", () => ({
 		secret_storage: {
 			create: () => ({ data: { mode: "keychain" } }),
 		},
+		sources: {
+			create: () => ({
+				data: [],
+				isPending: false,
+				isError: false,
+				refetch: vi.fn(),
+			}),
+		},
 	},
+}));
+
+vi.mock("$lib/actions", () => ({
+	createActions: () => ({
+		sources: {
+			add: { mutate: vi.fn() },
+			remove: { mutate: vi.fn() },
+			refresh: { mutate: vi.fn() },
+			refreshAll: { mutate: vi.fn() },
+		},
+	}),
 }));
 
 import { m } from "$lib/paraglide/messages";

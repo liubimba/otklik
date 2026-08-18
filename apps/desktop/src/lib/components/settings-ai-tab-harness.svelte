@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { LLMDeploymentForm } from "$lib/schemas/settings";
 import { settingsFormSchema } from "$lib/schemas/settings";
+import { QueryClient, QueryClientProvider } from "@tanstack/svelte-query";
 import { zod4 } from "sveltekit-superforms/adapters";
 import { defaults, superForm } from "sveltekit-superforms/client";
 import SettingsAiTab from "./settings-ai-tab.svelte";
@@ -18,6 +19,12 @@ const form = superForm(initial, {
 	dataType: "json",
 	validators: zod4(settingsFormSchema),
 });
+
+const queryClient = new QueryClient({
+	defaultOptions: { queries: { retry: false } },
+});
 </script>
 
-<SettingsAiTab {form} />
+<QueryClientProvider client={queryClient}>
+	<SettingsAiTab {form} />
+</QueryClientProvider>

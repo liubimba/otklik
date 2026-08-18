@@ -1,5 +1,6 @@
 import { createAICoverLetterActions } from "$lib/actions/ai";
 import { createLetterReviewActions } from "$lib/actions/letter-review";
+import { createSourcesActions } from "$lib/actions/sources";
 import { createVacanciesActions } from "$lib/actions/vacancies";
 import { store } from "$lib/stores";
 import type { QueryClient } from "@tanstack/svelte-query";
@@ -25,5 +26,6 @@ export function createActions(queryClient: QueryClient) {
 		letter: {
 			review: createLetterReviewActions(queryClient),
 		},
+		sources: createSourcesActions(queryClient),
 	};
 }

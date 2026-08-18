@@ -206,6 +206,15 @@ class AILayer:
                     )
                 )
         assert response is not None
+        if response.choices[0].message.tool_calls:
+            final: ModelResponse = await self._router.acompletion(
+                model=llm.deployment.model, messages=messages
+            )
+            response = final
+            prompt_tokens += final.usage.prompt_tokens
+            completion_tokens += final.usage.completion_tokens
+            total_tokens += final.usage.total_tokens
+            cost_usd += final._hidden_params.get("response_cost", 0.0)
         return self._build_result(
             response=response,
             llm=llm,

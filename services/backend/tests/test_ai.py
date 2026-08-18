@@ -248,17 +248,20 @@ async def test_tool_loop_caps_iterations(
         "otklik_backend.ai.layer.supports_function_calling", lambda *a, **k: True
     )
     layer: AILayer = make_ai_layer([_resolved()])
-    layer._router.acompletion.side_effect = lambda **_: _fake_tool_call_response(
-        arguments='{"source_id": 1}'
-    )
+    layer._router.acompletion.side_effect = [
+        _fake_tool_call_response(arguments='{"source_id": 1}') for _ in range(5)
+    ] + [_fake_model_response(content="forced letter")]
     sources = [
         LLMSource(id=1, label="GH", description=None, url="u", content="SNAP-CONTENT")
     ]
     result = await layer.generate_cover_letter(
         vacancy_model=vacancy_model, resume="резюме", style="", sources=sources
     )
-    assert layer._router.acompletion.await_count == 5
+    assert layer._router.acompletion.await_count == 6
+    final_call = layer._router.acompletion.await_args_list[5]
+    assert "tools" not in final_call.kwargs
     assert isinstance(result, AICoverLetterResult)
+    assert result.text == "forced letter"
 
 
 async def test_non_tool_model_injects_snapshots(

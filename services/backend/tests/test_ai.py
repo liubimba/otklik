@@ -19,8 +19,14 @@ def _resolved(
     )
 
 
-def _fake_model_response(*, content: str, model: str = "test-model") -> ModelResponse:
-    return ModelResponse(
+def _fake_model_response(
+    *,
+    content: str,
+    model: str = "test-model",
+    usage: dict[str, int] | None = None,
+    response_cost: float | None = None,
+) -> ModelResponse:
+    response = ModelResponse(
         id="test",
         choices=[
             {
@@ -30,8 +36,11 @@ def _fake_model_response(*, content: str, model: str = "test-model") -> ModelRes
             }
         ],
         model=model,
-        usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        usage=usage or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     )
+    if response_cost is not None:
+        response._hidden_params["response_cost"] = response_cost
+    return response
 
 
 def _fake_tool_call_response(
@@ -40,8 +49,10 @@ def _fake_tool_call_response(
     call_id: str = "c1",
     name: str = "fetch_source",
     model: str = "test-model",
+    usage: dict[str, int] | None = None,
+    response_cost: float | None = None,
 ) -> ModelResponse:
-    return ModelResponse(
+    response = ModelResponse(
         id="test",
         choices=[
             {
@@ -61,8 +72,12 @@ def _fake_tool_call_response(
             }
         ],
         model=model,
-        usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        usage=usage
+        or {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
     )
+    if response_cost is not None:
+        response._hidden_params["response_cost"] = response_cost
+    return response
 
 
 async def test_ai_health_healthy(make_ai_layer) -> None:
@@ -193,8 +208,16 @@ async def test_tool_capable_model_runs_fetch_source_loop(
     )
     layer: AILayer = make_ai_layer([_resolved()])
     layer._router.acompletion.side_effect = [
-        _fake_tool_call_response(arguments='{"source_id": 1}'),
-        _fake_model_response(content="letter"),
+        _fake_tool_call_response(
+            arguments='{"source_id": 1}',
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            response_cost=0.001,
+        ),
+        _fake_model_response(
+            content="letter",
+            usage={"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
+            response_cost=0.002,
+        ),
     ]
     sources = [
         LLMSource(id=1, label="GH", description=None, url="u", content="SNAP-CONTENT")
@@ -203,6 +226,8 @@ async def test_tool_capable_model_runs_fetch_source_loop(
         vacancy_model=vacancy_model, resume="резюме", style="", sources=sources
     )
     assert layer._router.acompletion.await_count == 2
+    first_call = layer._router.acompletion.await_args_list[0]
+    assert "tools" in first_call.kwargs
     second_call = layer._router.acompletion.await_args_list[1]
     tool_messages = [
         m for m in second_call.kwargs["messages"] if m.get("role") == "tool"
@@ -210,6 +235,10 @@ async def test_tool_capable_model_runs_fetch_source_loop(
     assert len(tool_messages) == 1
     assert tool_messages[0]["content"] == "SNAP-CONTENT"
     assert result.text == "letter"
+    assert result.prompt_tokens == 17
+    assert result.completion_tokens == 8
+    assert result.total_tokens == 25
+    assert result.cost_usd == pytest.approx(0.003)
 
 
 async def test_tool_loop_caps_iterations(

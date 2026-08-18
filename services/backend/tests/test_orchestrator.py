@@ -11,8 +11,11 @@ from tests.conftest import (
 
 import asyncio
 
+from unittest.mock import patch
+
 from otklik_backend.core.site.result import SubmissionResult
 from otklik_backend.db.models import RateLimitEventORM
+from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.core.events import CaptchaWSEvent, ApplicationWSEvent
 from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
@@ -179,6 +182,60 @@ async def test_consume_submitted_transitions_and_logs(
         assert submissions[0].data.application_id == app_id
     finally:
         await stop_consumer(task)
+
+
+async def test_pace_after_submission_waits_the_configured_min_delay(
+    fake_orchestrator: LetterSendingWorker,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as s:
+        settings = await SettingsRepository.get(session=s)
+        settings.min_delay_ms = 5000
+        settings.delay_jitter_ms = 0
+        await s.commit()
+
+    sleeps: list[float] = []
+    real_sleep = asyncio.sleep
+
+    async def record_sleep(delay: float) -> None:
+        sleeps.append(delay)
+        await real_sleep(0)
+
+    with patch(
+        "otklik_backend.orchestrator.workers.letter_sending.asyncio.sleep",
+        side_effect=record_sleep,
+    ):
+        await fake_orchestrator._pace_after_submission()
+
+    assert sleeps == [5.0]
+
+
+async def test_process_one_reports_a_real_submission_so_the_loop_can_pace(
+    fake_orchestrator: LetterSendingWorker,
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    app_id = await seed_app_in_letter_sending(session_factory)
+    fake_writer.queue(SubmissionResult.submitted())
+
+    submitted = await fake_orchestrator._process_one(application_id=app_id)
+
+    assert submitted is True
+
+
+async def test_process_one_does_not_report_a_submission_on_failure(
+    fake_orchestrator: LetterSendingWorker,
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    app_id = await seed_app_in_letter_sending(session_factory)
+    fake_writer.queue(SubmissionResult.failed(reason="boom"))
+
+    submitted = await fake_orchestrator._process_one(application_id=app_id)
+
+    assert submitted is False
 
 
 async def test_consume_failed_transitions_to_error(

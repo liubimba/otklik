@@ -77,21 +77,21 @@ class LetterPendingWorker(Worker):
             self._log.info("Consumer cancelled")
             raise
 
-    async def _process_one(self, application_id: int) -> None:
+    async def _process_one(self, application_id: int) -> bool:
         async with self._session_maker() as session:
             app = await ApplicationRepository.get_by_id(
                 session=session, application_id=application_id
             )
             if app is None:
                 self._log.warning("Application missing", application_id=application_id)
-                return
+                return False
             if app.status != ProcessingState.LETTER_PENDING:
                 self._log.warning(
                     "Skipping application not in LETTER_PENDING",
                     application_id=application_id,
                     status=app.status,
                 )
-                return
+                return False
             vacancy_id = app.vacancy_id
 
         try:
@@ -109,3 +109,4 @@ class LetterPendingWorker(Worker):
                     event=ApplicationEvent.FAIL,
                     error_message=str(e),
                 )
+        return False

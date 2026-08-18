@@ -1,4 +1,5 @@
 import asyncio
+import random
 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -18,6 +19,7 @@ from otklik_backend.db.models import ApplicationORM, CoverLetterORM, VacancyORM
 from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
 from otklik_backend.db.repositories.rate_limits import RateLimitRepository
+from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.exceptions import ApplicationNotFoundError
 from otklik_backend.orchestrator.gates import GateResult, auth_gate, rate_limit_gate
@@ -116,7 +118,9 @@ class LetterSendingWorker(Worker):
                 await self._resume_event.wait()
                 application_id = await self.get_next()
                 try:
-                    await self._process_one(application_id=application_id)
+                    submitted = await self._process_one(application_id=application_id)
+                    if submitted:
+                        await self._pace_after_submission()
                 except Exception as e:
                     self._log.exception(
                         "Consumer iteration failed",
@@ -127,21 +131,21 @@ class LetterSendingWorker(Worker):
             self._log.info("Consumer cancelled")
             raise
 
-    async def _process_one(self, application_id: int) -> None:
+    async def _process_one(self, application_id: int) -> bool:
         async with self._session_maker() as session:
             app: ApplicationORM | None = await ApplicationRepository.get_by_id(
                 session=session, application_id=application_id
             )
             if app is None:
                 self._log.warning("Application missing", application_id=application_id)
-                return
+                return False
 
             if app.status != ProcessingState.LETTER_SENDING:
                 self._log.warning(
                     "Skipping application not in LETTER_SENDING",
                     application_id=app.id,
                 )
-                return
+                return False
 
             match await auth_gate(auth_flow=self._auth_flow):
                 case GateResult.NOT_AUTHORIZED:
@@ -156,7 +160,7 @@ class LetterSendingWorker(Worker):
                         session=session,
                         reason=self.PAUSE_REASON_NOT_AUTHORIZED,
                     )
-                    return
+                    return False
                 case _:
                     pass
 
@@ -165,7 +169,7 @@ class LetterSendingWorker(Worker):
                     self._log.warning("Rate limit hit -- re-enqueue + backoff")
                     await self.enqueue(application_id=app.id)
                     await asyncio.sleep(delay=self._rate_limit_backoff_sec)
-                    return
+                    return False
                 case _:
                     pass
 
@@ -186,7 +190,7 @@ class LetterSendingWorker(Worker):
                     session=session,
                     reason="missing cover leter",
                 )
-                return
+                return False
 
             vacancy: VacancyORM | None = await VacancyRepository.get_by_id(
                 session=session, vacancy_id=app.vacancy_id
@@ -198,7 +202,7 @@ class LetterSendingWorker(Worker):
                     session=session,
                     reason="missing vacancy",
                 )
-                return
+                return False
 
             result: SubmissionResult = await self._writer.submit(
                 vacancy_url=vacancy.apply_link,
@@ -215,7 +219,8 @@ class LetterSendingWorker(Worker):
                         )
                     except ApplicationNotFoundError:
                         self._log.error("Failed to transition to SUBMISSION_OK")
-                        return
+                        return False
+                    return True
                 case SubmissionResultType.CAPTCHA:
                     await self.enqueue(application_id=app.id)
                     self.pause(reason="captcha")
@@ -232,6 +237,17 @@ class LetterSendingWorker(Worker):
                         session=session,
                         reason=result.reason or "unknown",
                     )
+        return False
+
+    async def _pace_after_submission(self) -> None:
+        async with self._session_maker() as session:
+            settings = await SettingsRepository.get(session=session)
+            min_delay_ms = settings.min_delay_ms
+            jitter_ms = settings.delay_jitter_ms
+        jitter = random.uniform(-jitter_ms, jitter_ms)
+        delay_sec = max(0.0, (min_delay_ms + jitter) / 1000.0)
+        self._log.info("Pacing before the next application", delay_sec=delay_sec)
+        await asyncio.sleep(delay_sec)
 
     async def _fail(
         self,

@@ -346,3 +346,24 @@ export type BenchmarkResult = {
 	failure_reason: BenchmarkFailureReason | null;
 	error: string | null;
 };
+
+export type ContextSourceKind = "github" | "web";
+export type ContextSourceStatus = "pending" | "ok" | "error";
+
+export type ContextSource = {
+	id: number;
+	label: string;
+	url: string;
+	description: string | null;
+	kind: ContextSourceKind;
+	status: ContextSourceStatus;
+	error: string | null;
+	fetched_at: string | null;
+	created_at: string;
+};
+
+export type ContextSourceWrite = {
+	label: string;
+	url: string;
+	description?: string | null;
+};

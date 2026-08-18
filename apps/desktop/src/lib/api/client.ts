@@ -12,6 +12,8 @@ import type {
 	ChatStreamEvent,
 	ClaudeSetupState,
 	CloudModelOption,
+	ContextSource,
+	ContextSourceWrite,
 	CoverLetter,
 	FilterSessionConfirm,
 	LLMDeploymentWrite,
@@ -320,6 +322,29 @@ export const API = {
 			api<Settings>("setup/deployment", {
 				method: "POST",
 				body: JSON.stringify(body),
+			}),
+	},
+	sources: {
+		list: () => api<ContextSource[]>("context-sources"),
+		create: (body: ContextSourceWrite) =>
+			api<ContextSource>("context-sources", {
+				method: "POST",
+				body: JSON.stringify(body),
+			}),
+		update: (id: number, body: ContextSourceWrite) =>
+			api<ContextSource>(`context-sources/${id}`, {
+				method: "PATCH",
+				body: JSON.stringify(body),
+			}),
+		remove: (id: number) =>
+			apiNullable204(`context-sources/${id}`, { method: "DELETE" }),
+		refresh: (id: number) =>
+			api<ContextSource>(`context-sources/${id}/refresh`, {
+				method: "POST",
+			}),
+		refreshAll: () =>
+			api<{ refreshed: number }>("context-sources/refresh", {
+				method: "POST",
 			}),
 	},
 } as const;

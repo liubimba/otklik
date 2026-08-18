@@ -22,6 +22,7 @@ from otklik_backend.api.schemas import (
     SearchStatusAPISchema,
 )
 from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.core.context_source import ContextSourceKind, ContextSourceStatus
 
 
 search_vacancies_table = Table(
@@ -151,6 +152,24 @@ class CoverLetterORM(Base):
     version: Mapped[int] = mapped_column(default=1, server_default="1")
     text: Mapped[str]
     source: Mapped[str] = mapped_column(default="generated", server_default="generated")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class ContextSourceORM(Base):
+    __tablename__ = "context_sources"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    label: Mapped[str]
+    url: Mapped[str]
+    description: Mapped[str | None] = mapped_column(default=None)
+    kind: Mapped[ContextSourceKind] = mapped_column(Enum(ContextSourceKind))
+    content: Mapped[str | None] = mapped_column(default=None)
+    status: Mapped[ContextSourceStatus] = mapped_column(
+        Enum(ContextSourceStatus), default=ContextSourceStatus.PENDING
+    )
+    error: Mapped[str | None] = mapped_column(default=None)
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
 

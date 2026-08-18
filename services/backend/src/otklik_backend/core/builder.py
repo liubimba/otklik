@@ -12,6 +12,7 @@ from otklik_backend.db.models import SettingsORM
 from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.db.session import DATABASE_URL
 from otklik_backend.log import get_logger
+from otklik_backend.orchestrator.auto_apply_canceller import AutoApplyCanceller
 from otklik_backend.orchestrator.authorization_service import AuthorizationService
 from otklik_backend.orchestrator.cover_letter_service import CoverLetterService
 from otklik_backend.orchestrator.letter_chat_service import LetterChatService
@@ -47,6 +48,7 @@ class AppContext:
     auto_submit_listener: AutoSubmitListener
     auto_apply_listener: AutoApplyListener
     authorization_service: AuthorizationService
+    auto_apply_canceller: AutoApplyCanceller
 
     def runnables(self) -> list[Runnable]:
         return [self.letter_sending_worker, self.letter_pending_worker]
@@ -132,6 +134,12 @@ class BackendBuilder:
         authorization_service = AuthorizationService(
             broadcaster=broadcaster, auth_flow=auth_flow
         )
+        auto_apply_canceller = AutoApplyCanceller(
+            letter_pending_worker=letter_pending_worker,
+            letter_sending_worker=letter_sending_worker,
+            state_service=state_service,
+            session_maker=self._session_maker,
+        )
         return AppContext(
             browser=browser,
             auth_flow=auth_flow,
@@ -148,6 +156,7 @@ class BackendBuilder:
             auto_submit_listener=auto_submit_listener,
             auto_apply_listener=auto_apply_listener,
             authorization_service=authorization_service,
+            auto_apply_canceller=auto_apply_canceller,
         )
 
     async def _bootstrap_ai_layer(self, secret_store: SecretStore) -> AILayer:

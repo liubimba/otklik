@@ -8,6 +8,7 @@ from otklik_backend.ai.layer import AILayer
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.browser.core import BrowserCore
 from otklik_backend.db.session import get_session
+from otklik_backend.orchestrator.auto_apply_canceller import AutoApplyCanceller
 from otklik_backend.orchestrator.authorization_service import AuthorizationService
 from otklik_backend.orchestrator.cover_letter_service import CoverLetterService
 from otklik_backend.orchestrator.letter_chat_service import LetterChatService
@@ -48,6 +49,10 @@ def get_writer(request: HTTPConnection) -> HHRUWriter:
 
 def get_search_service(request: HTTPConnection) -> SearchService:
     return request.app.state.search_service  # type: ignore[no-any-return]
+
+
+def get_auto_apply_canceller(request: HTTPConnection) -> AutoApplyCanceller:
+    return request.app.state.auto_apply_canceller  # type: ignore[no-any-return]
 
 
 def get_ai_layer(request: HTTPConnection) -> AILayer:
@@ -108,6 +113,7 @@ OrchestratorDep = Annotated[LetterSendingWorker, Depends(get_orchestrator)]
 WriterDep = Annotated[HHRUWriter, Depends(get_writer)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]
+AutoApplyCancellerDep = Annotated[AutoApplyCanceller, Depends(get_auto_apply_canceller)]
 AILayerDep = Annotated[AILayer, Depends(get_ai_layer)]
 CoverLetterServiceDep = Annotated[CoverLetterService, Depends(get_cover_letter_service)]
 LetterChatServiceDep = Annotated[LetterChatService, Depends(get_letter_chat_service)]

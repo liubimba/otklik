@@ -1,6 +1,10 @@
 from fastapi import APIRouter, HTTPException, Response, status
 
-from otklik_backend.api.dependencies import SearchServiceDep, SessionDep
+from otklik_backend.api.dependencies import (
+    AutoApplyCancellerDep,
+    SearchServiceDep,
+    SessionDep,
+)
 from otklik_backend.api.schemas import (
     ConfirmSearchAPISchema,
     SearchHistoryAPISchema,
@@ -76,13 +80,18 @@ async def current_parse(
 
 
 @parse_router.delete("/{search_id}")
-async def cancel_parse(search_id: str, search_service: SearchServiceDep) -> None:
+async def cancel_parse(
+    search_id: str,
+    search_service: SearchServiceDep,
+    auto_apply_canceller: AutoApplyCancellerDep,
+) -> None:
     search_task: SearchSessionTask | None = search_service.find_search_task(
         search_id=search_id
     )
     if search_task is None:
         raise HTTPException(status_code=404, detail="search not found")
     await search_service.cancel_search_session(search_id=search_id)
+    await auto_apply_canceller.cancel_pending()
 
 
 @search_router.get("/history", summary="List past search runs (newest first)")

@@ -16,6 +16,8 @@ from unittest.mock import patch
 from otklik_backend.core.site.result import SubmissionResult
 from otklik_backend.db.models import RateLimitEventORM
 from otklik_backend.db.repositories.settings import SettingsRepository
+from otklik_backend.orchestrator.auto_apply_canceller import AutoApplyCanceller
+from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.core.events import CaptchaWSEvent, ApplicationWSEvent
 from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
@@ -182,6 +184,75 @@ async def test_consume_submitted_transitions_and_logs(
         assert submissions[0].data.application_id == app_id
     finally:
         await stop_consumer(task)
+
+
+async def _seed_app(
+    session_factory: async_sessionmaker[AsyncSession],
+    apply_link: str,
+    status: ProcessingState,
+) -> int:
+    async with session_factory() as session:
+        vacancy = await VacancyRepository.create(
+            session=session,
+            vacancy=vacancy_to_orm(
+                VacancyAPISchema(title="t", apply_link=apply_link, description="d")
+            ),
+        )
+        app = await ApplicationRepository.create(
+            session=session, vacancy_id=vacancy.id
+        )
+        app.status = status
+        await session.commit()
+        return app.id
+
+
+async def test_cancel_pending_clears_workers_and_skips_queued_applications(
+    fake_orchestrator: LetterSendingWorker,
+    fake_state_service: "StateTransitionService",
+    fake_browser: FakeBrowser,
+    fake_writer: FakeWriter,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    pending_id = await _seed_app(
+        session_factory, "https://hh.ru/vacancy/10", ProcessingState.LETTER_PENDING
+    )
+    sending_id = await _seed_app(
+        session_factory, "https://hh.ru/vacancy/11", ProcessingState.LETTER_SENDING
+    )
+
+    pending_worker = LetterSendingWorker(
+        state_service=fake_state_service,
+        session_maker=session_factory,
+        auth_flow=fake_browser,  # type: ignore[arg-type]
+        writer=fake_writer,  # type: ignore[arg-type]
+        broadcaster=recording_broadcaster,
+    )
+    await pending_worker.enqueue(application_id=pending_id)
+    await fake_orchestrator.enqueue(application_id=sending_id)
+
+    canceller = AutoApplyCanceller(
+        letter_pending_worker=pending_worker,  # type: ignore[arg-type]
+        letter_sending_worker=fake_orchestrator,
+        state_service=fake_state_service,
+        session_maker=session_factory,
+    )
+
+    count = await canceller.cancel_pending()
+
+    assert count == 2
+    assert pending_worker.qsize() == 0
+    assert fake_orchestrator.qsize() == 0
+
+    async with session_factory() as s:
+        pending_app = await ApplicationRepository.get_by_id(
+            session=s, application_id=pending_id
+        )
+        sending_app = await ApplicationRepository.get_by_id(
+            session=s, application_id=sending_id
+        )
+    assert pending_app is not None and pending_app.status == ProcessingState.SKIPPED
+    assert sending_app is not None and sending_app.status == ProcessingState.SKIPPED
 
 
 async def test_pace_after_submission_waits_the_configured_min_delay(

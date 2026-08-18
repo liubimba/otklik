@@ -20,7 +20,9 @@ from otklik_backend.api.dependencies import (
     get_state_service,
     get_writer,
     get_search_service,
+    get_auto_apply_canceller,
 )
+from otklik_backend.orchestrator.auto_apply_canceller import AutoApplyCanceller
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.api.schemas import AuthStatusAPISchema
 from otklik_backend.db.base import Base
@@ -372,6 +374,13 @@ async def client(
     app.dependency_overrides[get_state_service] = lambda: fake_state_service
     app.dependency_overrides[get_writer] = lambda: fake_writer
     app.dependency_overrides[get_search_service] = lambda: fake_search_service
+    auto_apply_canceller = AutoApplyCanceller(
+        letter_pending_worker=fake_orchestrator,  # type: ignore[arg-type]
+        letter_sending_worker=fake_orchestrator,
+        state_service=fake_state_service,
+        session_maker=session_factory,
+    )
+    app.dependency_overrides[get_auto_apply_canceller] = lambda: auto_apply_canceller
     app.dependency_overrides[get_ai_layer] = lambda: ai_layer_with_router
     app.dependency_overrides[get_authorization_service] = lambda: authorization_service
     app.dependency_overrides[get_cover_letter_service] = lambda: cover_letter_service

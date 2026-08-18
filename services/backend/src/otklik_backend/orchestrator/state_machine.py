@@ -10,6 +10,7 @@ class ApplicationEvent(str, Enum):
     SEND_FOR_REVIEW = "send_for_review"
     SUBMIT = "submit"
     SKIP = "skip"
+    CANCEL = "cancel"
     SUBMISSION_OK = "submission_ok"
     SUBMISSION_FAILED = "submission_failed"
     RETRY = "retry"
@@ -48,6 +49,7 @@ class ProcessingStateMachine(StateMachine):
         | _.LETTER_REVIEWING.to(_.SKIPPED)
         | _.ERROR.to(_.SKIPPED)
     )
+    cancel = _.LETTER_PENDING.to(_.SKIPPED) | _.LETTER_SENDING.to(_.SKIPPED)
     submission_ok = _.LETTER_SENDING.to(_.LETTER_SENT)
     submission_failed = _.LETTER_SENDING.to(_.ERROR)
     retry = _.ERROR.to(_.LETTER_PENDING)

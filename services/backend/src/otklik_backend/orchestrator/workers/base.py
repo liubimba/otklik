@@ -36,6 +36,16 @@ class Worker(ABC):
     def get_application_ids(self) -> Sequence[int]:
         return list(self._pending)
 
+    def clear(self) -> list[int]:
+        dropped: list[int] = []
+        while True:
+            try:
+                dropped.append(self._queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        self._pending.clear()
+        return dropped
+
     async def recover(self, session: AsyncSession) -> int:
         applications = await ApplicationRepository.list_by_status(
             session=session, status=self.handled_status

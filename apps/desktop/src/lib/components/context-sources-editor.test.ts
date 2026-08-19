@@ -96,6 +96,12 @@ describe("<ContextSourcesEditor>", () => {
 		expect(screen.getByText("Timeout")).toBeInTheDocument();
 	});
 
+	it("does not render its own <form> element so it is safe inside the settings form", () => {
+		const { container } = renderEditor();
+
+		expect(container.querySelector("form")).toBeNull();
+	});
+
 	it("submitting the add form calls add.mutate with the entered fields", async () => {
 		const user = userEvent.setup();
 		renderEditor();

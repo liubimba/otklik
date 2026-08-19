@@ -50,8 +50,7 @@ function formattedFetchedAt(source: ContextSource): string {
 	return new Date(source.fetched_at).toLocaleString();
 }
 
-function submitAdd(event: SubmitEvent) {
-	event.preventDefault();
+function submitAdd() {
 	const trimmedLabel = label.trim();
 	const trimmedUrl = url.trim();
 	if (!trimmedLabel || !trimmedUrl) return;
@@ -169,7 +168,7 @@ function submitAdd(event: SubmitEvent) {
 		</div>
 	{/if}
 
-	<form onsubmit={submitAdd} class="space-y-3 rounded-md border p-3">
+	<div class="space-y-3 rounded-md border p-3">
 		<div class="grid gap-3 sm:grid-cols-2">
 			<div class="space-y-1.5">
 				<Label for="context-source-label">
@@ -190,9 +189,14 @@ function submitAdd(event: SubmitEvent) {
 			</Label>
 			<Input id="context-source-description" bind:value={description} />
 		</div>
-		<Button type="submit" variant="outline" disabled={actions.add.isPending}>
+		<Button
+			type="button"
+			variant="outline"
+			onclick={submitAdd}
+			disabled={actions.add.isPending}
+		>
 			<Plus class="size-4" />
 			{m.settings_ai_sources_add()}
 		</Button>
-	</form>
+	</div>
 </div>

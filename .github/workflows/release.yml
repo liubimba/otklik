@@ -21,6 +21,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     permissions:
       contents: write
     steps:
@@ -43,9 +44,12 @@ jobs:
 
       - name: Install Linux Tauri deps
         if: matrix.os == 'ubuntu-latest'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y -o Acquire::Retries=3 \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \

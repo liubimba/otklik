@@ -7,6 +7,7 @@ export interface EventSync {
 	onEvent: (event: ServerEvent) => void;
 	onConnect: () => void;
 	onDisconnect: () => void;
+	onFatal: (detail?: string) => void;
 }
 
 export function createEventSync(queryClient: QueryClient): EventSync {
@@ -45,8 +46,15 @@ export function createEventSync(queryClient: QueryClient): EventSync {
 	}
 
 	function onDisconnect(): void {
+		if (connection.isFailed) {
+			return;
+		}
 		connection.offline();
 	}
 
-	return { onEvent, onConnect, onDisconnect };
+	function onFatal(detail?: string): void {
+		connection.failed(detail);
+	}
+
+	return { onEvent, onConnect, onDisconnect, onFatal };
 }

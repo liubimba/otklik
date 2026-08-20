@@ -45,6 +45,29 @@ describe("createEventSync", () => {
 		});
 	});
 
+	describe("onFatal — backend process died on startup", () => {
+		it("drives the connection into the terminal failed state with the crash detail", () => {
+			const qc = client();
+			connection.online();
+			createEventSync(qc).onFatal(
+				"Can't locate revision identified by '0bdef780d589'",
+			);
+			expect(connection.isFailed).toBe(true);
+			expect(connection.isOffline).toBe(false);
+			expect(connection.detail).toBe(
+				"Can't locate revision identified by '0bdef780d589'",
+			);
+		});
+
+		it("stays failed when a late reconnect attempt reports onDisconnect (failed is terminal)", () => {
+			const qc = client();
+			createEventSync(qc).onFatal("boom");
+			createEventSync(qc).onDisconnect();
+			expect(connection.isFailed).toBe(true);
+			expect(connection.isOffline).toBe(false);
+		});
+	});
+
 	describe("onEvent — cache mutations preserved after the extraction", () => {
 		it("auth_changed writes the new status straight into the auth cache", () => {
 			const qc = client();

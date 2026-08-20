@@ -1,6 +1,7 @@
 <script lang="ts">
 import { afterNavigate, beforeNavigate } from "$app/navigation";
 import { page } from "$app/state";
+import { onBackendExit } from "$lib/api/backend-exit";
 import { createEventSync } from "$lib/api/event-sync";
 import { EventsWebSocket } from "$lib/api/events";
 import AppSidebar from "$lib/components/app-sidebar.svelte";
@@ -50,8 +51,13 @@ onMount(() => {
 		sync.onDisconnect,
 	);
 	listener.connect();
+	const unlistenExit = onBackendExit((detail) => {
+		sync.onFatal(detail);
+		listener.close();
+	});
 	return () => {
 		listener.close();
+		void unlistenExit.then((off) => off());
 	};
 });
 

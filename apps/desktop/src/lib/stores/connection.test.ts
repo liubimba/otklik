@@ -24,4 +24,22 @@ describe("ConnectionStore", () => {
 		expect(c.isOffline).toBe(true);
 		expect(c.isOnline).toBe(false);
 	});
+
+	it("failed() marks a fatal backend-startup error and carries its detail", () => {
+		const c = new ConnectionStore();
+		c.failed("Can't locate revision identified by '0bdef780d589'");
+		expect(c.state).toBe("failed");
+		expect(c.isFailed).toBe(true);
+		expect(c.isOnline).toBe(false);
+		expect(c.isOffline).toBe(false);
+		expect(c.detail).toBe("Can't locate revision identified by '0bdef780d589'");
+	});
+
+	it("failed() without a detail still marks the state and leaves detail null", () => {
+		const c = new ConnectionStore();
+		c.failed();
+		expect(c.state).toBe("failed");
+		expect(c.isFailed).toBe(true);
+		expect(c.detail).toBeNull();
+	});
 });

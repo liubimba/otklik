@@ -1,5 +1,6 @@
 <script lang="ts">
-import type { ContextSourceWrite } from "$lib/api/types";
+import type { ContextSource, ContextSourceWrite } from "$lib/api/types";
+import { Badge } from "$lib/components/ui/badge";
 import { Button } from "$lib/components/ui/button";
 import {
 	Dialog,
@@ -21,14 +22,28 @@ type AddMutation = {
 	isPending: boolean;
 };
 
+type UpdateMutation = {
+	mutate: (
+		params: { id: number; body: ContextSourceWrite },
+		options?: { onSuccess?: () => void },
+	) => void;
+	isPending: boolean;
+};
+
+type YoutrackConfig = { base_url?: string; query?: string };
+
 const DEFAULT_QUERY = "for: me";
 
 let {
 	open = $bindable(false),
 	add,
+	update,
+	source = null,
 }: {
 	open?: boolean;
 	add: AddMutation;
+	update: UpdateMutation;
+	source?: ContextSource | null;
 } = $props();
 
 let label = $state("");
@@ -36,6 +51,27 @@ let baseUrl = $state("");
 let token = $state("");
 let query = $state(DEFAULT_QUERY);
 let description = $state("");
+let clearToken = $state(false);
+
+$effect(() => {
+	if (!open) return;
+	if (source) {
+		const config = source.config as YoutrackConfig | null;
+		label = source.label;
+		description = source.description ?? "";
+		baseUrl = config?.base_url ?? "";
+		query = config?.query ?? DEFAULT_QUERY;
+		token = "";
+		clearToken = false;
+	} else {
+		label = "";
+		baseUrl = "";
+		token = "";
+		query = DEFAULT_QUERY;
+		description = "";
+		clearToken = false;
+	}
+});
 
 function resetFields() {
 	label = "";
@@ -43,25 +79,54 @@ function resetFields() {
 	token = "";
 	query = DEFAULT_QUERY;
 	description = "";
+	clearToken = false;
 }
 
 function canSubmit(): boolean {
-	return (
+	const base =
 		label.trim().length > 0 &&
 		baseUrl.trim().length > 0 &&
-		token.trim().length > 0 &&
-		query.trim().length > 0
-	);
+		query.trim().length > 0;
+	if (source) return base;
+	return base && token.trim().length > 0;
 }
 
 function submit() {
 	if (!canSubmit()) return;
+	const trimmedLabel = label.trim();
+	const trimmedBaseUrl = baseUrl.trim();
+	const trimmedQuery = query.trim();
+	const trimmedDescription = description.trim() || null;
+
+	if (source) {
+		update.mutate(
+			{
+				id: source.id,
+				body: {
+					kind: "youtrack",
+					label: trimmedLabel,
+					description: trimmedDescription,
+					config: { base_url: trimmedBaseUrl, query: trimmedQuery },
+					token: token.trim() || null,
+					clear_token: clearToken,
+				},
+			},
+			{
+				onSuccess: () => {
+					resetFields();
+					open = false;
+				},
+			},
+		);
+		return;
+	}
+
 	add.mutate(
 		{
 			kind: "youtrack",
-			label: label.trim(),
-			description: description.trim() || null,
-			config: { base_url: baseUrl.trim(), query: query.trim() },
+			label: trimmedLabel,
+			description: trimmedDescription,
+			config: { base_url: trimmedBaseUrl, query: trimmedQuery },
 			token: token.trim(),
 		},
 		{
@@ -77,7 +142,11 @@ function submit() {
 <Dialog bind:open>
 	<DialogContent>
 		<DialogHeader>
-			<DialogTitle>{m.settings_ai_sources_youtrack_title()}</DialogTitle>
+			<DialogTitle>
+				{source
+					? m.settings_ai_sources_youtrack_edit_title()
+					: m.settings_ai_sources_youtrack_title()}
+			</DialogTitle>
 			<DialogDescription>
 				{m.settings_ai_sources_youtrack_description()}
 			</DialogDescription>
@@ -94,13 +163,42 @@ function submit() {
 				<Label for="youtrack-source-base-url">
 					{m.settings_ai_sources_youtrack_base_url_field()}
 				</Label>
-				<Input id="youtrack-source-base-url" type="url" bind:value={baseUrl} />
+				<Input
+					id="youtrack-source-base-url"
+					type="url"
+					bind:value={baseUrl}
+					placeholder={m.settings_ai_sources_youtrack_base_url_hint()}
+				/>
+				<p class="text-muted-foreground text-xs">
+					{m.settings_ai_sources_youtrack_base_url_hint()}
+				</p>
 			</div>
 			<div class="space-y-1.5">
 				<Label for="youtrack-source-token">
 					{m.settings_ai_sources_youtrack_token_field()}
 				</Label>
-				<Input id="youtrack-source-token" type="password" bind:value={token} />
+				{#if source?.has_token}
+					<div>
+						<Badge variant="secondary">
+							{m.settings_ai_sources_youtrack_has_token()}
+						</Badge>
+					</div>
+				{/if}
+				<Input
+					id="youtrack-source-token"
+					type="password"
+					bind:value={token}
+					disabled={clearToken}
+					placeholder={source
+						? m.settings_ai_sources_youtrack_token_keep_placeholder()
+						: undefined}
+				/>
+				{#if source?.has_token}
+					<Label class="flex items-center gap-2 text-sm font-normal">
+						<input type="checkbox" bind:checked={clearToken} />
+						{m.settings_ai_sources_youtrack_clear_token()}
+					</Label>
+				{/if}
 			</div>
 			<div class="space-y-1.5">
 				<Label for="youtrack-source-query">
@@ -123,7 +221,7 @@ function submit() {
 			<Button
 				type="button"
 				onclick={submit}
-				disabled={add.isPending || !canSubmit()}
+				disabled={(source ? update.isPending : add.isPending) || !canSubmit()}
 			>
 				{m.settings_ai_sources_youtrack_submit()}
 			</Button>

@@ -226,4 +226,8 @@ function submitAdd() {
 	</div>
 </div>
 
-<ContextSourceYoutrackDialog bind:open={youtrackOpen} add={actions.add} />
+<ContextSourceYoutrackDialog
+	bind:open={youtrackOpen}
+	add={actions.add}
+	update={actions.update}
+/>

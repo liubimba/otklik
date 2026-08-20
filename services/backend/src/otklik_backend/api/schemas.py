@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Literal, Self, Sequence
+from typing import Any, Optional, Literal, Self, Sequence
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 from otklik_backend.ai.deployment import LLMDeployment
 
@@ -351,25 +351,40 @@ class ContextSourceAPISchema(BaseModel):
     error: Optional[str] = None
     fetched_at: Optional[datetime] = None
     created_at: datetime
+    config: Optional[dict[str, Any]] = None
+    has_token: bool = False
 
 
 class ContextSourceWriteAPISchema(BaseModel):
     label: str
-    url: str
+    kind: ContextSourceKind
     description: Optional[str] = None
+    url: Optional[str] = None
+    config: Optional[dict[str, Any]] = None
+    token: Optional[str] = None
+    clear_token: bool = False
 
-    @field_validator("url")
-    @classmethod
-    def _url_is_http_or_https(cls, v: str) -> str:
-        return _validate_http_url(v)
+    @model_validator(mode="after")
+    def _validate_per_kind(self) -> Self:
+        if self.kind in (ContextSourceKind.GITHUB, ContextSourceKind.WEB):
+            if not self.url:
+                raise ValueError("url is required for this source kind")
+            _validate_http_url(self.url)
+            if self.config:
+                raise ValueError("config is not allowed for this source kind")
+            if self.token:
+                raise ValueError("token is not allowed for this source kind")
+        elif self.kind is ContextSourceKind.YOUTRACK:
+            if not isinstance(self.config, dict):
+                raise ValueError("config is required for youtrack sources")
+            base_url = self.config.get("base_url")
+            if not base_url or not isinstance(base_url, str):
+                raise ValueError("config.base_url is required for youtrack sources")
+            _validate_http_url(base_url)
+            query = self.config.get("query")
+            if not query or not isinstance(query, str):
+                raise ValueError("config.query is required for youtrack sources")
+        return self
 
 
-class ContextSourceUpdateAPISchema(BaseModel):
-    label: str
-    url: str
-    description: Optional[str] = None
-
-    @field_validator("url")
-    @classmethod
-    def _url_is_http_or_https(cls, v: str) -> str:
-        return _validate_http_url(v)
+ContextSourceUpdateAPISchema = ContextSourceWriteAPISchema

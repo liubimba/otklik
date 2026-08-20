@@ -144,7 +144,9 @@ def cover_letter_to_schema(orm: CoverLetterORM) -> CoverLetterAPISchema:
     )
 
 
-def context_source_to_schema(orm: ContextSourceORM) -> ContextSourceAPISchema:
+def context_source_to_schema(
+    orm: ContextSourceORM, has_token: bool = False
+) -> ContextSourceAPISchema:
     return ContextSourceAPISchema(
         id=orm.id,
         label=orm.label,
@@ -155,4 +157,6 @@ def context_source_to_schema(orm: ContextSourceORM) -> ContextSourceAPISchema:
         error=orm.error,
         fetched_at=orm.fetched_at,
         created_at=orm.created_at,
+        config=orm.config,
+        has_token=has_token,
     )

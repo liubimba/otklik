@@ -7,7 +7,6 @@ from otklik_backend.api.schemas import (
     ContextSourceWriteAPISchema,
 )
 from otklik_backend.db.converters import context_source_to_schema
-from otklik_backend.sources.fetchers import detect_kind
 
 context_sources_router = APIRouter(prefix="/context-sources", tags=["context-sources"])
 
@@ -29,7 +28,9 @@ async def create_context_source(
         label=body.label,
         url=body.url,
         description=body.description,
-        kind=detect_kind(body.url),
+        kind=body.kind,
+        config=body.config,
+        token=body.token,
     )
     return context_source_to_schema(source)
 

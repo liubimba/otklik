@@ -55,6 +55,7 @@ async def test_post_creates_context_source_without_content_field(
             "/api/v1/context-sources",
             json={
                 "label": "My blog",
+                "kind": "web",
                 "url": "https://example.com/blog",
                 "description": None,
             },
@@ -81,6 +82,7 @@ async def test_get_lists_created_context_source(
             "/api/v1/context-sources",
             json={
                 "label": "My blog",
+                "kind": "web",
                 "url": "https://example.com/blog",
                 "description": None,
             },
@@ -105,6 +107,7 @@ async def test_refresh_single_source_returns_200(
             "/api/v1/context-sources",
             json={
                 "label": "My blog",
+                "kind": "web",
                 "url": "https://example.com/blog",
                 "description": None,
             },
@@ -140,11 +143,21 @@ async def test_refresh_all_returns_refreshed_count(
     try:
         client.post(
             "/api/v1/context-sources",
-            json={"label": "One", "url": "https://example.com/1", "description": None},
+            json={
+                "label": "One",
+                "kind": "web",
+                "url": "https://example.com/1",
+                "description": None,
+            },
         )
         client.post(
             "/api/v1/context-sources",
-            json={"label": "Two", "url": "https://example.com/2", "description": None},
+            json={
+                "label": "Two",
+                "kind": "web",
+                "url": "https://example.com/2",
+                "description": None,
+            },
         )
         response: Response = client.post("/api/v1/context-sources/refresh")
     finally:
@@ -164,6 +177,7 @@ async def test_patch_unknown_source_returns_404(
             "/api/v1/context-sources/999",
             json={
                 "label": "Renamed",
+                "kind": "web",
                 "url": "https://example.com/renamed",
                 "description": None,
             },
@@ -184,6 +198,7 @@ async def test_delete_removes_source_and_get_no_longer_lists_it(
             "/api/v1/context-sources",
             json={
                 "label": "My blog",
+                "kind": "web",
                 "url": "https://example.com/blog",
                 "description": None,
             },

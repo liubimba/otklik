@@ -97,6 +97,33 @@ class GitHubSourceFetcher:
         return FetchedSource(content=content[:SOURCE_CONTENT_LIMIT])
 
 
+class YouTrackSourceFetcher:
+    def __init__(self, client: httpx.AsyncClient) -> None:
+        self._client = client
+
+    async def fetch(self, *, base_url: str, token: str, query: str) -> FetchedSource:
+        response = await self._client.get(
+            f"{base_url.rstrip('/')}/api/issues",
+            params={
+                "query": query,
+                "fields": "idReadable,summary,resolved,created",
+                "$top": 50,
+            },
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            follow_redirects=True,
+            timeout=15.0,
+        )
+        response.raise_for_status()
+        issues = response.json()
+        header = f"Задач по запросу '{query}': {len(issues)}."
+        lines = [
+            f"- {i.get('idReadable', '')} {i.get('summary', '')}".strip()
+            for i in issues[:20]
+        ]
+        text = "\n".join([header, *lines]).strip()
+        return FetchedSource(content=text[:SOURCE_CONTENT_LIMIT])
+
+
 def detect_kind(url: str) -> ContextSourceKind:
     host = urlsplit(url).hostname or ""
     if host.lower() in GITHUB_HOSTS:
@@ -112,6 +139,9 @@ class SourceFetcherRegistry:
         if detect_kind(url) is ContextSourceKind.GITHUB:
             return GitHubSourceFetcher(self._client)
         return WebPageSourceFetcher(self._client)
+
+    def youtrack_fetcher(self) -> YouTrackSourceFetcher:
+        return YouTrackSourceFetcher(self._client)
 
     async def aclose(self) -> None:
         await self._client.aclose()

@@ -91,3 +91,47 @@ def test_registry_returns_youtrack_fetcher():
     registry = SourceFetcherRegistry(client=httpx.AsyncClient())
     fetcher = registry.youtrack_fetcher()
     assert isinstance(fetcher, YouTrackSourceFetcher)
+
+
+def make_html_handler():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=b"<!DOCTYPE html><html><body>Login</body></html>",
+            headers={"content-type": "text/html"},
+        )
+
+    return handler
+
+
+def make_json_object_handler():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"error": "Unauthorized"})
+
+    return handler
+
+
+async def test_fetch_raises_clear_error_on_html_response():
+    from otklik_backend.sources.fetchers import YOUTRACK_NON_JSON_ERROR
+
+    fetcher = YouTrackSourceFetcher(client=make_client(make_html_handler()))
+
+    with pytest.raises(ValueError) as excinfo:
+        await fetcher.fetch(
+            base_url="https://yt.example.com/issues/issues",
+            token="secret-token",
+            query="for: me",
+        )
+    assert str(excinfo.value) == YOUTRACK_NON_JSON_ERROR
+
+
+async def test_fetch_raises_clear_error_when_response_is_not_a_list():
+    from otklik_backend.sources.fetchers import YOUTRACK_NON_JSON_ERROR
+
+    fetcher = YouTrackSourceFetcher(client=make_client(make_json_object_handler()))
+
+    with pytest.raises(ValueError) as excinfo:
+        await fetcher.fetch(
+            base_url="https://yt.example.com", token="secret-token", query="for: me"
+        )
+    assert str(excinfo.value) == YOUTRACK_NON_JSON_ERROR

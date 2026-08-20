@@ -10,6 +10,10 @@ from otklik_backend.core.context_source import ContextSourceKind
 SOURCE_CONTENT_LIMIT = 8000
 GITHUB_README_COUNT = 3
 GITHUB_README_EXCERPT_LIMIT = 800
+YOUTRACK_NON_JSON_ERROR = (
+    "YouTrack не вернул JSON — проверьте базовый URL: это адрес инстанса YouTrack "
+    "(например https://host/youtrack), без «/issues» и без параметров запроса в конце."
+)
 GITHUB_HOSTS = {"github.com", "www.github.com"}
 
 
@@ -114,7 +118,12 @@ class YouTrackSourceFetcher:
             timeout=15.0,
         )
         response.raise_for_status()
-        issues = response.json()
+        try:
+            issues = response.json()
+        except ValueError:
+            raise ValueError(YOUTRACK_NON_JSON_ERROR)
+        if not isinstance(issues, list):
+            raise ValueError(YOUTRACK_NON_JSON_ERROR)
         header = f"Задач по запросу '{query}': {len(issues)}."
         lines = [
             f"- {i.get('idReadable', '')} {i.get('summary', '')}".strip()

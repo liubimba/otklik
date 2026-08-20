@@ -275,7 +275,7 @@ async def test_delete_returns_false_for_missing_source(
     assert await service.delete(999) is False
 
 
-async def test_update_without_url_change_still_refetches_and_keeps_kind(
+async def test_update_without_url_change_does_not_refetch_and_keeps_kind(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     registry = FakeRegistry()
@@ -301,7 +301,60 @@ async def test_update_without_url_change_still_refetches_and_keeps_kind(
     assert updated.description == "new desc"
     assert updated.kind == ContextSourceKind.WEB
     assert updated.content == "snapshot text"
-    assert registry.fetcher.calls == ["https://example.com/page"]
+    assert registry.fetcher.calls == []
+
+
+async def test_update_label_only_does_not_refetch(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    registry = FakeRegistry()
+    service = make_service(session_factory, registry)
+
+    source = await service.add(
+        label="Original",
+        url="https://example.com/page",
+        description=None,
+        kind=ContextSourceKind.WEB,
+    )
+    registry.fetcher.calls.clear()
+
+    updated = await service.update(
+        source.id,
+        label="New name",
+        description=None,
+    )
+
+    assert updated is not None
+    assert updated.label == "New name"
+    assert registry.fetcher.calls == []
+
+
+async def test_update_url_change_refetches(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    registry = FakeRegistry()
+    service = make_service(session_factory, registry)
+
+    source = await service.add(
+        label="Original",
+        url="https://example.com/page",
+        description=None,
+        kind=ContextSourceKind.WEB,
+    )
+    registry.fetcher.calls.clear()
+    registry.fetcher = FakeFetcher(content="other snapshot")
+
+    updated = await service.update(
+        source.id,
+        label="Original",
+        url="https://example.com/other",
+        description=None,
+    )
+
+    assert updated is not None
+    assert updated.url == "https://example.com/other"
+    assert updated.content == "other snapshot"
+    assert registry.fetcher.calls == ["https://example.com/other"]
 
 
 async def test_update_with_changed_url_refetches_but_kind_stays_immutable(

@@ -110,6 +110,12 @@ class ContextSourceService:
                 return None
             resolved_url = url if url is not None else existing.url
             resolved_config = config if config is not None else existing.config
+            needs_refetch = (
+                resolved_url != existing.url
+                or resolved_config != existing.config
+                or token is not None
+                or clear_token
+            )
             updated = await ContextSourceRepository.update_fields(
                 session=session,
                 source_id=source_id,
@@ -125,6 +131,8 @@ class ContextSourceService:
             await self._secret_store.delete(account)
         elif token is not None:
             await self._secret_store.set(account, token)
+        if not needs_refetch:
+            return updated
         return await self._fetch_into(source_id)
 
     async def delete(self, source_id: int) -> bool:

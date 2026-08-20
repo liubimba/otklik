@@ -171,6 +171,7 @@ class ContextSourceORM(Base):
     error: Mapped[str | None] = mapped_column(default=None)
     fetched_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    config: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
 
 
 class ChatMessageORM(Base):

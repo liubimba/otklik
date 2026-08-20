@@ -1,12 +1,13 @@
 import type { ContextSource } from "$lib/api/types";
-import { render, screen } from "@testing-library/svelte";
+import { cleanup, render, screen, waitFor } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const stub = vi.hoisted(() => ({
 	sourcesQuery: vi.fn(),
 	mutations: {
-		add: { mutate: vi.fn() },
+		add: { mutate: vi.fn(), isPending: false },
+		update: { mutate: vi.fn(), isPending: false },
 		remove: { mutate: vi.fn() },
 		refresh: { mutate: vi.fn() },
 		refreshAll: { mutate: vi.fn() },
@@ -80,6 +81,10 @@ beforeEach(() => {
 	seedSources(seeded);
 });
 
+afterEach(() => {
+	cleanup();
+});
+
 describe("<ContextSourcesEditor>", () => {
 	it("renders every seeded source by label", () => {
 		renderEditor();
@@ -106,32 +111,97 @@ describe("<ContextSourcesEditor>", () => {
 		expect(container.querySelector("form")).toBeNull();
 	});
 
-	it("submitting the add form calls add.mutate with the entered fields", async () => {
+	it("clicking «Добавить источник» opens the URL dialog in add mode", async () => {
 		const user = userEvent.setup();
 		renderEditor();
 
-		await user.type(
-			screen.getByLabelText(m.settings_ai_sources_label_field()),
-			"Хабр",
-		);
-		await user.type(
-			screen.getByLabelText(m.settings_ai_sources_url_field()),
-			"https://habr.com/u/octocat",
-		);
-		await user.type(
-			screen.getByLabelText(m.settings_ai_sources_description_field()),
-			"Блог",
-		);
 		await user.click(
 			screen.getByRole("button", { name: m.settings_ai_sources_add() }),
 		);
 
-		expect(stub.mutations.add.mutate.mock.calls[0]?.[0]).toEqual({
-			label: "Хабр",
-			kind: "web",
-			url: "https://habr.com/u/octocat",
-			description: "Блог",
+		expect(
+			await screen.findByRole("heading", {
+				name: m.settings_ai_sources_url_dialog_add_title(),
+			}),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(
+				(
+					screen.getByLabelText(
+						m.settings_ai_sources_label_field(),
+					) as HTMLInputElement
+				).value,
+			).toBe(""),
+		);
+	});
+
+	it("clicking a web row's edit button opens the URL dialog with that source", async () => {
+		const user = userEvent.setup();
+		renderEditor();
+
+		const editButtons = screen.getAllByRole("button", {
+			name: m.settings_ai_sources_edit(),
 		});
+		await user.click(editButtons[1]);
+
+		expect(
+			await screen.findByRole("heading", {
+				name: m.settings_ai_sources_url_dialog_edit_title(),
+			}),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(
+				(
+					screen.getByLabelText(
+						m.settings_ai_sources_label_field(),
+					) as HTMLInputElement
+				).value,
+			).toBe("Портфолио"),
+		);
+	});
+
+	it("clicking a youtrack row's edit button opens the YouTrack dialog with that source", async () => {
+		const user = userEvent.setup();
+		seedSources([
+			...seeded,
+			{
+				id: 3,
+				label: "Мои задачи",
+				url: "https://example.youtrack.cloud",
+				description: null,
+				kind: "youtrack",
+				status: "ok",
+				error: null,
+				fetched_at: null,
+				created_at: "2026-07-03T12:00:00Z",
+				config: {
+					base_url: "https://example.youtrack.cloud",
+					query: "for: me",
+				},
+				has_token: true,
+			},
+		]);
+		renderEditor();
+
+		const editButtons = screen.getAllByRole("button", {
+			name: m.settings_ai_sources_edit(),
+		});
+		await user.click(editButtons[2]);
+
+		expect(
+			await screen.findByRole("heading", {
+				name: m.settings_ai_sources_youtrack_edit_title(),
+			}),
+		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(
+				(
+					screen.getByLabelText(
+						m.settings_ai_sources_label_field(),
+					) as HTMLInputElement
+				).value,
+			).toBe("Мои задачи"),
+		);
 	});
 
 	it("clicking a row's delete button calls remove.mutate with its id", async () => {

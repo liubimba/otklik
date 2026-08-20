@@ -1,23 +1,22 @@
 <script lang="ts">
 import { createActions } from "$lib/actions";
-import type {
-	ContextSource,
-	ContextSourceStatus,
-	ContextSourceWrite,
-} from "$lib/api/types";
+import type { ContextSource, ContextSourceStatus } from "$lib/api/types";
+import ContextSourceUrlDialog from "$lib/components/context-source-url-dialog.svelte";
 import ContextSourceYoutrackDialog from "$lib/components/context-source-youtrack-dialog.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ExternalLinkButton from "$lib/components/external-link-button.svelte";
 import { Badge, type BadgeVariant } from "$lib/components/ui/badge";
 import { Button } from "$lib/components/ui/button";
-import { Input } from "$lib/components/ui/input";
-import { Label } from "$lib/components/ui/label";
 import { Skeleton } from "$lib/components/ui/skeleton";
 import { m } from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
+import Code2 from "@lucide/svelte/icons/code-2";
 import ExternalLink from "@lucide/svelte/icons/external-link";
+import Globe from "@lucide/svelte/icons/globe";
+import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import SquareKanban from "@lucide/svelte/icons/square-kanban";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { useQueryClient } from "@tanstack/svelte-query";
 
@@ -26,10 +25,9 @@ const actions = createActions(queryClient).sources;
 
 const sources = query.sources.create();
 
-let label = $state("");
-let url = $state("");
-let description = $state("");
+let urlOpen = $state(false);
 let youtrackOpen = $state(false);
+let editingSource = $state<ContextSource | null>(null);
 
 const statusVariant: Record<ContextSourceStatus, BadgeVariant> = {
 	ok: "success",
@@ -49,6 +47,12 @@ const kindLabelText: Record<ContextSource["kind"], string> = {
 	web: "Web",
 };
 
+const kindIcon: Record<ContextSource["kind"], typeof Code2> = {
+	github: Code2,
+	youtrack: SquareKanban,
+	web: Globe,
+};
+
 function kindLabel(kind: ContextSource["kind"]): string {
 	return kindLabelText[kind];
 }
@@ -58,27 +62,23 @@ function formattedFetchedAt(source: ContextSource): string {
 	return new Date(source.fetched_at).toLocaleString();
 }
 
+function openUrlDialog() {
+	editingSource = null;
+	urlOpen = true;
+}
+
 function openYoutrackDialog() {
+	editingSource = null;
 	youtrackOpen = true;
 }
 
-function submitAdd() {
-	const trimmedLabel = label.trim();
-	const trimmedUrl = url.trim();
-	if (!trimmedLabel || !trimmedUrl) return;
-	const body: ContextSourceWrite = {
-		label: trimmedLabel,
-		kind: "web",
-		url: trimmedUrl,
-		description: description.trim() || null,
-	};
-	actions.add.mutate(body, {
-		onSuccess: () => {
-			label = "";
-			url = "";
-			description = "";
-		},
-	});
+function startEdit(source: ContextSource) {
+	editingSource = source;
+	if (source.kind === "youtrack") {
+		youtrackOpen = true;
+	} else {
+		urlOpen = true;
+	}
 }
 </script>
 
@@ -90,18 +90,31 @@ function submitAdd() {
 				{m.settings_ai_sources_hint()}
 			</p>
 		</div>
-		<Button
-			type="button"
-			variant="outline"
-			size="sm"
-			class="shrink-0"
-			onclick={() => actions.refreshAll.mutate()}
-			disabled={actions.refreshAll.isPending ||
-				(sources.data?.length ?? 0) === 0}
-		>
-			<RefreshCw class="size-4" />
-			{m.settings_ai_sources_refresh_all()}
-		</Button>
+		<div class="flex shrink-0 flex-wrap gap-2">
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				onclick={() => actions.refreshAll.mutate()}
+				disabled={actions.refreshAll.isPending ||
+					(sources.data?.length ?? 0) === 0}
+			>
+				<RefreshCw class="size-4" />
+				{m.settings_ai_sources_refresh_all()}
+			</Button>
+			<Button type="button" variant="outline" size="sm" onclick={openUrlDialog}>
+				<Plus class="size-4" />
+				{m.settings_ai_sources_add()}
+			</Button>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				onclick={openYoutrackDialog}
+			>
+				{m.settings_ai_sources_youtrack_button()}
+			</Button>
+		</div>
 	</div>
 
 	{#if sources.isPending}
@@ -131,7 +144,11 @@ function submitAdd() {
 						<div class="min-w-0 space-y-1">
 							<div class="flex flex-wrap items-center gap-2">
 								<span class="truncate font-medium">{source.label}</span>
-								<Badge variant="outline">{kindLabel(source.kind)}</Badge>
+								<Badge variant="outline" class="gap-1">
+									{@const KindIcon = kindIcon[source.kind]}
+									<KindIcon class="size-3" />
+									{kindLabel(source.kind)}
+								</Badge>
 								<Badge variant={statusVariant[source.status]}>
 									{statusLabel[source.status]()}
 								</Badge>
@@ -165,6 +182,15 @@ function submitAdd() {
 								type="button"
 								variant="ghost"
 								size="icon-sm"
+								onclick={() => startEdit(source)}
+								aria-label={m.settings_ai_sources_edit()}
+							>
+								<Pencil class="size-4" />
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-sm"
 								onclick={() => actions.refresh.mutate(source.id)}
 								disabled={actions.refresh.isPending}
 								aria-label={m.settings_ai_sources_refresh()}
@@ -187,47 +213,21 @@ function submitAdd() {
 			{/each}
 		</div>
 	{/if}
-
-	<div class="space-y-3 rounded-md border p-3">
-		<div class="grid gap-3 sm:grid-cols-2">
-			<div class="space-y-1.5">
-				<Label for="context-source-label">
-					{m.settings_ai_sources_label_field()}
-				</Label>
-				<Input id="context-source-label" bind:value={label} />
-			</div>
-			<div class="space-y-1.5">
-				<Label for="context-source-url">
-					{m.settings_ai_sources_url_field()}
-				</Label>
-				<Input id="context-source-url" type="url" bind:value={url} />
-			</div>
-		</div>
-		<div class="space-y-1.5">
-			<Label for="context-source-description">
-				{m.settings_ai_sources_description_field()}
-			</Label>
-			<Input id="context-source-description" bind:value={description} />
-		</div>
-		<div class="flex flex-wrap gap-2">
-			<Button
-				type="button"
-				variant="outline"
-				onclick={submitAdd}
-				disabled={actions.add.isPending}
-			>
-				<Plus class="size-4" />
-				{m.settings_ai_sources_add()}
-			</Button>
-			<Button type="button" variant="outline" onclick={openYoutrackDialog}>
-				{m.settings_ai_sources_youtrack_button()}
-			</Button>
-		</div>
-	</div>
 </div>
 
+<ContextSourceUrlDialog
+	bind:open={urlOpen}
+	source={editingSource && editingSource.kind !== "youtrack"
+		? editingSource
+		: null}
+	add={actions.add}
+	update={actions.update}
+/>
 <ContextSourceYoutrackDialog
 	bind:open={youtrackOpen}
+	source={editingSource && editingSource.kind === "youtrack"
+		? editingSource
+		: null}
 	add={actions.add}
 	update={actions.update}
 />

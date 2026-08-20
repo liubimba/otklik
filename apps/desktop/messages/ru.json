@@ -271,6 +271,7 @@
 	"settings_ai_sources_refresh": "Обновить",
 	"settings_ai_sources_refresh_all": "Обновить все",
 	"settings_ai_sources_delete": "Удалить источник",
+	"settings_ai_sources_edit": "Редактировать",
 	"settings_ai_sources_status_ok": "Готово",
 	"settings_ai_sources_status_error": "Ошибка",
 	"settings_ai_sources_status_pending": "Обновляется",

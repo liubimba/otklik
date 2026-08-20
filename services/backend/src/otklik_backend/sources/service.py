@@ -9,6 +9,10 @@ from otklik_backend.db.repositories.context_sources import ContextSourceReposito
 from otklik_backend.log import get_logger
 from otklik_backend.sources.fetchers import SourceFetcherRegistry, detect_kind
 
+EMPTY_SNAPSHOT_ERROR = (
+    "Страница не отдала текст — возможно, требует входа или рендерится через JS."
+)
+
 
 class ContextSourceService:
     def __init__(
@@ -123,14 +127,24 @@ class ContextSourceService:
                     error=str(e),
                 )
         else:
-            async with self._session_maker() as session:
-                result = await ContextSourceRepository.set_snapshot(
-                    session=session,
-                    source_id=source_id,
-                    content=fetched.content,
-                    status=ContextSourceStatus.OK,
-                    error=None,
-                )
+            if fetched.content.strip():
+                async with self._session_maker() as session:
+                    result = await ContextSourceRepository.set_snapshot(
+                        session=session,
+                        source_id=source_id,
+                        content=fetched.content,
+                        status=ContextSourceStatus.OK,
+                        error=None,
+                    )
+            else:
+                async with self._session_maker() as session:
+                    result = await ContextSourceRepository.set_snapshot(
+                        session=session,
+                        source_id=source_id,
+                        content=None,
+                        status=ContextSourceStatus.ERROR,
+                        error=EMPTY_SNAPSHOT_ERROR,
+                    )
         if result is None:
             raise RuntimeError(f"context source {source_id} disappeared during fetch")
         return result

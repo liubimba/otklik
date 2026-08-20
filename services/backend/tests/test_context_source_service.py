@@ -72,6 +72,22 @@ async def test_add_records_error_and_does_not_raise(
     assert "boom" in source.error
 
 
+async def test_add_marks_empty_snapshot_as_error(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    registry = FakeRegistry()
+    registry.fetcher = FakeFetcher(content="   \n\t  ")
+    service = make_service(session_factory, registry)
+
+    source = await service.add(
+        label="YouTrack", url="https://youtrack.example/issues", description=None
+    )
+
+    assert source.status == ContextSourceStatus.ERROR
+    assert source.content is None
+    assert source.error is not None and source.error.strip()
+
+
 async def test_refresh_refetches_and_updates_status(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

@@ -280,3 +280,52 @@ async def test_delete_returns_false_when_missing(
             await ContextSourceRepository.delete(session=session, source_id=999)
             is False
         )
+
+
+async def test_create_persists_config(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        created = await ContextSourceRepository.create(
+            session=session,
+            label="YT",
+            url="https://yt",
+            description=None,
+            kind=ContextSourceKind.YOUTRACK,
+            config={"base_url": "https://yt", "query": "for: me"},
+        )
+        source_id = created.id
+
+    async with session_factory() as session:
+        fetched = await ContextSourceRepository.get_by_id(
+            session=session, source_id=source_id
+        )
+        assert fetched is not None
+        assert fetched.config == {"base_url": "https://yt", "query": "for: me"}
+
+
+async def test_update_fields_mutates_config(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        created = await ContextSourceRepository.create(
+            session=session,
+            label="YT",
+            url="https://yt",
+            description=None,
+            kind=ContextSourceKind.YOUTRACK,
+            config={"base_url": "https://yt", "query": "for: me"},
+        )
+        source_id = created.id
+
+    async with session_factory() as session:
+        updated = await ContextSourceRepository.update_fields(
+            session=session,
+            source_id=source_id,
+            label="YT",
+            url="https://yt",
+            description=None,
+            config={"base_url": "https://yt2", "query": "assignee: me"},
+        )
+        assert updated is not None
+        assert updated.config == {"base_url": "https://yt2", "query": "assignee: me"}

@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,9 +19,10 @@ class ContextSourceRepository:
         url: str,
         description: str | None,
         kind: ContextSourceKind,
+        config: dict[str, Any] | None = None,
     ) -> ContextSourceORM:
         source = ContextSourceORM(
-            label=label, url=url, description=description, kind=kind
+            label=label, url=url, description=description, kind=kind, config=config
         )
         session.add(source)
         await session.commit()
@@ -77,6 +79,7 @@ class ContextSourceRepository:
         label: str,
         url: str,
         description: str | None,
+        config: dict[str, Any] | None = None,
     ) -> ContextSourceORM | None:
         source = await cls.get_by_id(session=session, source_id=source_id)
         if source is None:
@@ -84,6 +87,7 @@ class ContextSourceRepository:
         source.label = label
         source.url = url
         source.description = description
+        source.config = config
         await session.commit()
         return source
 

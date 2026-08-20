@@ -5,6 +5,7 @@ import type {
 	ContextSourceStatus,
 	ContextSourceWrite,
 } from "$lib/api/types";
+import ContextSourceYoutrackDialog from "$lib/components/context-source-youtrack-dialog.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ExternalLinkButton from "$lib/components/external-link-button.svelte";
 import { Badge, type BadgeVariant } from "$lib/components/ui/badge";
@@ -28,6 +29,7 @@ const sources = query.sources.create();
 let label = $state("");
 let url = $state("");
 let description = $state("");
+let youtrackOpen = $state(false);
 
 const statusVariant: Record<ContextSourceStatus, BadgeVariant> = {
 	ok: "success",
@@ -41,13 +43,23 @@ const statusLabel: Record<ContextSourceStatus, () => string> = {
 	pending: m.settings_ai_sources_status_pending,
 };
 
+const kindLabelText: Record<ContextSource["kind"], string> = {
+	github: "GitHub",
+	youtrack: "YouTrack",
+	web: "Web",
+};
+
 function kindLabel(kind: ContextSource["kind"]): string {
-	return kind === "github" ? "GitHub" : "Web";
+	return kindLabelText[kind];
 }
 
 function formattedFetchedAt(source: ContextSource): string {
 	if (!source.fetched_at) return m.settings_ai_sources_fetched_never();
 	return new Date(source.fetched_at).toLocaleString();
+}
+
+function openYoutrackDialog() {
+	youtrackOpen = true;
 }
 
 function submitAdd() {
@@ -123,6 +135,13 @@ function submitAdd() {
 								<Badge variant={statusVariant[source.status]}>
 									{statusLabel[source.status]()}
 								</Badge>
+								{#if source.kind === "youtrack"}
+									<Badge variant={source.has_token ? "secondary" : "outline"}>
+										{source.has_token
+											? m.settings_ai_sources_youtrack_has_token()
+											: m.settings_ai_sources_youtrack_no_token()}
+									</Badge>
+								{/if}
 							</div>
 							<div
 								class="text-muted-foreground flex flex-wrap items-center gap-2 text-xs"
@@ -190,14 +209,21 @@ function submitAdd() {
 			</Label>
 			<Input id="context-source-description" bind:value={description} />
 		</div>
-		<Button
-			type="button"
-			variant="outline"
-			onclick={submitAdd}
-			disabled={actions.add.isPending}
-		>
-			<Plus class="size-4" />
-			{m.settings_ai_sources_add()}
-		</Button>
+		<div class="flex flex-wrap gap-2">
+			<Button
+				type="button"
+				variant="outline"
+				onclick={submitAdd}
+				disabled={actions.add.isPending}
+			>
+				<Plus class="size-4" />
+				{m.settings_ai_sources_add()}
+			</Button>
+			<Button type="button" variant="outline" onclick={openYoutrackDialog}>
+				{m.settings_ai_sources_youtrack_button()}
+			</Button>
+		</div>
 	</div>
 </div>
+
+<ContextSourceYoutrackDialog bind:open={youtrackOpen} add={actions.add} />

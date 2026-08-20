@@ -112,6 +112,7 @@ class BackendBuilder:
         context_source_service = ContextSourceService(
             session_maker=self._session_maker,
             registry=SourceFetcherRegistry(client=httpx.AsyncClient()),
+            secret_store=secret_store,
         )
         cover_letter_service = CoverLetterService(
             session_maker=self._session_maker,

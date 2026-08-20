@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from otklik_backend.api.app import app
 from otklik_backend.api.dependencies import get_context_source_service
 from otklik_backend.core.context_source import ContextSourceStatus
+from otklik_backend.secrets.store import SecretStorageMode
 from otklik_backend.sources.fetchers import SourceFetcherRegistry
 from otklik_backend.sources.service import ContextSourceService
 
@@ -13,13 +14,35 @@ def _mock_handler(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, html="<html><body>Fake page content</body></html>")
 
 
+class _OfflineSecretStore:
+    def __init__(self) -> None:
+        self.items: dict[str, str] = {}
+
+    @property
+    def mode(self) -> SecretStorageMode:
+        return SecretStorageMode.FILE
+
+    async def get(self, account: str) -> str | None:
+        return self.items.get(account)
+
+    async def set(self, account: str, secret: str) -> None:
+        self.items[account] = secret
+
+    async def delete(self, account: str) -> None:
+        self.items.pop(account, None)
+
+
 def _make_offline_service(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> ContextSourceService:
     transport = httpx.MockTransport(_mock_handler)
     client = httpx.AsyncClient(transport=transport)
     registry = SourceFetcherRegistry(client=client)
-    return ContextSourceService(session_maker=session_factory, registry=registry)
+    return ContextSourceService(
+        session_maker=session_factory,
+        registry=registry,
+        secret_store=_OfflineSecretStore(),  # type: ignore[arg-type]
+    )
 
 
 async def test_post_creates_context_source_without_content_field(

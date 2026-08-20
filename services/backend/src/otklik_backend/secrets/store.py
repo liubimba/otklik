@@ -10,6 +10,10 @@ def account_for(deployment_id: str) -> str:
     return f"llm.deployment.{deployment_id}"
 
 
+def context_source_account_for(source_id: int) -> str:
+    return f"context_source.{source_id}"
+
+
 class SecretStorageMode(str, Enum):
     KEYCHAIN = "keychain"
     FILE = "file"

@@ -59,6 +59,11 @@ async def update_context_source(
     service: ContextSourceServiceDep,
     secret_store: SecretStoreDep,
 ) -> ContextSourceAPISchema:
+    existing = await service.get(source_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Context source not found")
+    if body.kind != existing.kind:
+        raise HTTPException(status_code=409, detail="kind is immutable")
     source = await service.update(
         source_id,
         label=body.label,

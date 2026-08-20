@@ -339,6 +339,38 @@ async def test_patch_clear_token_returns_has_token_false(
     assert context_source_account_for(created["id"]) not in store.items
 
 
+async def test_patch_changing_kind_returns_409(
+    client, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    store = _OfflineSecretStore()
+    service = _make_offline_service(session_factory, store)
+    _override_with_store(store, service)
+    try:
+        created = client.post(
+            "/api/v1/context-sources",
+            json={
+                "label": "YouTrack",
+                "kind": "youtrack",
+                "config": {"base_url": "https://yt.example.com", "query": "project: X"},
+                "token": "secret-token",
+            },
+        ).json()
+        response: Response = client.patch(
+            f"/api/v1/context-sources/{created['id']}",
+            json={
+                "label": "YouTrack",
+                "kind": "web",
+                "url": "https://example.com/other",
+                "description": None,
+            },
+        )
+    finally:
+        _clear_overrides()
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "kind is immutable"
+
+
 async def test_patch_replaces_config_keeps_kind(
     client, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:

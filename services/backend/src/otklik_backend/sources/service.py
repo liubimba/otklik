@@ -91,6 +91,12 @@ class ContextSourceService:
         async with self._session_maker() as session:
             return await ContextSourceRepository.list_all(session=session)
 
+    async def get(self, source_id: int) -> ContextSourceORM | None:
+        async with self._session_maker() as session:
+            return await ContextSourceRepository.get_by_id(
+                session=session, source_id=source_id
+            )
+
     async def update(
         self,
         source_id: int,

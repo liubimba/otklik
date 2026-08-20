@@ -3,9 +3,9 @@ from fastapi import Response
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from otklik_backend.api.app import app
-from otklik_backend.api.dependencies import get_context_source_service
+from otklik_backend.api.dependencies import get_context_source_service, get_secret_store
 from otklik_backend.core.context_source import ContextSourceStatus
-from otklik_backend.secrets.store import SecretStorageMode
+from otklik_backend.secrets.store import SecretStorageMode, context_source_account_for
 from otklik_backend.sources.fetchers import SourceFetcherRegistry
 from otklik_backend.sources.service import ContextSourceService
 
@@ -34,6 +34,7 @@ class _OfflineSecretStore:
 
 def _make_offline_service(
     session_factory: async_sessionmaker[AsyncSession],
+    store: _OfflineSecretStore | None = None,
 ) -> ContextSourceService:
     transport = httpx.MockTransport(_mock_handler)
     client = httpx.AsyncClient(transport=transport)
@@ -41,8 +42,20 @@ def _make_offline_service(
     return ContextSourceService(
         session_maker=session_factory,
         registry=registry,
-        secret_store=_OfflineSecretStore(),  # type: ignore[arg-type]
+        secret_store=store or _OfflineSecretStore(),  # type: ignore[arg-type]
     )
+
+
+def _override_with_store(
+    store: _OfflineSecretStore, service: ContextSourceService
+) -> None:
+    app.dependency_overrides[get_context_source_service] = lambda: service
+    app.dependency_overrides[get_secret_store] = lambda: store
+
+
+def _clear_overrides() -> None:
+    app.dependency_overrides.pop(get_context_source_service, None)
+    app.dependency_overrides.pop(get_secret_store, None)
 
 
 async def test_post_creates_context_source_without_content_field(
@@ -212,3 +225,151 @@ async def test_delete_removes_source_and_get_no_longer_lists_it(
 
     assert delete_response.status_code == 204
     assert list_response.json() == []
+
+
+async def test_post_youtrack_with_token_returns_has_token_true_no_token_leak(
+    client, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    store = _OfflineSecretStore()
+    service = _make_offline_service(session_factory, store)
+    _override_with_store(store, service)
+    try:
+        response: Response = client.post(
+            "/api/v1/context-sources",
+            json={
+                "label": "YouTrack",
+                "kind": "youtrack",
+                "config": {"base_url": "https://yt.example.com", "query": "project: X"},
+                "token": "secret-token",
+            },
+        )
+    finally:
+        _clear_overrides()
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["has_token"] is True
+    assert "token" not in body
+    assert "content" not in body
+    assert body["config"] == {
+        "base_url": "https://yt.example.com",
+        "query": "project: X",
+    }
+    assert store.items[context_source_account_for(body["id"])] == "secret-token"
+
+
+async def test_post_youtrack_without_token_returns_422(
+    client, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    store = _OfflineSecretStore()
+    service = _make_offline_service(session_factory, store)
+    _override_with_store(store, service)
+    try:
+        response: Response = client.post(
+            "/api/v1/context-sources",
+            json={
+                "label": "YouTrack",
+                "kind": "youtrack",
+                "config": {"base_url": "https://yt.example.com", "query": "project: X"},
+            },
+        )
+    finally:
+        _clear_overrides()
+
+    assert response.status_code == 422
+
+
+async def test_get_lists_youtrack_source_with_has_token_true(
+    client, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    store = _OfflineSecretStore()
+    service = _make_offline_service(session_factory, store)
+    _override_with_store(store, service)
+    try:
+        client.post(
+            "/api/v1/context-sources",
+            json={
+                "label": "YouTrack",
+                "kind": "youtrack",
+                "config": {"base_url": "https://yt.example.com", "query": "project: X"},
+                "token": "secret-token",
+            },
+        )
+        response: Response = client.get("/api/v1/context-sources")
+    finally:
+        _clear_overrides()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["has_token"] is True
+
+
+async def test_patch_clear_token_returns_has_token_false(
+    client, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    store = _OfflineSecretStore()
+    service = _make_offline_service(session_factory, store)
+    _override_with_store(store, service)
+    try:
+        created = client.post(
+            "/api/v1/context-sources",
+            json={
+                "label": "YouTrack",
+                "kind": "youtrack",
+                "config": {"base_url": "https://yt.example.com", "query": "project: X"},
+                "token": "secret-token",
+            },
+        ).json()
+        response: Response = client.patch(
+            f"/api/v1/context-sources/{created['id']}",
+            json={
+                "label": "YouTrack",
+                "kind": "youtrack",
+                "config": {"base_url": "https://yt.example.com", "query": "project: X"},
+                "clear_token": True,
+            },
+        )
+    finally:
+        _clear_overrides()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_token"] is False
+    assert context_source_account_for(created["id"]) not in store.items
+
+
+async def test_patch_replaces_config_keeps_kind(
+    client, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    store = _OfflineSecretStore()
+    service = _make_offline_service(session_factory, store)
+    _override_with_store(store, service)
+    try:
+        created = client.post(
+            "/api/v1/context-sources",
+            json={
+                "label": "YouTrack",
+                "kind": "youtrack",
+                "config": {"base_url": "https://yt.example.com", "query": "project: X"},
+                "token": "secret-token",
+            },
+        ).json()
+        response: Response = client.patch(
+            f"/api/v1/context-sources/{created['id']}",
+            json={
+                "label": "YouTrack",
+                "kind": "youtrack",
+                "config": {"base_url": "https://yt.example.com", "query": "project: Y"},
+            },
+        )
+    finally:
+        _clear_overrides()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "youtrack"
+    assert body["config"] == {
+        "base_url": "https://yt.example.com",
+        "query": "project: Y",
+    }

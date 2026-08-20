@@ -41,6 +41,8 @@ const seeded: ContextSource[] = [
 		error: null,
 		fetched_at: "2026-08-01T12:00:00Z",
 		created_at: "2026-07-01T12:00:00Z",
+		config: null,
+		has_token: false,
 	},
 	{
 		id: 2,
@@ -52,6 +54,8 @@ const seeded: ContextSource[] = [
 		error: "Timeout",
 		fetched_at: null,
 		created_at: "2026-07-02T12:00:00Z",
+		config: null,
+		has_token: false,
 	},
 ];
 
@@ -124,6 +128,7 @@ describe("<ContextSourcesEditor>", () => {
 
 		expect(stub.mutations.add.mutate.mock.calls[0]?.[0]).toEqual({
 			label: "Хабр",
+			kind: "web",
 			url: "https://habr.com/u/octocat",
 			description: "Блог",
 		});

@@ -347,7 +347,7 @@ export type BenchmarkResult = {
 	error: string | null;
 };
 
-export type ContextSourceKind = "github" | "web";
+export type ContextSourceKind = "github" | "web" | "youtrack";
 export type ContextSourceStatus = "pending" | "ok" | "error";
 
 export type ContextSource = {
@@ -360,12 +360,18 @@ export type ContextSource = {
 	error: string | null;
 	fetched_at: string | null;
 	created_at: string;
+	config: Record<string, unknown> | null;
+	has_token: boolean;
 };
 
 export type ContextSourceWrite = {
 	label: string;
-	url: string;
+	kind: ContextSourceKind;
 	description?: string | null;
+	url?: string | null;
+	config?: Record<string, unknown> | null;
+	token?: string | null;
+	clear_token?: boolean;
 };
 
 export type PreviewCoverLetterRequest = {

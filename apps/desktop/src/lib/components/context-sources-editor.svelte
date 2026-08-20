@@ -56,6 +56,7 @@ function submitAdd() {
 	if (!trimmedLabel || !trimmedUrl) return;
 	const body: ContextSourceWrite = {
 		label: trimmedLabel,
+		kind: "web",
 		url: trimmedUrl,
 		description: description.trim() || null,
 	};

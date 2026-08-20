@@ -78,14 +78,22 @@ describe("createSourcesActions", () => {
 
 	it("add forwards body via API.sources.create", async () => {
 		const actions = createSourcesActions(makeFakeClient());
-		const body = { label: "Site", url: "https://example.com" };
+		const body = {
+			label: "Site",
+			kind: "web" as const,
+			url: "https://example.com",
+		};
 		await actions.add.mutateAsync(body);
 		expect(API.sources.create).toHaveBeenCalledWith(body);
 	});
 
 	it("update forwards id and body via API.sources.update", async () => {
 		const actions = createSourcesActions(makeFakeClient());
-		const body = { label: "Repo", url: "https://github.com/x" };
+		const body = {
+			label: "Repo",
+			kind: "github" as const,
+			url: "https://github.com/x",
+		};
 		await actions.update.mutateAsync({ id: 5, body });
 		expect(API.sources.update).toHaveBeenCalledWith(5, body);
 	});

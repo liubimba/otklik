@@ -107,7 +107,7 @@ function submit() {
 					label: trimmedLabel,
 					description: trimmedDescription,
 					config: { base_url: trimmedBaseUrl, query: trimmedQuery },
-					token: token.trim() || null,
+					token: clearToken ? null : token.trim() || null,
 					clear_token: clearToken,
 				},
 			},

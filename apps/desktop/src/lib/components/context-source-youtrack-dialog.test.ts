@@ -320,6 +320,35 @@ describe("<ContextSourceYoutrackDialog> edit mode", () => {
 		});
 	});
 
+	it("typing a new token then checking clear-token sends null token with clear_token true", async () => {
+		const user = userEvent.setup();
+		const update = makeUpdate();
+		const source = makeSource();
+		renderDialog({ update, source });
+		await settleInitialFocus();
+
+		await user.type(
+			screen.getByLabelText(m.settings_ai_sources_youtrack_token_field()),
+			"newtok",
+		);
+
+		const checkbox = screen.getByLabelText(
+			m.settings_ai_sources_youtrack_clear_token(),
+		);
+		await user.click(checkbox);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: m.settings_ai_sources_youtrack_submit(),
+			}),
+		);
+
+		expect(update.mutate.mock.calls[0]?.[0]?.body).toMatchObject({
+			token: null,
+			clear_token: true,
+		});
+	});
+
 	it("does not call update.mutate when label is cleared", async () => {
 		const user = userEvent.setup();
 		const update = makeUpdate();

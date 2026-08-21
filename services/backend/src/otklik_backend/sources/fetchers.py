@@ -101,19 +101,25 @@ class GitHubSourceFetcher:
         return FetchedSource(content=content[:SOURCE_CONTENT_LIMIT])
 
 
+YOUTRACK_SAMPLE_TOP = 100
+YOUTRACK_LIST_LIMIT = 20
+
+
 class YouTrackSourceFetcher:
     def __init__(self, client: httpx.AsyncClient) -> None:
         self._client = client
 
     async def fetch(self, *, base_url: str, token: str, query: str) -> FetchedSource:
+        base = base_url.rstrip("/")
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
         response = await self._client.get(
-            f"{base_url.rstrip('/')}/api/issues",
+            f"{base}/api/issues",
             params={
                 "query": query,
                 "fields": "idReadable,summary,resolved,created",
-                "$top": 50,
+                "$top": YOUTRACK_SAMPLE_TOP,
             },
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            headers=headers,
             follow_redirects=True,
             timeout=15.0,
         )
@@ -124,13 +130,38 @@ class YouTrackSourceFetcher:
             raise ValueError(YOUTRACK_NON_JSON_ERROR)
         if not isinstance(issues, list):
             raise ValueError(YOUTRACK_NON_JSON_ERROR)
-        header = f"Задач по запросу '{query}': {len(issues)}."
+        total = await self._count(base, headers, query, fallback=len(issues))
+        header = f"Задач по запросу '{query}': {total}."
         lines = [
             f"- {i.get('idReadable', '')} {i.get('summary', '')}".strip()
-            for i in issues[:20]
+            for i in issues[:YOUTRACK_LIST_LIMIT]
         ]
         text = "\n".join([header, *lines]).strip()
         return FetchedSource(content=text[:SOURCE_CONTENT_LIMIT])
+
+    async def _count(
+        self, base: str, headers: dict[str, str], query: str, *, fallback: int
+    ) -> int:
+        try:
+            response = await self._client.post(
+                f"{base}/api/issuesGetter/count",
+                params={"fields": "count"},
+                json={"query": query},
+                headers=headers,
+                follow_redirects=True,
+                timeout=15.0,
+            )
+            if not response.is_success:
+                return fallback
+            payload = response.json()
+        except (httpx.HTTPError, ValueError):
+            return fallback
+        if not isinstance(payload, dict):
+            return fallback
+        count = payload.get("count")
+        if isinstance(count, int) and count >= 0:
+            return count
+        return fallback
 
 
 def detect_kind(url: str) -> ContextSourceKind:

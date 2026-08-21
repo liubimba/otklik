@@ -23,6 +23,9 @@ def make_handler(recorded_requests, status_code=200, body=ISSUES):
         recorded_requests.append(request)
         if request.url.path == "/api/issues":
             return httpx.Response(status_code, json=body)
+        if request.url.path == "/api/issuesGetter/count":
+            count = len(body) if isinstance(body, list) else 0
+            return httpx.Response(200, json={"count": count})
         raise AssertionError(f"unexpected path {request.url.path}")
 
     return handler
@@ -41,10 +44,53 @@ async def test_fetch_composes_count_and_issue_lines_from_youtrack_api():
     assert "PRJ-2 Add dark mode" in result.content
     assert "PRJ-3 Improve onboarding" in result.content
 
-    assert len(recorded_requests) == 1
-    request = recorded_requests[0]
+    issues_requests = [r for r in recorded_requests if r.url.path == "/api/issues"]
+    count_requests = [
+        r for r in recorded_requests if r.url.path == "/api/issuesGetter/count"
+    ]
+    assert len(issues_requests) == 1
+    assert len(count_requests) == 1
+    request = issues_requests[0]
     assert request.headers["Authorization"] == "Bearer secret-token"
     assert request.url.params["query"] == "project: PRJ"
+
+
+async def test_fetch_reports_true_total_from_count_endpoint_not_page_length():
+    page = [{"idReadable": f"WCS-{i}", "summary": "x"} for i in range(20)]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/issues":
+            return httpx.Response(200, json=page)
+        if request.url.path == "/api/issuesGetter/count":
+            return httpx.Response(200, json={"count": 112})
+        raise AssertionError(f"unexpected path {request.url.path}")
+
+    fetcher = YouTrackSourceFetcher(client=make_client(handler))
+
+    result = await fetcher.fetch(
+        base_url="https://yt.example.com", token="secret-token", query="for: me"
+    )
+
+    assert "Задач по запросу 'for: me': 112." in result.content
+
+
+async def test_fetch_falls_back_to_fetched_count_when_count_endpoint_unavailable():
+    page = [{"idReadable": f"WCS-{i}", "summary": "x"} for i in range(7)]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/issues":
+            return httpx.Response(200, json=page)
+        if request.url.path == "/api/issuesGetter/count":
+            return httpx.Response(404, json={"error": "Not Found"})
+        raise AssertionError(f"unexpected path {request.url.path}")
+
+    fetcher = YouTrackSourceFetcher(client=make_client(handler))
+
+    result = await fetcher.fetch(
+        base_url="https://yt.example.com", token="secret-token", query="for: me"
+    )
+
+    assert "Задач по запросу 'for: me': 7." in result.content
 
 
 async def test_fetch_strips_trailing_slash_from_base_url():

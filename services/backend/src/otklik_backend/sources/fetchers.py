@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Protocol
 from urllib.parse import urlsplit
 
@@ -101,8 +102,7 @@ class GitHubSourceFetcher:
         return FetchedSource(content=content[:SOURCE_CONTENT_LIMIT])
 
 
-YOUTRACK_SAMPLE_TOP = 100
-YOUTRACK_LIST_LIMIT = 20
+YOUTRACK_EDGE_COUNT = 10
 
 
 class YouTrackSourceFetcher:
@@ -112,12 +112,32 @@ class YouTrackSourceFetcher:
     async def fetch(self, *, base_url: str, token: str, query: str) -> FetchedSource:
         base = base_url.rstrip("/")
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        earliest = await self._issues(base, headers, query, direction="asc")
+        recent = await self._issues(base, headers, query, direction="desc")
+        seen = {i.get("idReadable") for i in earliest}
+        recent_unique = [i for i in recent if i.get("idReadable") not in seen]
+        distinct = len(seen | {i.get("idReadable") for i in recent})
+        total = await self._count(base, headers, query, fallback=distinct)
+
+        sections = [f"Задач по запросу '{query}': {total}."]
+        if earliest:
+            sections.append("Самые ранние:")
+            sections.extend(self._line(i) for i in earliest)
+        if recent_unique:
+            sections.append("Недавние:")
+            sections.extend(self._line(i) for i in recent_unique)
+        text = "\n".join(sections).strip()
+        return FetchedSource(content=text[:SOURCE_CONTENT_LIMIT])
+
+    async def _issues(
+        self, base: str, headers: dict[str, str], query: str, *, direction: str
+    ) -> list[dict[str, object]]:
         response = await self._client.get(
             f"{base}/api/issues",
             params={
-                "query": query,
-                "fields": "idReadable,summary,resolved,created",
-                "$top": YOUTRACK_SAMPLE_TOP,
+                "query": f"{query} sort by: created {direction}",
+                "fields": "idReadable,summary,created",
+                "$top": YOUTRACK_EDGE_COUNT,
             },
             headers=headers,
             follow_redirects=True,
@@ -130,14 +150,18 @@ class YouTrackSourceFetcher:
             raise ValueError(YOUTRACK_NON_JSON_ERROR)
         if not isinstance(issues, list):
             raise ValueError(YOUTRACK_NON_JSON_ERROR)
-        total = await self._count(base, headers, query, fallback=len(issues))
-        header = f"Задач по запросу '{query}': {total}."
-        lines = [
-            f"- {i.get('idReadable', '')} {i.get('summary', '')}".strip()
-            for i in issues[:YOUTRACK_LIST_LIMIT]
-        ]
-        text = "\n".join([header, *lines]).strip()
-        return FetchedSource(content=text[:SOURCE_CONTENT_LIMIT])
+        return issues
+
+    @staticmethod
+    def _line(issue: dict[str, object]) -> str:
+        idr = str(issue.get("idReadable", ""))
+        summary = str(issue.get("summary", ""))
+        created = issue.get("created")
+        date = ""
+        if isinstance(created, (int, float)):
+            date = datetime.fromtimestamp(created / 1000, tz=UTC).strftime("%Y-%m-%d")
+        head = f"- {idr} ({date})" if date else f"- {idr}"
+        return f"{head} {summary}".strip()
 
     async def _count(
         self, base: str, headers: dict[str, str], query: str, *, fallback: int

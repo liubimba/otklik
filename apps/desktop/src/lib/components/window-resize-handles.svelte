@@ -1,16 +1,14 @@
 <script lang="ts">
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { platform } from "@tauri-apps/plugin-os";
+import { shell } from "$lib/shell";
+import type { ResizeDirection } from "$lib/shell-types";
 
-const isMac = platform() === "macos";
-const appWindow = getCurrentWindow();
-
-type ResizeDirection = Parameters<typeof appWindow.startResizeDragging>[0];
+const isMac = shell().platform === "darwin";
+const appWindow = shell().window;
 
 function resize(direction: ResizeDirection) {
 	return (e: MouseEvent) => {
 		if (e.button !== 0) return;
-		appWindow.startResizeDragging(direction);
+		appWindow.startResize(direction);
 	};
 }
 </script>

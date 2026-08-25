@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@tauri-apps/api/core", () => ({
-	invoke: () => Promise.resolve(8001),
-}));
-
 vi.mock("$lib/log", () => ({
 	getLogger: () => ({
 		debug: () => {},
@@ -63,6 +59,7 @@ beforeEach(() => {
 		"fetch",
 		vi.fn().mockResolvedValue(new Response("{}", { status: 200 })),
 	);
+	vi.stubGlobal("otklik", { getBackendPort: () => Promise.resolve(8001) });
 	FakeWebSocket.reset();
 	vi.stubGlobal("WebSocket", FakeWebSocket);
 	vi.useFakeTimers();

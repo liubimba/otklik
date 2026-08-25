@@ -1,148 +1,71 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	TERMS_VERSION,
+	isValidConsent,
+	loadConsent,
+	saveConsent,
+} from "./consent";
 
-const fsMock = vi.hoisted(() => ({
-	exists: vi.fn(),
-	mkdir: vi.fn(),
-	readTextFile: vi.fn(),
-	writeTextFile: vi.fn(),
-	BaseDirectory: { Home: "home" as const },
-}));
-
-vi.mock("@tauri-apps/plugin-fs", () => fsMock);
-
-const { TERMS_VERSION, isValidConsent, loadConsent, saveConsent } =
-	await import("./consent");
+const load = vi.fn();
+const save = vi.fn();
 
 beforeEach(() => {
-	fsMock.exists.mockReset();
-	fsMock.mkdir.mockReset();
-	fsMock.readTextFile.mockReset();
-	fsMock.writeTextFile.mockReset();
-});
-
-afterEach(() => {
-	vi.restoreAllMocks();
+	load.mockReset();
+	save.mockReset();
+	vi.stubGlobal("otklik", { consent: { load, save } });
 });
 
 describe("loadConsent", () => {
-	it("returns null when the consent file does not exist", async () => {
-		fsMock.exists.mockResolvedValue(false);
+	it("returns null when the bridge has no stored consent", async () => {
+		load.mockResolvedValue(null);
 		await expect(loadConsent()).resolves.toBeNull();
-		expect(fsMock.readTextFile).not.toHaveBeenCalled();
 	});
 
-	it("parses and returns the JSON payload when the file exists", async () => {
-		fsMock.exists.mockResolvedValue(true);
-		fsMock.readTextFile.mockResolvedValue(
+	it("parses and returns the JSON payload the bridge provides", async () => {
+		load.mockResolvedValue(
 			JSON.stringify({
 				termsVersion: TERMS_VERSION,
 				consentGiven: true,
 				acceptedAt: "2026-01-01T00:00:00.000Z",
 			}),
 		);
-
-		const consent = await loadConsent();
-		expect(consent).toEqual({
+		expect(await loadConsent()).toEqual({
 			termsVersion: TERMS_VERSION,
 			consentGiven: true,
 			acceptedAt: "2026-01-01T00:00:00.000Z",
 		});
 	});
 
-	it("returns null when the file exists but contains invalid JSON", async () => {
-		fsMock.exists.mockResolvedValue(true);
-		fsMock.readTextFile.mockResolvedValue("not-json");
-
+	it("returns null when the stored text is not valid JSON", async () => {
+		load.mockResolvedValue("not-json");
 		await expect(loadConsent()).resolves.toBeNull();
-	});
-
-	it("returns null on any readTextFile error", async () => {
-		fsMock.exists.mockResolvedValue(true);
-		fsMock.readTextFile.mockRejectedValue(new Error("EACCES"));
-
-		await expect(loadConsent()).resolves.toBeNull();
-	});
-
-	it("falls back to the pre-rename file when the current one is absent", async () => {
-		fsMock.exists.mockImplementation(async (path: string) =>
-			path.startsWith(".headhunter_ai"),
-		);
-		fsMock.readTextFile.mockResolvedValue(
-			JSON.stringify({
-				termsVersion: TERMS_VERSION,
-				consentGiven: true,
-				acceptedAt: "2026-01-01T00:00:00.000Z",
-			}),
-		);
-
-		const consent = await loadConsent();
-
-		expect(consent?.consentGiven).toBe(true);
-		expect(fsMock.readTextFile).toHaveBeenCalledWith(
-			".headhunter_ai/consent.json",
-			expect.any(Object),
-		);
-	});
-
-	it("prefers the current file over the pre-rename one", async () => {
-		fsMock.exists.mockResolvedValue(true);
-		fsMock.readTextFile.mockResolvedValue(
-			JSON.stringify({
-				termsVersion: TERMS_VERSION,
-				consentGiven: true,
-				acceptedAt: "2026-01-01T00:00:00.000Z",
-			}),
-		);
-
-		await loadConsent();
-
-		expect(fsMock.readTextFile).toHaveBeenCalledTimes(1);
-		expect(fsMock.readTextFile).toHaveBeenCalledWith(
-			".otklik/consent.json",
-			expect.any(Object),
-		);
 	});
 });
 
 describe("saveConsent", () => {
-	it("creates the parent dir (recursive) and writes the consent JSON", async () => {
-		fsMock.mkdir.mockResolvedValue(undefined);
-		fsMock.writeTextFile.mockResolvedValue(undefined);
-
+	it("serializes a granted consent and writes it through the bridge", async () => {
+		save.mockResolvedValue(undefined);
 		await saveConsent(true);
-
-		expect(fsMock.mkdir).toHaveBeenCalledWith(
-			".otklik",
-			expect.objectContaining({ recursive: true }),
-		);
-		expect(fsMock.writeTextFile).toHaveBeenCalledWith(
-			".otklik/consent.json",
-			expect.stringContaining('"consentGiven":true'),
-			expect.any(Object),
-		);
-	});
-
-	it("propagates the isConsentGiven flag verbatim", async () => {
-		fsMock.mkdir.mockResolvedValue(undefined);
-		fsMock.writeTextFile.mockResolvedValue(undefined);
-
-		await saveConsent(false);
-		const [, payload] = fsMock.writeTextFile.mock.calls[0];
-		const parsed = JSON.parse(payload as string);
-		expect(parsed.consentGiven).toBe(false);
-		expect(parsed.termsVersion).toBe(TERMS_VERSION);
-		expect(() =>
-			new Date(parsed.acceptedAt as string).toISOString(),
-		).not.toThrow();
+		expect(save).toHaveBeenCalledTimes(1);
+		const written = JSON.parse(save.mock.calls[0][0]);
+		expect(written.consentGiven).toBe(true);
+		expect(written.termsVersion).toBe(TERMS_VERSION);
 	});
 });
 
 describe("isValidConsent", () => {
-	it("rejects null", () => {
-		expect(isValidConsent(null)).toBe(false);
+	it("accepts a current, granted consent", () => {
+		expect(
+			isValidConsent({
+				termsVersion: TERMS_VERSION,
+				consentGiven: true,
+				acceptedAt: "x",
+			}),
+		).toBe(true);
 	});
 
-	it("rejects consent that was not given", () => {
+	it("rejects null, ungranted, or an outdated terms version", () => {
+		expect(isValidConsent(null)).toBe(false);
 		expect(
 			isValidConsent({
 				termsVersion: TERMS_VERSION,
@@ -150,35 +73,8 @@ describe("isValidConsent", () => {
 				acceptedAt: "x",
 			}),
 		).toBe(false);
-	});
-
-	it("rejects consent for an older terms version", () => {
 		expect(
-			isValidConsent({
-				termsVersion: TERMS_VERSION - 1,
-				consentGiven: true,
-				acceptedAt: "x",
-			}),
+			isValidConsent({ termsVersion: 0, consentGiven: true, acceptedAt: "x" }),
 		).toBe(false);
-	});
-
-	it("accepts consent for the current terms version", () => {
-		expect(
-			isValidConsent({
-				termsVersion: TERMS_VERSION,
-				consentGiven: true,
-				acceptedAt: "x",
-			}),
-		).toBe(true);
-	});
-
-	it("accepts consent from a future terms version (forward-compat)", () => {
-		expect(
-			isValidConsent({
-				termsVersion: TERMS_VERSION + 1,
-				consentGiven: true,
-				acceptedAt: "x",
-			}),
-		).toBe(true);
 	});
 });

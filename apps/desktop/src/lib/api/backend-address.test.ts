@@ -1,37 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const invoke = vi.fn();
-vi.mock("@tauri-apps/api/core", () => ({
-	invoke: (cmd: string) => invoke(cmd),
-}));
-
 import { backendOrigin, resetBackendAddress } from "./backend-address";
+
+const getBackendPort = vi.fn();
 
 const ok = () => new Response("{}", { status: 200 });
 
 describe("backendOrigin", () => {
 	beforeEach(() => {
-		invoke.mockReset();
+		getBackendPort.mockReset();
 		resetBackendAddress();
 		vi.restoreAllMocks();
-		invoke.mockResolvedValue(45678);
+		getBackendPort.mockResolvedValue(45678);
+		vi.stubGlobal("otklik", { getBackendPort });
 		vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok()));
 	});
 
-	it("собирает адрес из порта, который выдал Tauri", async () => {
+	it("собирает адрес из порта, который выдал шелл", async () => {
 		expect(await backendOrigin()).toBe("127.0.0.1:45678");
 	});
 
 	it("спрашивает порт один раз и кэширует", async () => {
 		await backendOrigin();
 		await backendOrigin();
-		expect(invoke).toHaveBeenCalledTimes(1);
+		expect(getBackendPort).toHaveBeenCalledTimes(1);
 	});
 
 	it("не кэширует неудачу — следующий вызов спросит снова", async () => {
-		invoke.mockRejectedValueOnce(new Error("no backend"));
+		getBackendPort.mockRejectedValueOnce(new Error("no backend"));
 		await expect(backendOrigin()).rejects.toThrow();
-		invoke.mockResolvedValue(45678);
+		getBackendPort.mockResolvedValue(45678);
 		expect(await backendOrigin()).toBe("127.0.0.1:45678");
 	});
 

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { shell } from "$lib/shell";
 
 const READY_TIMEOUT_MS = 90_000;
 const READY_POLL_MS = 250;
@@ -34,7 +34,8 @@ async function waitUntilReady(origin: string): Promise<string> {
 
 export function backendOrigin(): Promise<string> {
 	if (cached === null) {
-		cached = invoke<number>("get_backend_port")
+		cached = shell()
+			.getBackendPort()
 			.then((port) => waitUntilReady(`127.0.0.1:${port}`))
 			.catch((e) => {
 				cached = null;

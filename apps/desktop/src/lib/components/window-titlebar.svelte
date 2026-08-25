@@ -1,32 +1,25 @@
 <script lang="ts">
 import AppMark from "$lib/components/app-mark.svelte";
 import * as m from "$lib/paraglide/messages";
+import { shell } from "$lib/shell";
 import Copy from "@lucide/svelte/icons/copy";
 import Minus from "@lucide/svelte/icons/minus";
 import Square from "@lucide/svelte/icons/square";
 import X from "@lucide/svelte/icons/x";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { platform } from "@tauri-apps/plugin-os";
 import { onMount } from "svelte";
 
-const isMac = platform() === "macos";
-
-const appWindow = getCurrentWindow();
+const appWindow = shell().window;
+const isMac = shell().platform === "darwin";
 let maximized = $state(false);
 
 onMount(() => {
 	if (isMac) return;
-	let unlisten: (() => void) | undefined;
-	const sync = () => {
-		appWindow.isMaximized().then((v) => {
-			maximized = v;
-		});
-	};
-	sync();
-	appWindow.onResized(sync).then((fn) => {
-		unlisten = fn;
+	appWindow.isMaximized().then((v) => {
+		maximized = v;
 	});
-	return () => unlisten?.();
+	return appWindow.onMaximizeChange((v) => {
+		maximized = v;
+	});
 });
 
 const controlClass =
@@ -35,7 +28,7 @@ const controlClass =
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	data-tauri-drag-region
+	style="-webkit-app-region: drag"
 	ondblclick={isMac ? undefined : () => appWindow.toggleMaximize()}
 	class="bg-background flex h-9 shrink-0 items-center justify-between border-b select-none"
 >
@@ -49,7 +42,7 @@ const controlClass =
 	</div>
 
 	{#if !isMac}
-		<div class="flex items-center">
+		<div class="flex items-center" style="-webkit-app-region: no-drag">
 			<button
 				type="button"
 				onclick={() => appWindow.minimize()}

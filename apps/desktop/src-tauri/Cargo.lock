@@ -2638,7 +2638,7 @@ dependencies = [
 
 [[package]]
 name = "otklik"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "serde",
  "serde_json",

@@ -24,8 +24,9 @@ async def _seed_legacy_row(
             text(
                 "INSERT INTO settings (id, letter_style, resume_text, max_pages,"
                 " max_vacancies, daily_limit, hourly_limit, min_delay_ms,"
-                " delay_jitter_ms, auto_submit, llm_deployments, llm_system_prompt)"
-                " VALUES (1, '', '', 5, 50, 30, 5, 800, 400, 0, :deployments, NULL)"
+                " delay_jitter_ms, auto_generate, auto_submit, llm_deployments,"
+                " llm_system_prompt)"
+                " VALUES (1, '', '', 5, 50, 30, 5, 800, 400, 0, 0, :deployments, NULL)"
             ),
             {"deployments": json.dumps(entries)},
         )

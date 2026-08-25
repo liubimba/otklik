@@ -91,6 +91,7 @@ class SettingsORM(Base):
     min_delay_ms: Mapped[int]
     delay_jitter_ms: Mapped[int]
 
+    auto_generate: Mapped[bool] = mapped_column(default=False)
     auto_submit: Mapped[bool] = mapped_column(default=False)
 
     llm_deployments: Mapped[list[LLMDeployment]] = mapped_column(

@@ -228,6 +228,7 @@ class LLMSettingsWriteAPISchema(BaseModel):
 
 
 class UserSettingsAPISchema(BaseModel):
+    auto_generate: bool = False
     auto_submit: bool = False
 
 

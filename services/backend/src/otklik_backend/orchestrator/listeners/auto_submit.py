@@ -61,7 +61,7 @@ class AutoSubmitListener:
     ) -> None:
         async with self._session_maker() as session:
             settings = await SettingsRepository.get(session=session)
-            if not settings.auto_submit:
+            if not (settings.auto_submit and settings.auto_generate):
                 return
             if self._letter_sending_worker.is_paused():
                 self._log.info(
@@ -78,7 +78,7 @@ class AutoSubmitListener:
 
     async def recover(self, session: AsyncSession) -> int:
         settings = await SettingsRepository.get(session=session)
-        if not settings.auto_submit:
+        if not (settings.auto_submit and settings.auto_generate):
             return 0
         if self._letter_sending_worker.is_paused():
             self._log.info(

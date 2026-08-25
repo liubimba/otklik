@@ -51,7 +51,7 @@ class AutoApplyListener:
     async def _process(self, event: VacancyWSEvent) -> None:
         async with self._session_maker() as session:
             settings: SettingsORM = await SettingsRepository.get(session=session)
-            if not settings.auto_submit:
+            if not settings.auto_generate:
                 return
             vacancy_orm: VacancyORM | None = await VacancyRepository.get_by_apply_link(
                 session=session, apply_link=event.data.apply_link

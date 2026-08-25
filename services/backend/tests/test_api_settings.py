@@ -29,6 +29,20 @@ def test_settings_get_never_returns_api_key(client, fake_secret_store):
     assert payload["llm"]["deployments"][0]["has_api_key"] is True
 
 
+def test_settings_auto_generate_roundtrips(client):
+    body = SettingsAPISchema.model_validate(
+        client.get("/api/v1/settings").json()
+    ).model_dump(mode="json")
+    body["user"]["auto_generate"] = True
+    body["user"]["auto_submit"] = False
+    put_response = client.put("/api/v1/settings", json=body)
+    assert put_response.status_code == 200
+
+    got = SettingsAPISchema.model_validate(client.get("/api/v1/settings").json())
+    assert got.user.auto_generate is True
+    assert got.user.auto_submit is False
+
+
 def test_settings_update(client):
     response: Response = client.get("/api/v1/settings")
     assert response.status_code == 200

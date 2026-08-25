@@ -234,7 +234,7 @@ export type LLMSettings = {
 
 export type Settings = {
 	search: { max_pages: number; max_vacancies: number };
-	user: { auto_submit: boolean };
+	user: { auto_generate: boolean; auto_submit: boolean };
 	rate_limits: {
 		daily_limit: number;
 		hourly_limit: number;

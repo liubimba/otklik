@@ -17,7 +17,7 @@ describe("settingsFormSchema — defaults", () => {
 
 		expect(parsed).toEqual({
 			search: { max_pages: 5, max_vacancies: 50 },
-			user: { auto_submit: false },
+			user: { auto_generate: false, auto_submit: false },
 			rate_limits: {
 				daily_limit: 30,
 				hourly_limit: 5,

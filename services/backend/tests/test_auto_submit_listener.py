@@ -33,6 +33,7 @@ async def _enable_auto_submit(
 ) -> None:
     async with session_factory() as session:
         settings: SettingsORM = await SettingsRepository.get(session=session)
+        settings.auto_generate = True
         settings.auto_submit = True
         await SettingsRepository.update(session=session, new_settings=settings)
 
@@ -139,3 +140,46 @@ async def test_auto_submit_fires_when_worker_is_running(
         )
         assert application is not None
         assert application.status == ProcessingState.LETTER_QUEUED
+
+
+async def test_auto_submit_does_not_fire_when_auto_generate_is_off(
+    session_factory: async_sessionmaker[AsyncSession],
+    fake_orchestrator: LetterSendingWorker,
+    vacancy_model: VacancyAPISchema,
+    recording_broadcaster: EventBroadcaster,
+    fake_state_service: StateTransitionService,
+) -> None:
+    async with session_factory() as session:
+        settings: SettingsORM = await SettingsRepository.get(session=session)
+        settings.auto_submit = True
+        settings.auto_generate = False
+        await SettingsRepository.update(session=session, new_settings=settings)
+    _, application_id = await _seed_letter_ready(session_factory, vacancy_model)
+
+    listener = AutoSubmitListener(
+        state_service=fake_state_service,
+        session_maker=session_factory,
+        broadcaster=recording_broadcaster,
+        letter_sending_worker=fake_orchestrator,
+    )
+    listener.start()
+    assert not fake_orchestrator.is_paused()
+
+    await recording_broadcaster.publish(
+        event=ApplicationWSEvent(
+            data=ApplicationData(
+                vacancy_id=1,
+                application_id=application_id,
+                status=ProcessingState.LETTER_READY,
+                reason=None,
+            )
+        )
+    )
+    await _drain(recording_broadcaster)
+
+    async with session_factory() as session:
+        application = await ApplicationRepository.get_by_id(
+            session=session, application_id=application_id
+        )
+        assert application is not None
+        assert application.status == ProcessingState.LETTER_READY

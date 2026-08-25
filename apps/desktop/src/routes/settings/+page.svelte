@@ -143,6 +143,23 @@ $effect(() => {
                         </Form.Control>
                         <Form.FieldErrors/>
                     </Form.Field>
+                    <Form.Field {form} name="user.auto_generate">
+                        <Form.Control>
+                            {#snippet children({props})}
+                                <Form.Label
+                                >{m.settings_user_auto_generate()}</Form.Label
+                                >
+                                <Form.Description
+                                >{m.settings_user_auto_generate_hint()}</Form.Description
+                                >
+                                <Switch
+                                        {...props}
+                                        bind:checked={$formData.user.auto_generate}
+                                />
+                            {/snippet}
+                        </Form.Control>
+                        <Form.FieldErrors/>
+                    </Form.Field>
                     <Form.Field {form} name="user.auto_submit">
                         <Form.Control>
                             {#snippet children({props})}
@@ -154,6 +171,7 @@ $effect(() => {
                                 >
                                 <Switch
                                         {...props}
+                                        disabled={!$formData.user.auto_generate}
                                         bind:checked={$formData.user.auto_submit}
                                 />
                             {/snippet}

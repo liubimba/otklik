@@ -19,6 +19,7 @@ export const settingsFormSchema = z.object({
 		max_vacancies: positiveInt.default(50),
 	}),
 	user: z.object({
+		auto_generate: z.boolean().default(false),
 		auto_submit: z.boolean().default(false),
 	}),
 	rate_limits: z.object({

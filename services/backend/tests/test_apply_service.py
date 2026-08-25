@@ -25,6 +25,7 @@ async def _enable_auto_submit(
 ) -> None:
     async with session_factory() as session:
         settings: SettingsORM = await SettingsRepository.get(session=session)
+        settings.auto_generate = True
         settings.auto_submit = True
         await SettingsRepository.update(session=session, new_settings=settings)
 

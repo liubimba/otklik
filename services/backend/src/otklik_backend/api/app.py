@@ -28,6 +28,8 @@ from otklik_backend.log import configure_logging, get_logger
 logger = get_logger(__name__)
 
 ALLOWED_ORIGINS = [
+    "app://bundle",
+    "http://localhost:5173",
     "http://localhost:1420",
     "tauri://localhost",
     "http://tauri.localhost",

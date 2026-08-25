@@ -82,7 +82,10 @@ export default defineConfig(
 			},
 
 			test: {
-				include: ["src/**/*.{test,spec}.{js,ts}"],
+				include: [
+					"src/**/*.{test,spec}.{js,ts}",
+					"electron/**/*.{test,spec}.{js,ts}",
+				],
 				exclude: ["src-tauri/**", "node_modules/**"],
 				environment: "jsdom",
 				setupFiles: ["./src/lib/test-setup.ts"],

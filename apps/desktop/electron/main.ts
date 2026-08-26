@@ -3,9 +3,28 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { BrowserWindow, app, ipcMain, shell } from "electron";
 import log from "electron-log";
+import { autoUpdater } from "electron-updater";
 import { freePort } from "./free-port";
 import { APP_URL, registerAppSchemePrivileged, serveApp } from "./protocol";
 import { Sidecar } from "./sidecar";
+
+autoUpdater.autoDownload = false;
+autoUpdater.logger = log;
+
+const NO_FEED =
+	/latest.*\.yml|404|cannot find|enotfound|net::|dev-app-update|no published/i;
+
+function releaseBody(notes: unknown): string | undefined {
+	if (typeof notes === "string") {
+		return notes;
+	}
+	if (Array.isArray(notes)) {
+		return notes
+			.map((note) => (typeof note === "string" ? note : (note?.note ?? "")))
+			.join("\n");
+	}
+	return undefined;
+}
 
 const devUrl = process.env.ELECTRON_RENDERER_URL;
 const shotPath = process.env.ELECTRON_SHOT;
@@ -145,6 +164,31 @@ ipcMain.on("log", (_event, level: string, message: string) => {
 		error: log.error,
 	};
 	(levels[level] ?? log.info)(message);
+});
+
+ipcMain.handle("updater:check", async () => {
+	try {
+		const result = await autoUpdater.checkForUpdates();
+		if (result?.isUpdateAvailable && result.updateInfo) {
+			return {
+				version: result.updateInfo.version,
+				body: releaseBody(result.updateInfo.releaseNotes),
+			};
+		}
+		return null;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (NO_FEED.test(message)) {
+			log.info(`updater: no feed yet (${message})`);
+			return null;
+		}
+		throw error;
+	}
+});
+ipcMain.handle("updater:install", async () => {
+	await autoUpdater.downloadUpdate();
+	sidecar.kill();
+	autoUpdater.quitAndInstall();
 });
 
 app.on("before-quit", () => {

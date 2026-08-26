@@ -24,6 +24,16 @@ export interface ConsentBridge {
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
+export interface UpdateInfo {
+	version: string;
+	body?: string;
+}
+
+export interface UpdaterBridge {
+	check(): Promise<UpdateInfo | null>;
+	install(): Promise<void>;
+}
+
 export interface OtklikBridge {
 	getBackendPort(): Promise<number>;
 	platform: string;
@@ -33,4 +43,5 @@ export interface OtklikBridge {
 	appVersion(): Promise<string>;
 	log(level: LogLevel, message: string): void;
 	onBackendExit(handler: (detail?: string) => void): () => void;
+	updater: UpdaterBridge;
 }

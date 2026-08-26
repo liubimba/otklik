@@ -98,5 +98,9 @@ Object.assign(globalThis, {
 		appVersion: () => Promise.resolve("0.0.0-test"),
 		log: () => {},
 		onBackendExit: () => () => {},
+		updater: {
+			check: () => Promise.resolve(null),
+			install: () => Promise.resolve(),
+		},
 	},
 });

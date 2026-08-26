@@ -40,4 +40,8 @@ contextBridge.exposeInMainWorld("otklik", {
 			ipcRenderer.removeListener("backend-exited", listener);
 		};
 	},
+	updater: {
+		check: () => ipcRenderer.invoke("updater:check"),
+		install: (): Promise<void> => ipcRenderer.invoke("updater:install"),
+	},
 });

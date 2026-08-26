@@ -1,7 +1,9 @@
 {
 	"name": "desktop",
 	"version": "0.5.0",
-	"description": "",
+	"description": "Otklik — automated job applications with AI cover letters",
+	"homepage": "https://github.com/liubimba/otklik",
+	"author": "liubimba",
 	"type": "module",
 	"main": "dist-electron/main.cjs",
 	"scripts": {
@@ -10,6 +12,7 @@
 		"preview": "vite preview",
 		"electron:compile": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --format=cjs --external:electron --outdir=dist-electron --out-extension:.js=.cjs",
 		"electron:dev": "pnpm electron:compile && electron --no-sandbox dist-electron/main.cjs",
+		"electron:dist": "pnpm build && pnpm electron:compile && electron-builder",
 		"paraglide:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide",
 		"check": "pnpm paraglide:compile && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "pnpm paraglide:compile && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

@@ -1,0 +1,28 @@
+appId: ai.otklik.app
+productName: Otklik
+directories:
+  output: release
+  buildResources: build-resources
+files:
+  - dist-electron/**/*
+  - build/**/*
+extraResources:
+  - from: ../../services/backend/dist/backend
+    to: backend
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  maintainer: liubimba
+  executableName: otklik
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+publish:
+  provider: github
+  owner: liubimba
+  repo: otklik

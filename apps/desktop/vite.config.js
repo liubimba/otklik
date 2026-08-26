@@ -72,9 +72,6 @@ export default defineConfig(
 							port: 1421,
 						}
 					: undefined,
-				watch: {
-					ignored: ["**/src-tauri/**"],
-				},
 			},
 
 			resolve: {
@@ -86,7 +83,7 @@ export default defineConfig(
 					"src/**/*.{test,spec}.{js,ts}",
 					"electron/**/*.{test,spec}.{js,ts}",
 				],
-				exclude: ["src-tauri/**", "node_modules/**"],
+				exclude: ["node_modules/**"],
 				environment: "jsdom",
 				setupFiles: ["./src/lib/test-setup.ts"],
 				alias: [{ find: /^bits-ui$/, replacement: bitsUiTestShimId }],

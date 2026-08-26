@@ -1,11 +1,11 @@
 import { getLogger } from "$lib/log";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { shell } from "$lib/shell";
 
 const logger = getLogger("openExternal");
 
 export async function openExternal(url: string): Promise<void> {
 	try {
-		await openUrl(url);
+		await shell().openExternal(url);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		logger.error(`Failed to open ${url}: ${message}`);

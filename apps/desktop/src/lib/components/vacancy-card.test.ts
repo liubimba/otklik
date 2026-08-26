@@ -16,9 +16,6 @@ vi.mock("$lib/queries/applications", () => ({
 }));
 
 const openUrl = vi.fn();
-vi.mock("@tauri-apps/plugin-opener", () => ({
-	openUrl: (url: string) => openUrl(url),
-}));
 
 import VacancyCard from "./vacancy-card.svelte";
 
@@ -85,6 +82,7 @@ describe("<VacancyCard>", () => {
 	it("opens the vacancy URL in the system browser, not via a dead anchor", async () => {
 		openUrl.mockReset();
 		openUrl.mockResolvedValue(undefined);
+		vi.stubGlobal("otklik", { openExternal: openUrl });
 		render(VacancyCard, {
 			vacancy: vacancy({ apply_link: "https://hh.ru/vacancy/42" }),
 		});
@@ -111,6 +109,7 @@ describe("<VacancyCard>", () => {
 	it("clicking the external link does NOT propagate to the card handler", async () => {
 		openUrl.mockReset();
 		openUrl.mockResolvedValue(undefined);
+		vi.stubGlobal("otklik", { openExternal: openUrl });
 		const onclick = vi.fn();
 		render(VacancyCard, { vacancy: vacancy(), onclick });
 

@@ -10,32 +10,36 @@ import {
 	DialogTitle,
 } from "$lib/components/ui/dialog";
 import { saveConsent } from "$lib/consent";
+import { getLogger } from "$lib/log";
 import * as m from "$lib/paraglide/messages";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { error, info } from "@tauri-apps/plugin-log";
+import { shell } from "$lib/shell";
+
+const logger = getLogger("onboarding");
 
 let saving = $state(false);
 let saveError = $state<string | null>(null);
 
 async function accept() {
-	info("User accepted the consent dialog");
+	logger.info("User accepted the consent dialog");
 	saving = true;
 	saveError = null;
 	try {
-		info("Saving user consent...");
+		logger.info("Saving user consent...");
 		await saveConsent(true);
-		info("Consent saved successfully. Navigating to the browser setup step.");
+		logger.info(
+			"Consent saved successfully. Navigating to the browser setup step.",
+		);
 		await goto("/onboarding/browser");
 	} catch (err) {
-		error(`Error saving consent: ${err}`);
+		logger.error(`Error saving consent: ${err}`);
 		saveError = err instanceof Error ? err.message : String(err);
 	}
 	saving = false;
 }
 
-async function decline() {
-	error("User declined the consent dialog. Closing current window");
-	await getCurrentWindow().close();
+function decline() {
+	logger.error("User declined the consent dialog. Closing current window");
+	shell().window.close();
 }
 
 function handleOpenChange(open: boolean) {

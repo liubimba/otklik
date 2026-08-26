@@ -3,10 +3,7 @@ import { userEvent } from "@testing-library/user-event";
 import { createRawSnippet } from "svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const openUrl = vi.fn();
-vi.mock("@tauri-apps/plugin-opener", () => ({
-	openUrl: (url: string) => openUrl(url),
-}));
+const openExternalSpy = vi.fn();
 
 import ExternalLinkButton from "./external-link-button.svelte";
 
@@ -14,8 +11,9 @@ const label = createRawSnippet(() => ({ render: () => "<span>open</span>" }));
 
 describe("<ExternalLinkButton>", () => {
 	beforeEach(() => {
-		openUrl.mockReset();
-		openUrl.mockResolvedValue(undefined);
+		openExternalSpy.mockReset();
+		openExternalSpy.mockResolvedValue(undefined);
+		vi.stubGlobal("otklik", { openExternal: openExternalSpy });
 	});
 
 	it("opens the href in the system browser on click", async () => {
@@ -27,6 +25,8 @@ describe("<ExternalLinkButton>", () => {
 
 		await userEvent.setup().click(screen.getByRole("button", { name: "open" }));
 
-		expect(openUrl).toHaveBeenCalledWith("https://console.groq.com/keys");
+		expect(openExternalSpy).toHaveBeenCalledWith(
+			"https://console.groq.com/keys",
+		);
 	});
 });

@@ -57,7 +57,7 @@ onMount(() => {
 	});
 	return () => {
 		listener.close();
-		void unlistenExit.then((off) => off());
+		unlistenExit();
 	};
 });
 

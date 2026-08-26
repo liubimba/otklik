@@ -22,9 +22,15 @@ export interface ConsentBridge {
 	save(text: string): Promise<void>;
 }
 
+export type LogLevel = "debug" | "info" | "warn" | "error";
+
 export interface OtklikBridge {
 	getBackendPort(): Promise<number>;
 	platform: string;
 	window: WindowBridge;
 	consent: ConsentBridge;
+	openExternal(url: string): Promise<void>;
+	appVersion(): Promise<string>;
+	log(level: LogLevel, message: string): void;
+	onBackendExit(handler: (detail?: string) => void): () => void;
 }

@@ -11,11 +11,6 @@ vi.mock("$lib/consent", () => ({
 }));
 
 const closeWindow = vi.fn();
-vi.mock("@tauri-apps/api/window", () => ({
-	getCurrentWindow: () => ({ close: () => closeWindow() }),
-}));
-
-vi.mock("@tauri-apps/plugin-log", () => ({ info: vi.fn(), error: vi.fn() }));
 
 import * as m from "$lib/paraglide/messages";
 import ConsentPage from "./+page.svelte";
@@ -25,6 +20,10 @@ describe("<onboarding> consent gate", () => {
 		goto.mockReset();
 		saveConsent.mockReset();
 		closeWindow.mockReset();
+		vi.stubGlobal("otklik", {
+			window: { close: closeWindow },
+			log: () => {},
+		});
 	});
 
 	it("Escape не закрывает окно — согласие это жёсткий гейт, а не попап", async () => {

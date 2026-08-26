@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { BrowserWindow, app, ipcMain } from "electron";
+import { BrowserWindow, app, ipcMain, shell } from "electron";
+import log from "electron-log";
 import { freePort } from "./free-port";
 import { APP_URL, registerAppSchemePrivileged, serveApp } from "./protocol";
 import { Sidecar } from "./sidecar";
@@ -86,9 +87,10 @@ function createWindow(): void {
 app.whenReady().then(async () => {
 	serveApp(rendererRoot);
 	backendPort = await freePort();
-	console.log("[main] backend port", backendPort, "bin", backendBinPath());
+	log.info(`backend spawning on port ${backendPort}`);
 	sidecar.onExit((exit) => {
-		console.log("[main] backend exited", exit.code, exit.stderr.slice(-800));
+		log.error(`backend exited code=${exit.code}`);
+		mainWindow?.webContents.send("backend-exited", exit);
 	});
 	sidecar.start(backendBinPath(), backendPort);
 	createWindow();
@@ -129,6 +131,20 @@ ipcMain.handle("consent:load", async () => {
 ipcMain.handle("consent:save", async (_event, text: string) => {
 	await mkdir(join(homedir(), ".otklik"), { recursive: true });
 	await writeFile(consentPath, text, "utf-8");
+});
+
+ipcMain.handle("open-external", (_event, url: string) =>
+	shell.openExternal(url),
+);
+ipcMain.handle("app-version", () => app.getVersion());
+ipcMain.on("log", (_event, level: string, message: string) => {
+	const levels: Record<string, (msg: string) => void> = {
+		debug: log.debug,
+		info: log.info,
+		warn: log.warn,
+		error: log.error,
+	};
+	(levels[level] ?? log.info)(message);
 });
 
 app.on("before-quit", () => {

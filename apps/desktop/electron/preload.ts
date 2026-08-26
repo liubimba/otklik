@@ -25,4 +25,19 @@ contextBridge.exposeInMainWorld("otklik", {
 		save: (text: string): Promise<void> =>
 			ipcRenderer.invoke("consent:save", text),
 	},
+	openExternal: (url: string): Promise<void> =>
+		ipcRenderer.invoke("open-external", url),
+	appVersion: (): Promise<string> => ipcRenderer.invoke("app-version"),
+	log: (level: string, message: string) =>
+		ipcRenderer.send("log", level, message),
+	onBackendExit: (handler: (detail?: string) => void): (() => void) => {
+		const listener = (
+			_event: IpcRendererEvent,
+			payload: { code: number | null; stderr: string },
+		): void => handler(payload.stderr || undefined);
+		ipcRenderer.on("backend-exited", listener);
+		return () => {
+			ipcRenderer.removeListener("backend-exited", listener);
+		};
+	},
 });

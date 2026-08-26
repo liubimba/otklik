@@ -77,3 +77,26 @@ if (typeof window !== "undefined" && !window.IntersectionObserver) {
 		}
 	} as unknown as typeof IntersectionObserver;
 }
+
+Object.assign(globalThis, {
+	otklik: {
+		getBackendPort: () => Promise.resolve(8001),
+		platform: "linux",
+		window: {
+			minimize() {},
+			toggleMaximize() {},
+			close() {},
+			isMaximized: () => Promise.resolve(false),
+			onMaximizeChange: () => () => {},
+			startResize() {},
+		},
+		consent: {
+			load: () => Promise.resolve(null),
+			save: () => Promise.resolve(),
+		},
+		openExternal: () => Promise.resolve(),
+		appVersion: () => Promise.resolve("0.0.0-test"),
+		log: () => {},
+		onBackendExit: () => () => {},
+	},
+});

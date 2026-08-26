@@ -3,18 +3,18 @@ import AppMark from "$lib/components/app-mark.svelte";
 import { Badge } from "$lib/components/ui/badge";
 import { Button } from "$lib/components/ui/button";
 import * as m from "$lib/paraglide/messages";
+import { shell } from "$lib/shell";
 import { updater } from "$lib/stores/updater.svelte";
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import { getVersion } from "@tauri-apps/api/app";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
 
 let version = $state("");
 onMount(async () => {
 	try {
-		version = await getVersion();
+		version = await shell().appVersion();
 	} catch {
 		version = "";
 	}

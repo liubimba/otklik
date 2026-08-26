@@ -93,21 +93,11 @@ jobs:
             echo "No backend tests yet — skipping pytest"
           fi
 
-  tauri:
-    name: tauri (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+  electron:
+    name: electron build
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: services/backend/uv.lock
-      - name: Build backend sidecar
-        run: cd services/backend && uv sync && ./scripts/build_sidecar.sh
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -115,44 +105,12 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: apps/desktop/src-tauri
-      - name: Install Linux Tauri deps
-        if: matrix.os == 'ubuntu-latest'
-        env:
-          DEBIAN_FRONTEND: noninteractive
-          NEEDRESTART_MODE: a
-        run: |
-          sudo apt-get update -o Acquire::Retries=3
-          sudo apt-get install -y -o Acquire::Retries=3 \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libfuse2 \
-            file
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
-      - name: cargo fmt --check
-        working-directory: apps/desktop/src-tauri
-        run: cargo fmt --all -- --check
-      - name: cargo clippy
-        working-directory: apps/desktop/src-tauri
-        run: cargo clippy --all-targets --all-features -- -D warnings
-      - name: cargo test
-        working-directory: apps/desktop/src-tauri
-        run: cargo test --all-features
-      # --no-bundle: compile the app and frontend, but skip bundling. Bundling
-      # would emit updater artifacts (bundle.createUpdaterArtifacts), which must
-      # be signed — and the signing key belongs to release.yml, not to every CI
-      # run. CI only needs to prove the thing builds.
-      - name: tauri build
-        working-directory: apps/desktop
-        run: pnpm exec tauri build --no-bundle
+      - name: Compile electron main and preload
+        run: pnpm --filter desktop electron:compile
+      - name: Build renderer
+        run: pnpm --filter desktop build
 
   sidecar:
     name: sidecar smoke (built artifact)
@@ -169,7 +127,7 @@ jobs:
         run: cd services/backend && ./scripts/build_sidecar.sh
       - name: Built backend must answer /health
         run: |
-          ./apps/desktop/src-tauri/resources/backend/otklik-backend --port 18123 &
+          ./services/backend/dist/backend/otklik-backend --port 18123 &
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:18123/api/v1/system/health; then
               echo "sidecar OK"
@@ -182,7 +140,7 @@ jobs:
       - name: Built backend must create the schema on a clean profile
         run: |
           rm -rf "$HOME/.otklik"
-          ./apps/desktop/src-tauri/resources/backend/otklik-backend --port 18124 &
+          ./services/backend/dist/backend/otklik-backend --port 18124 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:18124/api/v1/system/health && break
             sleep 2
@@ -203,7 +161,7 @@ jobs:
       - name: Chromium download must actually start
         run: |
           rm -rf "$HOME/.otklik"
-          ./apps/desktop/src-tauri/resources/backend/otklik-backend --port 18125 &
+          ./services/backend/dist/backend/otklik-backend --port 18125 &
           BACKEND=$!
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:18125/api/v1/system/health && break

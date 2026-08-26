@@ -1,10 +1,5 @@
 name: Release
 
-# Cut a release by bumping the version (tauri.conf.json + package.json +
-# Cargo.toml) and pushing a matching tag:  git tag v0.1.1 && git push --tags
-# tauri-action builds, signs (ed25519), and publishes the bundles plus the
-# updater manifest (latest.json) to a GitHub Release. The running app checks
-# https://github.com/liubimba/otklik/releases/latest/download/latest.json
 on:
   push:
     tags:
@@ -36,26 +31,14 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: apps/desktop/src-tauri
-
-      - name: Install Linux Tauri deps
+      - name: Install Linux packaging deps
         if: matrix.os == 'ubuntu-latest'
         env:
           DEBIAN_FRONTEND: noninteractive
           NEEDRESTART_MODE: a
         run: |
           sudo apt-get update -o Acquire::Retries=3
-          sudo apt-get install -y -o Acquire::Retries=3 \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libfuse2 \
-            file
+          sudo apt-get install -y -o Acquire::Retries=3 libfuse2 fakeroot
 
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
@@ -69,16 +52,12 @@ jobs:
         shell: bash
         run: cd services/backend && uv sync && ./scripts/build_sidecar.sh
 
-      - name: Build, sign and publish
-        uses: tauri-apps/tauri-action@v0
+      - name: Build and publish desktop bundles
+        shell: bash
+        working-directory: apps/desktop
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          projectPath: apps/desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: "Otklik ${{ github.ref_name }}"
-          releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm build
+          pnpm electron:compile
+          npx electron-builder --publish always

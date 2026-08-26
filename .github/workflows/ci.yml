@@ -42,12 +42,12 @@ jobs:
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
       - name: svelte-check (types)
-        run: pnpm --filter desktop check
+        run: pnpm --filter otklik check
       - name: vitest (unit)
         shell: bash
         run: |
           if find apps/desktop/src -type f \( -name "*.test.*" -o -name "*.spec.*" \) | grep -q .; then
-            pnpm --filter desktop test:unit:run
+            pnpm --filter otklik test:unit:run
           else
             echo "No frontend tests yet — skipping vitest"
           fi
@@ -108,9 +108,9 @@ jobs:
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
       - name: Compile electron main and preload
-        run: pnpm --filter desktop electron:compile
+        run: pnpm --filter otklik electron:compile
       - name: Build renderer
-        run: pnpm --filter desktop build
+        run: pnpm --filter otklik build
 
   sidecar:
     name: sidecar smoke (built artifact)

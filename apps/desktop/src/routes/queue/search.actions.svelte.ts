@@ -31,6 +31,28 @@ export function createSearchVacanciesActions(queryClient: QueryClient) {
 				return API.search.parse.cancel(params.searchId);
 			},
 		})),
+		pause: createMutation(() => ({
+			mutationFn: async (params: { searchId: string }) => {
+				return API.search.parse.pause(params.searchId);
+			},
+			onSuccess() {
+				queryClient.setQueryData<SearchData | null>(
+					currentSearchQueryKey,
+					(old) => (old ? { ...old, status: "paused" } : old),
+				);
+			},
+		})),
+		resume: createMutation(() => ({
+			mutationFn: async (params: { searchId: string }) => {
+				return API.search.parse.resume(params.searchId);
+			},
+			onSuccess() {
+				queryClient.setQueryData<SearchData | null>(
+					currentSearchQueryKey,
+					(old) => (old ? { ...old, status: "running" } : old),
+				);
+			},
+		})),
 	};
 }
 

@@ -34,6 +34,7 @@ export type ErrorDomain = "model" | "submission";
 export type SearchStatus =
 	| "pending"
 	| "running"
+	| "paused"
 	| "canceled"
 	| "exited"
 	| "failed"
@@ -271,6 +272,10 @@ export type ChatStreamEvent =
 
 export type ApplicationsSummary = {
 	needs_attention: number;
+};
+
+export type RetryErroredResult = {
+	retried: number;
 };
 
 export type SummaryScope = "all" | "latest";

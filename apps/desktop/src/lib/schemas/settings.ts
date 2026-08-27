@@ -1,4 +1,9 @@
-import type { LLMDeployment, LLMDeploymentWrite } from "$lib/api/types";
+import type {
+	LLMDeployment,
+	LLMDeploymentWrite,
+	Settings,
+	SettingsWrite,
+} from "$lib/api/types";
 import { z } from "zod";
 
 const positiveInt = z.coerce.number().int().positive();
@@ -61,5 +66,25 @@ export function formDeploymentToAPI(d: LLMDeploymentForm): LLMDeploymentWrite {
 		model: d.model,
 		api_base: d.api_base.trim() ? d.api_base : null,
 		api_key: d.clear_api_key ? "" : d.api_key.trim() ? d.api_key : null,
+	};
+}
+
+export function settingsToWrite(settings: Settings): SettingsWrite {
+	return {
+		search: settings.search,
+		user: settings.user,
+		rate_limits: settings.rate_limits,
+		llm: {
+			resume_text: settings.llm.resume_text,
+			letter_style: settings.llm.letter_style,
+			system_prompt: settings.llm.system_prompt ?? null,
+			proxy_url: settings.llm.proxy_url ?? null,
+			deployments: settings.llm.deployments.map((d) => ({
+				id: d.id,
+				model: d.model,
+				api_base: d.api_base ?? null,
+				api_key: null,
+			})),
+		},
 	};
 }

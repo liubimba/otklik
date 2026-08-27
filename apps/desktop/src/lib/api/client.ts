@@ -24,6 +24,7 @@ import type {
 	PreviewCoverLetterRequest,
 	PullProgress,
 	RateLimitsBudget,
+	RetryErroredResult,
 	SearchData,
 	SearchHistory,
 	SecretStorage,
@@ -206,6 +207,10 @@ export const API = {
 	applications: {
 		summary: (scope: SummaryScope = "all") =>
 			api<ApplicationsSummary>(`applications/summary?search_id=${scope}`),
+		retryErrored: () =>
+			api<RetryErroredResult>("applications/retry-errored", {
+				method: "POST",
+			}),
 	},
 	search: {
 		filter: {
@@ -233,6 +238,10 @@ export const API = {
 			current: () => apiNullable204<SearchData>("search/parse/current"),
 			cancel: (searchId: string) =>
 				api<APIResponse>(`search/parse/${searchId}`, { method: "DELETE" }),
+			pause: (searchId: string) =>
+				api<APIResponse>(`search/parse/${searchId}/pause`, { method: "POST" }),
+			resume: (searchId: string) =>
+				api<APIResponse>(`search/parse/${searchId}/resume`, { method: "POST" }),
 		},
 		history: {
 			list: () => api<SearchHistory[]>("search/history"),

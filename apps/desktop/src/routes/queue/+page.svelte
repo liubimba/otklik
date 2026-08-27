@@ -6,12 +6,16 @@ import ListSkeleton from "$lib/components/list-skeleton.svelte";
 import LiveStatus from "$lib/components/live-status.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Button } from "$lib/components/ui/button";
+import { Switch } from "$lib/components/ui/switch";
 import VacancyCard from "$lib/components/vacancy-card.svelte";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import { store } from "$lib/stores";
 import { letterReview } from "$lib/stores/letter_review.svelte";
 import Inbox from "@lucide/svelte/icons/inbox";
+import Pause from "@lucide/svelte/icons/pause";
+import Play from "@lucide/svelte/icons/play";
+import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import { useQueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
 import { createSearchPageView } from "./search.view.svelte";
@@ -23,9 +27,24 @@ const actions = createActions(queryClient);
 const settingsQuery = query.settings.create();
 const vacanciesQuery = query.vacancies.create();
 const searchQuery = query.search.vacancies.create();
+const erroredQuery = query.all_vacancies.create(
+	() => ["error"],
+	() => undefined,
+	() => 1,
+);
 
 const model = createSearchPageViewModel(searchQuery);
 const view = createSearchPageView(searchQuery, actions, model);
+
+const autoGenerate = $derived(settingsQuery.data?.user.auto_generate ?? false);
+const autoSubmit = $derived(settingsQuery.data?.user.auto_submit ?? false);
+const erroredCount = $derived(erroredQuery.data?.total ?? 0);
+const savingAuto = $derived(actions.settings.updateUser.isPending);
+const retrying = $derived(actions.applications.retryErrored.isPending);
+const togglingSearch = $derived(
+	actions.search.vacancies.pause.isPending ||
+		actions.search.vacancies.resume.isPending,
+);
 
 const liveStatus = $derived.by(() => {
 	const picker = store.search.filter.state;
@@ -81,33 +100,90 @@ $effect(() => {
 </AlertDialog.Root>
 
 <div class="container mx-auto max-w-2xl p-6 space-y-6 relative">
-    <header class="flex items-center justify-between">
+    <header class="flex items-center justify-between gap-3">
         <h1 class="text-2xl font-semibold">{m.queue_title()}</h1>
-        {#if searchQuery.data}
-            <span class="text-muted-foreground font-mono text-xs"
-            >{m.queue_header_pages({
-                n: searchQuery.data.parsed_pages ?? 0,
-            })}</span
-            >
-            <span class="text-muted-foreground font-mono text-xs"
-            >{m.queue_count({
-                count: searchQuery.data.parsed_vacancies ?? 0,
-            })}</span
-            >
-            <span class="text-muted-foreground font-mono text-xs"
-            >{m.queue_header_status({
-                status: model.search.vacancies.status
-            })}</span
-            >
-        {/if}
-        <Button onclick={view.search.filter.start} disabled={!model.search.filter.inactive}>
-            {#if model.search.vacancies.inFlight}
-                {m.queue_button_cancel_search()}
-            {:else}
-                {m.queue_button_new_search()}
+        <div class="flex items-center gap-2">
+            {#if searchQuery.data}
+                <span class="text-muted-foreground font-mono text-xs"
+                >{m.queue_header_pages({
+                    n: searchQuery.data.parsed_pages ?? 0,
+                })}</span
+                >
+                <span class="text-muted-foreground font-mono text-xs"
+                >{m.queue_count({
+                    count: searchQuery.data.parsed_vacancies ?? 0,
+                })}</span
+                >
+                <span class="text-muted-foreground font-mono text-xs"
+                >{m.queue_header_status({
+                    status: model.search.vacancies.status
+                })}</span
+                >
             {/if}
-        </Button>
+            {#if model.search.vacancies.inFlight}
+                <Button
+                        variant="outline"
+                        size="icon"
+                        onclick={view.search.vacancies.pauseResume}
+                        disabled={togglingSearch}
+                        aria-label={model.search.vacancies.paused
+                        ? m.queue_button_resume_search()
+                        : m.queue_button_pause_search()}
+                        title={model.search.vacancies.paused
+                        ? m.queue_button_resume_search()
+                        : m.queue_button_pause_search()}
+                >
+                    {#if model.search.vacancies.paused}
+                        <Play class="size-4"/>
+                    {:else}
+                        <Pause class="size-4"/>
+                    {/if}
+                </Button>
+            {/if}
+            <Button onclick={view.search.filter.start} disabled={!model.search.filter.inactive}>
+                {#if model.search.vacancies.inFlight}
+                    {m.queue_button_cancel_search()}
+                {:else}
+                    {m.queue_button_new_search()}
+                {/if}
+            </Button>
+        </div>
     </header>
+
+    <section class="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-3">
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2 text-sm">
+                <Switch
+                        checked={autoGenerate}
+                        disabled={savingAuto || !settingsQuery.data}
+                        onCheckedChange={view.auto.toggleGenerate}
+                        aria-label={m.queue_auto_generate_label()}
+                />
+                <span>{m.queue_auto_generate_label()}</span>
+            </div>
+            <div
+                    class="flex items-center gap-2 pl-6 text-sm {autoGenerate
+                    ? ''
+                    : 'opacity-50'}"
+            >
+                <Switch
+                        checked={autoSubmit}
+                        disabled={!autoGenerate || savingAuto || !settingsQuery.data}
+                        onCheckedChange={view.auto.toggleSubmit}
+                        aria-label={m.queue_auto_submit_label()}
+                />
+                <span>{m.queue_auto_submit_label()}</span>
+            </div>
+        </div>
+        <Button
+                variant="outline"
+                onclick={view.applications.retryErrored}
+                disabled={!autoGenerate || erroredCount === 0 || retrying}
+        >
+            <RotateCcw class="size-4"/>
+            {m.queue_retry_errored({ count: erroredCount })}
+        </Button>
+    </section>
 
     {#if store.search.filter.state.status !== "idle"}
         <section class="border rounded-lg p-4 space-y-3 bg-muted/30">

@@ -36,13 +36,18 @@ class EmploymentType(str, Enum):
 class SearchStatusAPISchema(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
+    PAUSED = "paused"
     CANCELED = "canceled"
     FINISHED = "exited"
     FAILED = "failed"
     INTERRUPTED = "interrupted"
 
     def is_active(self) -> bool:
-        return self in (SearchStatusAPISchema.PENDING, SearchStatusAPISchema.RUNNING)
+        return self in (
+            SearchStatusAPISchema.PENDING,
+            SearchStatusAPISchema.RUNNING,
+            SearchStatusAPISchema.PAUSED,
+        )
 
 
 class VacancyAPISchema(BaseModel):
@@ -183,6 +188,10 @@ class SubmitApplicationRequestAPISchema(BaseModel):
 
 class ApplicationsSummaryAPISchema(BaseModel):
     needs_attention: int
+
+
+class RetryErroredResultAPISchema(BaseModel):
+    retried: int
 
 
 class ChatMessageAPISchema(BaseModel):

@@ -94,6 +94,22 @@ async def cancel_parse(
     await auto_apply_canceller.cancel_pending()
 
 
+@parse_router.post("/{search_id}/pause")
+async def pause_parse(search_id: str, search_service: SearchServiceDep) -> None:
+    if search_service.find_search_task(search_id=search_id) is None:
+        raise HTTPException(status_code=404, detail="search not found")
+    if not await search_service.pause_search_session(search_id=search_id):
+        raise HTTPException(status_code=409, detail="search is not running")
+
+
+@parse_router.post("/{search_id}/resume")
+async def resume_parse(search_id: str, search_service: SearchServiceDep) -> None:
+    if search_service.find_search_task(search_id=search_id) is None:
+        raise HTTPException(status_code=404, detail="search not found")
+    if not await search_service.resume_search_session(search_id=search_id):
+        raise HTTPException(status_code=409, detail="search is not paused")
+
+
 @search_router.get("/history", summary="List past search runs (newest first)")
 async def list_search_history(session: SessionDep) -> list[SearchHistoryAPISchema]:
     rows = await SearchHistoryRepository.list_all(session=session)

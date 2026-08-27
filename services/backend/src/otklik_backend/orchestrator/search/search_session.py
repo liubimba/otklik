@@ -27,6 +27,8 @@ from otklik_backend.orchestrator.exceptions import SearchAlreadyRunningError
 
 class SearchStateEvent(str, Enum):
     RUN = "run"
+    PAUSE = "pause"
+    RESUME = "resume"
     CANCELED = "canceled"
     FINISHED = "finished"
     FAILED = "failed"
@@ -46,10 +48,16 @@ class SearchStatusStateMachine(StateMachine):
     )
 
     run = _.PENDING.to(_.RUNNING)
-    canceled = _.RUNNING.to(_.CANCELED)
+    pause = _.RUNNING.to(_.PAUSED)
+    resume = _.PAUSED.to(_.RUNNING)
+    canceled = _.RUNNING.to(_.CANCELED) | _.PAUSED.to(_.CANCELED)
     finished = _.RUNNING.to(_.FINISHED)
-    failed = _.RUNNING.to(_.FAILED)
-    interrupt = _.PENDING.to(_.INTERRUPTED) | _.RUNNING.to(_.INTERRUPTED)
+    failed = _.RUNNING.to(_.FAILED) | _.PAUSED.to(_.FAILED)
+    interrupt = (
+        _.PENDING.to(_.INTERRUPTED)
+        | _.RUNNING.to(_.INTERRUPTED)
+        | _.PAUSED.to(_.INTERRUPTED)
+    )
 
 
 @dataclass
@@ -86,8 +94,38 @@ class SearchSession:
         self._max_pages = max_pages
         self._max_vacancies = max_vacancies
         self._search_task: SearchSessionTask | None = None
+        self._resume_event = asyncio.Event()
+        self._resume_event.set()
 
         self._log.info("Issued new search session", id=self._id)
+
+    async def pause(self) -> bool:
+        task = self._search_task
+        if (
+            task is None
+            or task.state_machine.current_state_value != SearchStatusAPISchema.RUNNING
+        ):
+            return False
+        self._resume_event.clear()
+        task.state_machine.send(SearchStateEvent.PAUSE.value)
+        self._log.info("Search paused", search_id=self._id)
+        await self._update_search_history(task)
+        await self._publish_search_event(task)
+        return True
+
+    async def resume(self) -> bool:
+        task = self._search_task
+        if (
+            task is None
+            or task.state_machine.current_state_value != SearchStatusAPISchema.PAUSED
+        ):
+            return False
+        task.state_machine.send(SearchStateEvent.RESUME.value)
+        self._resume_event.set()
+        self._log.info("Search resumed", search_id=self._id)
+        await self._update_search_history(task)
+        await self._publish_search_event(task)
+        return True
 
     @property
     def id(self) -> str:
@@ -234,6 +272,7 @@ class SearchSession:
         self, task: SearchSessionTask, search_page: BrowserPage
     ) -> None:
         while True:
+            await self._resume_event.wait()
             async for parsed_vacancy in self._parser.parse(
                 search_page=search_page,
             ):
@@ -312,7 +351,10 @@ class SearchSession:
         self, task: SearchSessionTask, error: str | None = None
     ) -> None:
         async with self._session_maker() as session:
-            if task.state_machine.current_state_value == SearchStatusAPISchema.RUNNING:
+            if task.state_machine.current_state_value in (
+                SearchStatusAPISchema.RUNNING,
+                SearchStatusAPISchema.PAUSED,
+            ):
                 await SearchHistoryRepository.update(
                     session=session,
                     search_id=task.id,

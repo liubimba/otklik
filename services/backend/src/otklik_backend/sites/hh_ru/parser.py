@@ -40,42 +40,39 @@ class HHRUParser:
         vacancy_page: BrowserPage | None = None
 
         try:
-            while True:
-                search_parser = HTMLParser(html=await search_page.content())
-                vacancy_links = search_parser.css(selectors.search.apply_link)
+            search_parser = HTMLParser(html=await search_page.content())
+            vacancy_links = search_parser.css(selectors.search.apply_link)
+            self._logger.info(
+                f"Found {len(vacancy_links)} vacancy links on search page"
+            )
+
+            if len(vacancy_links) == 0:
                 self._logger.info(
-                    f"Found {len(vacancy_links)} vacancy links on search page"
+                    f"No vacancy links left, parsed {parsed_count} in total"
                 )
+                return
 
-                if len(vacancy_links) == 0:
-                    self._logger.info(
-                        f"No vacancy links left, parsed {parsed_count} in total"
+            for vacancy_link in vacancy_links:
+                try:
+                    href = self._resolve_href_of_vacancy(
+                        vacancy_link, selectors=selectors
                     )
-                    return
+                    if not self._check_href_of_vacancy(href, parsed_links):
+                        continue
 
-                for vacancy_link in vacancy_links:
-                    try:
-                        href = self._resolve_href_of_vacancy(
-                            vacancy_link, selectors=selectors
-                        )
-                        if not self._check_href_of_vacancy(href, parsed_links):
-                            continue
+                    vacancy_page = await self._open_href_on_vacancy_page(
+                        href, vacancy_page
+                    )
+                    vacancy = await self._parse_vacancy_page(
+                        vacancy_page, href, selectors
+                    )
+                    if vacancy is not None:
+                        parsed_count += 1
+                        yield vacancy
 
-                        vacancy_page = await self._open_href_on_vacancy_page(
-                            href, vacancy_page
-                        )
-                        vacancy = await self._parse_vacancy_page(
-                            vacancy_page, href, selectors
-                        )
-                        if vacancy is not None:
-                            parsed_count += 1
-                            yield vacancy
-
-                        await self._sleep_before_next_parse()
-                    except Exception as error:
-                        self._logger.error(
-                            f"Skipped vacancy link {vacancy_link}: {error}"
-                        )
+                    await self._sleep_before_next_parse()
+                except Exception as error:
+                    self._logger.error(f"Skipped vacancy link {vacancy_link}: {error}")
         finally:
             if vacancy_page is not None:
                 self._logger.info("Parsing finished, closing vacancy page")

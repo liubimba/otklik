@@ -115,6 +115,16 @@ class SearchService:
         self._search_session = None
         return cancelled
 
+    async def pause_search_session(self, search_id: str) -> bool:
+        if self._search_session is None or self._search_session.id != search_id:
+            raise SearchSessionNotFoundError()
+        return await self._search_session.pause()
+
+    async def resume_search_session(self, search_id: str) -> bool:
+        if self._search_session is None or self._search_session.id != search_id:
+            raise SearchSessionNotFoundError()
+        return await self._search_session.resume()
+
     def find_search_task(self, search_id: str) -> SearchSessionTask | None:
         if self._search_session is not None and self._search_session.id == search_id:
             return self._search_session.get_search_task()

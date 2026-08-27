@@ -15,13 +15,16 @@ class SearchFilterModel {
 
 class SearchVacanciesModel {
 	readonly inFlight: boolean;
+	readonly paused: boolean;
 	readonly status: string;
 
 	constructor(searchQuery: SearchQuery) {
 		this.inFlight = $derived(
 			searchQuery.data?.status === "running" ||
-				searchQuery.data?.status === "pending",
+				searchQuery.data?.status === "pending" ||
+				searchQuery.data?.status === "paused",
 		);
+		this.paused = $derived(searchQuery.data?.status === "paused");
 		this.status = $derived.by(() => {
 			const data = searchQuery.data;
 			if (!data) return m.status_unknown();
@@ -30,6 +33,8 @@ class SearchVacanciesModel {
 					return m.status_pending();
 				case "running":
 					return m.status_running();
+				case "paused":
+					return m.status_paused();
 				case "canceled":
 					return m.status_canceled();
 				case "exited":

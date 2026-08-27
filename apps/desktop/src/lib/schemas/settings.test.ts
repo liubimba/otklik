@@ -1,9 +1,11 @@
+import type { Settings } from "$lib/api/types";
 import { describe, expect, it, vi } from "vitest";
 import {
 	apiDeploymentToForm,
 	formDeploymentToAPI,
 	makeDeploymentId,
 	settingsFormSchema,
+	settingsToWrite,
 } from "./settings";
 
 describe("settingsFormSchema — defaults", () => {
@@ -151,6 +153,42 @@ describe("apiDeploymentToForm", () => {
 		expect(form.has_api_key).toBe(true);
 		expect(form.api_key).toBe("");
 		expect(form.clear_api_key).toBe(false);
+	});
+});
+
+describe("settingsToWrite", () => {
+	const base: Settings = {
+		search: { max_pages: 5, max_vacancies: 50 },
+		user: { auto_generate: true, auto_submit: false },
+		rate_limits: {
+			daily_limit: 30,
+			hourly_limit: 5,
+			min_delay_ms: 800,
+			delay_jitter_ms: 400,
+		},
+		llm: {
+			resume_text: "r",
+			letter_style: "s",
+			system_prompt: null,
+			proxy_url: null,
+			deployments: [
+				{ id: "a", model: "gpt", api_base: "https://x", has_api_key: true },
+			],
+		},
+	};
+
+	it("preserves stored deployment keys by sending api_key null", () => {
+		const write = settingsToWrite(base);
+		expect(write.llm.deployments).toEqual([
+			{ id: "a", model: "gpt", api_base: "https://x", api_key: null },
+		]);
+	});
+
+	it("carries user flags through unchanged so a queue-page toggle can patch them", () => {
+		expect(settingsToWrite(base).user).toEqual({
+			auto_generate: true,
+			auto_submit: false,
+		});
 	});
 });
 

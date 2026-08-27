@@ -1,8 +1,14 @@
 import type { createActions } from "$lib/actions";
+import * as m from "$lib/paraglide/messages";
 import type { query } from "$lib/queries";
 import { store } from "$lib/stores";
 import { Utils } from "$lib/utils/utils";
+import { toast } from "svelte-sonner";
 import type { SearchPageViewModel } from "./search.view_model.svelte";
+
+function describeError(error: unknown): string {
+	return error instanceof Error ? error.message : "unknown error";
+}
 
 type SearchQuery = ReturnType<typeof query.search.vacancies.create>;
 type Actions = ReturnType<typeof createActions>;
@@ -14,6 +20,29 @@ export function createSearchPageView(
 ) {
 	return {
 		search: {
+			vacancies: {
+				pauseResume: () => {
+					const data = searchQuery.data;
+					if (!data) return;
+					if (model.search.vacancies.paused) {
+						actions.search.vacancies.resume
+							.mutateAsync({ searchId: data.search_id })
+							.catch((error) =>
+								toast.error(
+									m.queue_resume_failed({ error: describeError(error) }),
+								),
+							);
+					} else {
+						actions.search.vacancies.pause
+							.mutateAsync({ searchId: data.search_id })
+							.catch((error) =>
+								toast.error(
+									m.queue_pause_failed({ error: describeError(error) }),
+								),
+							);
+					}
+				},
+			},
 			filter: {
 				start: () => {
 					if (searchQuery.data) {
@@ -74,6 +103,38 @@ export function createSearchPageView(
 						model.dialog.search.filter.active = false;
 					},
 				},
+			},
+		},
+		auto: {
+			toggleGenerate: (value: boolean) => {
+				actions.settings.updateUser
+					.mutateAsync({ user: { auto_generate: value } })
+					.catch((error) =>
+						toast.error(
+							m.queue_auto_save_failed({ error: describeError(error) }),
+						),
+					);
+			},
+			toggleSubmit: (value: boolean) => {
+				actions.settings.updateUser
+					.mutateAsync({ user: { auto_submit: value } })
+					.catch((error) =>
+						toast.error(
+							m.queue_auto_save_failed({ error: describeError(error) }),
+						),
+					);
+			},
+		},
+		applications: {
+			retryErrored: () => {
+				actions.applications.retryErrored
+					.mutateAsync()
+					.then((result) =>
+						toast.success(m.queue_retry_success({ count: result.retried })),
+					)
+					.catch((error) =>
+						toast.error(m.queue_retry_failed({ error: describeError(error) })),
+					);
 			},
 		},
 	};

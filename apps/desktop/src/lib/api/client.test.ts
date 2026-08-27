@@ -158,6 +158,26 @@ describe("API URL construction", () => {
 		expect(calls[2].init?.method).toBe("DELETE");
 	});
 
+	it("search parse pause/resume POST to /search/parse/{id}/pause|resume", async () => {
+		respondWithSequence(jsonResponse(null), jsonResponse(null));
+		await API.search.parse.pause("sid");
+		await API.search.parse.resume("sid");
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/search\/parse\/sid\/pause$/);
+		expect(calls[0].init?.method).toBe("POST");
+		expect(calls[1].url).toMatch(/\/api\/v1\/search\/parse\/sid\/resume$/);
+		expect(calls[1].init?.method).toBe("POST");
+	});
+
+	it("retryErrored POSTs to /applications/retry-errored and returns the count", async () => {
+		respondWith(jsonResponse({ retried: 3 }));
+		const result = await API.applications.retryErrored();
+
+		expect(calls[0].url).toMatch(/\/api\/v1\/applications\/retry-errored$/);
+		expect(calls[0].init?.method).toBe("POST");
+		expect(result).toEqual({ retried: 3 });
+	});
+
 	it("search history list hits GET /search/history", async () => {
 		respondWith(jsonResponse([]));
 		await API.search.history.list();

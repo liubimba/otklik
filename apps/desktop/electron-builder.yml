@@ -16,6 +16,10 @@ linux:
   category: Utility
   maintainer: liubimba
   executableName: otklik
+deb:
+  fpm:
+    - "--replaces"
+    - "desktop"
 win:
   target:
     - nsis

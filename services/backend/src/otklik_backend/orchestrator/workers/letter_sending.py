@@ -31,11 +31,6 @@ from otklik_backend.orchestrator.workers.base import Worker
 class LetterSendingWorker(Worker):
     handled_status = ProcessingState.LETTER_QUEUED
 
-    RECOVERABLE_STATES = (
-        ProcessingState.LETTER_QUEUED,
-        ProcessingState.LETTER_SENDING,
-    )
-
     def __init__(
         self,
         state_service: StateTransitionService,
@@ -254,17 +249,6 @@ class LetterSendingWorker(Worker):
                         reason=result.reason or "unknown",
                     )
         return False
-
-    async def recover(self, session: AsyncSession) -> int:
-        recovered = 0
-        for status in self.RECOVERABLE_STATES:
-            applications = await ApplicationRepository.list_by_status(
-                session=session, status=status
-            )
-            for application in applications:
-                await self.enqueue(application_id=application.id)
-                recovered += 1
-        return recovered
 
     async def _pace_after_submission(self) -> None:
         async with self._session_maker() as session:

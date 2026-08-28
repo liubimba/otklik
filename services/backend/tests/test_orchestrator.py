@@ -17,6 +17,7 @@ from otklik_backend.core.site.result import SubmissionResult
 from otklik_backend.db.models import RateLimitEventORM
 from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.orchestrator.auto_apply_canceller import AutoApplyCanceller
+from otklik_backend.orchestrator.recovery import park_in_flight_applications
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.core.events import CaptchaWSEvent, ApplicationWSEvent
 from otklik_backend.db.repositories.applications import ApplicationRepository
@@ -25,13 +26,15 @@ from otklik_backend.db.repositories.vacancies import VacancyRepository
 from sqlalchemy import select, func
 
 
-async def test_recover_picks_up_queued_and_stale_sending(
+async def test_recover_parks_in_flight_as_interrupted(
     fake_orchestrator: LetterSendingWorker,
+    fake_state_service: StateTransitionService,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    picked: list[int] = []
+    parked_ids: list[int] = []
+    untouched: dict[int, ProcessingState] = {}
     async with session_factory() as session:
-        for index in range(5):
+        for index in range(6):
             await VacancyRepository.create(
                 session=session,
                 vacancy=vacancy_to_orm(
@@ -42,29 +45,46 @@ async def test_recover_picks_up_queued_and_stale_sending(
             )
 
         for vacancy_id, status in (
-            (1, ProcessingState.LETTER_QUEUED),
+            (1, ProcessingState.LETTER_PENDING),
             (2, ProcessingState.LETTER_QUEUED),
             (3, ProcessingState.LETTER_SENDING),
             (4, ProcessingState.LETTER_SENT),
             (5, ProcessingState.SKIPPED),
+            (6, ProcessingState.LETTER_READY),
         ):
             app = await ApplicationRepository.create(
                 session=session, vacancy_id=vacancy_id
             )
             app.status = status
             if status in (
+                ProcessingState.LETTER_PENDING,
                 ProcessingState.LETTER_QUEUED,
                 ProcessingState.LETTER_SENDING,
             ):
-                picked.append(app.id)
+                parked_ids.append(app.id)
+            else:
+                untouched[app.id] = status
         await session.commit()
 
-        recovered = await fake_orchestrator.recover(session=session)
-        assert recovered == len(picked)
-        assert fake_orchestrator.qsize() == len(picked)
-        drained = {await fake_orchestrator.get_next() for _ in range(len(picked))}
-        assert drained == set(picked)
+        parked = await park_in_flight_applications(
+            session=session, state_service=fake_state_service
+        )
+        assert parked == len(parked_ids)
         assert fake_orchestrator.qsize() == 0
+
+    async with session_factory() as session:
+        for app_id in parked_ids:
+            app = await ApplicationRepository.get_by_id(
+                session=session, application_id=app_id
+            )
+            assert app is not None
+            assert app.status == ProcessingState.INTERRUPTED
+        for app_id, status in untouched.items():
+            app = await ApplicationRepository.get_by_id(
+                session=session, application_id=app_id
+            )
+            assert app is not None
+            assert app.status == status
 
 
 async def test_enqueue_then_get_next(fake_orchestrator: LetterSendingWorker) -> None:

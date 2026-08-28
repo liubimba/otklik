@@ -15,7 +15,8 @@ from otklik_backend.api.dependencies import (
 from otklik_backend.api.schemas import (
     ApplicationDetailAPISchema,
     ApplicationsSummaryAPISchema,
-    RetryErroredResultAPISchema,
+    RestartCountsAPISchema,
+    RestartResultAPISchema,
     ChatMessageAPISchema,
     CoverLetterAPISchema,
     CoverLetterRequestAPISchema,
@@ -31,7 +32,11 @@ from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
 from otklik_backend.db.repositories.search_history import SearchHistoryRepository
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.log import get_logger
-from otklik_backend.orchestrator.retry import retry_errored_applications
+from otklik_backend.orchestrator.restart import (
+    restart_counts,
+    restart_generation,
+    restart_submission,
+)
 from otklik_backend.orchestrator.state_machine import ApplicationEvent
 
 application_router = APIRouter(
@@ -68,14 +73,26 @@ async def summary(
     )
 
 
-@applications_router.post("/retry-errored")
-async def retry_errored(
+@applications_router.get("/restart-counts")
+async def restart_counts_route(session: SessionDep) -> RestartCountsAPISchema:
+    generation, submission = await restart_counts(session=session)
+    return RestartCountsAPISchema(generation=generation, submission=submission)
+
+
+@applications_router.post("/restart-generation")
+async def restart_generation_route(
     session: SessionDep, state_service: StateServiceDep
-) -> RetryErroredResultAPISchema:
-    retried = await retry_errored_applications(
-        session=session, state_service=state_service
-    )
-    return RetryErroredResultAPISchema(retried=retried)
+) -> RestartResultAPISchema:
+    restarted = await restart_generation(session=session, state_service=state_service)
+    return RestartResultAPISchema(restarted=restarted)
+
+
+@applications_router.post("/restart-submission")
+async def restart_submission_route(
+    session: SessionDep, state_service: StateServiceDep
+) -> RestartResultAPISchema:
+    restarted = await restart_submission(session=session, state_service=state_service)
+    return RestartResultAPISchema(restarted=restarted)
 
 
 async def _load_or_404(session: AsyncSession, vacancy_id: int) -> VacancyORM:

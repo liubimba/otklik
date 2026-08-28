@@ -10,6 +10,7 @@ class ProcessingState(str, Enum):
     LETTER_SENDING = "letter_sending"
     LETTER_SENT = "letter_sent"
     ERROR = "error"
+    INTERRUPTED = "interrupted"
     SKIPPED = "skipped"
 
 

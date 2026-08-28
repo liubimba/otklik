@@ -77,6 +77,7 @@ class VacancyStatusFilterAPISchema(str, Enum):
     LETTER_SENDING = "letter_sending"
     LETTER_SENT = "letter_sent"
     ERROR = "error"
+    INTERRUPTED = "interrupted"
     SKIPPED = "skipped"
 
 
@@ -190,8 +191,13 @@ class ApplicationsSummaryAPISchema(BaseModel):
     needs_attention: int
 
 
-class RetryErroredResultAPISchema(BaseModel):
-    retried: int
+class RestartResultAPISchema(BaseModel):
+    restarted: int
+
+
+class RestartCountsAPISchema(BaseModel):
+    generation: int
+    submission: int
 
 
 class ChatMessageAPISchema(BaseModel):

@@ -5,7 +5,6 @@ from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.api.subscribers import CallbackEventSubscriber
 from otklik_backend.core.events import ApplicationWSEvent
 from otklik_backend.core.state import ProcessingState
-from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.state_machine import ApplicationEvent
@@ -75,24 +74,3 @@ class AutoSubmitListener:
                 application_id=application_id,
                 event=ApplicationEvent.SUBMIT,
             )
-
-    async def recover(self, session: AsyncSession) -> int:
-        settings = await SettingsRepository.get(session=session)
-        if not (settings.auto_submit and settings.auto_generate):
-            return 0
-        if self._letter_sending_worker.is_paused():
-            self._log.info(
-                "Auto-submit recover skipped — letter-sending worker is paused",
-                reason=self._letter_sending_worker.get_pause_reason(),
-            )
-            return 0
-        pending = await ApplicationRepository.list_by_status(
-            session=session, status=ProcessingState.LETTER_READY
-        )
-        for application in pending:
-            await self._state_service.transition_or_skip(
-                session=session,
-                application_id=application.id,
-                event=ApplicationEvent.SUBMIT,
-            )
-        return len(pending)

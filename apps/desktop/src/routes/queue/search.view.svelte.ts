@@ -126,14 +126,28 @@ export function createSearchPageView(
 			},
 		},
 		applications: {
-			retryErrored: () => {
-				actions.applications.retryErrored
+			restartGeneration: () => {
+				actions.applications.restartGeneration
 					.mutateAsync()
 					.then((result) =>
-						toast.success(m.queue_retry_success({ count: result.retried })),
+						toast.success(m.queue_restart_success({ count: result.restarted })),
 					)
 					.catch((error) =>
-						toast.error(m.queue_retry_failed({ error: describeError(error) })),
+						toast.error(
+							m.queue_restart_failed({ error: describeError(error) }),
+						),
+					);
+			},
+			restartSubmission: () => {
+				actions.applications.restartSubmission
+					.mutateAsync()
+					.then((result) =>
+						toast.success(m.queue_restart_success({ count: result.restarted })),
+					)
+					.catch((error) =>
+						toast.error(
+							m.queue_restart_failed({ error: describeError(error) }),
+						),
 					);
 			},
 		},

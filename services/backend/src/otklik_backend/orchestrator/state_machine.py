@@ -17,6 +17,7 @@ class ApplicationEvent(str, Enum):
     RETRY = "retry"
     FAIL = "fail"
     REGENERATE = "regenerate"
+    INTERRUPT = "interrupt"
 
 
 ERROR_DOMAIN_BY_EVENT: dict[ApplicationEvent, ErrorDomain] = {
@@ -44,6 +45,7 @@ class ProcessingStateMachine(StateMachine):
         _.LETTER_READY.to(_.LETTER_QUEUED)
         | _.LETTER_REVIEWING.to(_.LETTER_QUEUED)
         | _.ERROR.to(_.LETTER_QUEUED)
+        | _.INTERRUPTED.to(_.LETTER_QUEUED)
     )
     start_sending = _.LETTER_QUEUED.to(_.LETTER_SENDING)
     skip = (
@@ -55,6 +57,7 @@ class ProcessingStateMachine(StateMachine):
         _.LETTER_PENDING.to(_.SKIPPED)
         | _.LETTER_QUEUED.to(_.SKIPPED)
         | _.LETTER_SENDING.to(_.SKIPPED)
+        | _.INTERRUPTED.to(_.SKIPPED)
     )
     submission_ok = _.LETTER_SENDING.to(_.LETTER_SENT)
     submission_failed = _.LETTER_SENDING.to(_.ERROR)
@@ -64,6 +67,12 @@ class ProcessingStateMachine(StateMachine):
         | _.LETTER_READY.to(_.LETTER_PENDING)
         | _.LETTER_REVIEWING.to(_.LETTER_PENDING)
         | _.ERROR.to(_.LETTER_PENDING)
+        | _.INTERRUPTED.to(_.LETTER_PENDING)
+    )
+    interrupt = (
+        _.LETTER_PENDING.to(_.INTERRUPTED)
+        | _.LETTER_QUEUED.to(_.INTERRUPTED)
+        | _.LETTER_SENDING.to(_.INTERRUPTED)
     )
     fail = (
         _.LETTER_PENDING.to(_.ERROR)

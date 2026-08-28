@@ -16,6 +16,10 @@ import {
 	createAuthQuery,
 } from "$lib/queries/auth";
 import {
+	createRestartCountsQuery,
+	restartCountsQueryKey,
+} from "$lib/queries/restart_counts";
+import {
 	applyCurrentSearchEvent,
 	createCurrentSearchQuery,
 } from "$lib/queries/search";
@@ -66,6 +70,10 @@ export const query = {
 	settings: {
 		key: settingsQueryKey,
 		create: createSettingsQuery,
+	},
+	restart_counts: {
+		key: restartCountsQueryKey,
+		create: createRestartCountsQuery,
 	},
 	secret_storage: {
 		key: secretStorageQueryKey,

@@ -24,7 +24,8 @@ import type {
 	PreviewCoverLetterRequest,
 	PullProgress,
 	RateLimitsBudget,
-	RetryErroredResult,
+	RestartCounts,
+	RestartResult,
 	SearchData,
 	SearchHistory,
 	SecretStorage,
@@ -207,8 +208,13 @@ export const API = {
 	applications: {
 		summary: (scope: SummaryScope = "all") =>
 			api<ApplicationsSummary>(`applications/summary?search_id=${scope}`),
-		retryErrored: () =>
-			api<RetryErroredResult>("applications/retry-errored", {
+		restartCounts: () => api<RestartCounts>("applications/restart-counts"),
+		restartGeneration: () =>
+			api<RestartResult>("applications/restart-generation", {
+				method: "POST",
+			}),
+		restartSubmission: () =>
+			api<RestartResult>("applications/restart-submission", {
 				method: "POST",
 			}),
 	},

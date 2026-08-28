@@ -27,6 +27,7 @@ export type ProcessingState =
 	| "letter_sending"
 	| "letter_sent"
 	| "error"
+	| "interrupted"
 	| "skipped";
 
 export type ErrorDomain = "model" | "submission";
@@ -65,6 +66,7 @@ export type VacancyStatusFilter =
 	| "letter_sending"
 	| "letter_sent"
 	| "error"
+	| "interrupted"
 	| "skipped";
 
 export type VacancyWithStatus = Vacancy & {
@@ -274,8 +276,13 @@ export type ApplicationsSummary = {
 	needs_attention: number;
 };
 
-export type RetryErroredResult = {
-	retried: number;
+export type RestartResult = {
+	restarted: number;
+};
+
+export type RestartCounts = {
+	generation: number;
+	submission: number;
 };
 
 export type SummaryScope = "all" | "latest";

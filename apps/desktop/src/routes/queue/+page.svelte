@@ -16,6 +16,7 @@ import Inbox from "@lucide/svelte/icons/inbox";
 import Pause from "@lucide/svelte/icons/pause";
 import Play from "@lucide/svelte/icons/play";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+import Send from "@lucide/svelte/icons/send";
 import { useQueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
 import { createSearchPageView } from "./search.view.svelte";
@@ -27,20 +28,22 @@ const actions = createActions(queryClient);
 const settingsQuery = query.settings.create();
 const vacanciesQuery = query.vacancies.create();
 const searchQuery = query.search.vacancies.create();
-const erroredQuery = query.all_vacancies.create(
-	() => ["error"],
-	() => undefined,
-	() => 1,
-);
+const restartCountsQuery = query.restart_counts.create();
 
 const model = createSearchPageViewModel(searchQuery);
 const view = createSearchPageView(searchQuery, actions, model);
 
 const autoGenerate = $derived(settingsQuery.data?.user.auto_generate ?? false);
 const autoSubmit = $derived(settingsQuery.data?.user.auto_submit ?? false);
-const erroredCount = $derived(erroredQuery.data?.total ?? 0);
+const generationCount = $derived(restartCountsQuery.data?.generation ?? 0);
+const submissionCount = $derived(restartCountsQuery.data?.submission ?? 0);
 const savingAuto = $derived(actions.settings.updateUser.isPending);
-const retrying = $derived(actions.applications.retryErrored.isPending);
+const restartingGeneration = $derived(
+	actions.applications.restartGeneration.isPending,
+);
+const restartingSubmission = $derived(
+	actions.applications.restartSubmission.isPending,
+);
 const togglingSearch = $derived(
 	actions.search.vacancies.pause.isPending ||
 		actions.search.vacancies.resume.isPending,
@@ -175,14 +178,28 @@ $effect(() => {
                 <span>{m.queue_auto_submit_label()}</span>
             </div>
         </div>
-        <Button
-                variant="outline"
-                onclick={view.applications.retryErrored}
-                disabled={!autoGenerate || erroredCount === 0 || retrying}
-        >
-            <RotateCcw class="size-4"/>
-            {m.queue_retry_errored({ count: erroredCount })}
-        </Button>
+        <div class="flex flex-col gap-2">
+            <Button
+                    variant="outline"
+                    onclick={view.applications.restartGeneration}
+                    disabled={!autoGenerate ||
+                    generationCount === 0 ||
+                    restartingGeneration}
+            >
+                <RotateCcw class="size-4"/>
+                {m.queue_restart_generation({ count: generationCount })}
+            </Button>
+            <Button
+                    variant="outline"
+                    onclick={view.applications.restartSubmission}
+                    disabled={!autoSubmit ||
+                    submissionCount === 0 ||
+                    restartingSubmission}
+            >
+                <Send class="size-4"/>
+                {m.queue_restart_submission({ count: submissionCount })}
+            </Button>
+        </div>
     </section>
 
     {#if store.search.filter.state.status !== "idle"}

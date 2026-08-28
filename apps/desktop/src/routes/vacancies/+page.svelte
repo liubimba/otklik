@@ -26,6 +26,7 @@ const FILTERS: { value: VacancyStatusFilter; label: () => string }[] = [
 	{ value: "letter_sending", label: m.card_status_letter_sending },
 	{ value: "letter_sent", label: m.card_status_letter_sent },
 	{ value: "error", label: m.card_status_error },
+	{ value: "interrupted", label: m.card_status_interrupted },
 	{ value: "skipped", label: m.card_status_skipped },
 ];
 

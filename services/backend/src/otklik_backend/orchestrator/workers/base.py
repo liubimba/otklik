@@ -2,10 +2,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import ClassVar, Sequence
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from otklik_backend.core.state import ProcessingState
-from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.log import get_logger
 
 
@@ -45,14 +42,6 @@ class Worker(ABC):
                 break
         self._pending.clear()
         return dropped
-
-    async def recover(self, session: AsyncSession) -> int:
-        applications = await ApplicationRepository.list_by_status(
-            session=session, status=self.handled_status
-        )
-        for application in applications:
-            await self.enqueue(application_id=application.id)
-        return len(applications)
 
     @abstractmethod
     async def _process_one(self, application_id: int) -> bool: ...

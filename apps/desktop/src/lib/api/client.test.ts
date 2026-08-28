@@ -169,13 +169,29 @@ describe("API URL construction", () => {
 		expect(calls[1].init?.method).toBe("POST");
 	});
 
-	it("retryErrored POSTs to /applications/retry-errored and returns the count", async () => {
-		respondWith(jsonResponse({ retried: 3 }));
-		const result = await API.applications.retryErrored();
+	it("restart endpoints hit /applications/restart-*", async () => {
+		respondWithSequence(
+			jsonResponse({ generation: 2, submission: 1 }),
+			jsonResponse({ restarted: 2 }),
+			jsonResponse({ restarted: 1 }),
+		);
+		const counts = await API.applications.restartCounts();
+		const gen = await API.applications.restartGeneration();
+		const sub = await API.applications.restartSubmission();
 
-		expect(calls[0].url).toMatch(/\/api\/v1\/applications\/retry-errored$/);
-		expect(calls[0].init?.method).toBe("POST");
-		expect(result).toEqual({ retried: 3 });
+		expect(calls[0].url).toMatch(/\/api\/v1\/applications\/restart-counts$/);
+		expect(calls[0].init?.method ?? "GET").toBe("GET");
+		expect(counts).toEqual({ generation: 2, submission: 1 });
+		expect(calls[1].url).toMatch(
+			/\/api\/v1\/applications\/restart-generation$/,
+		);
+		expect(calls[1].init?.method).toBe("POST");
+		expect(gen).toEqual({ restarted: 2 });
+		expect(calls[2].url).toMatch(
+			/\/api\/v1\/applications\/restart-submission$/,
+		);
+		expect(calls[2].init?.method).toBe("POST");
+		expect(sub).toEqual({ restarted: 1 });
 	});
 
 	it("search history list hits GET /search/history", async () => {

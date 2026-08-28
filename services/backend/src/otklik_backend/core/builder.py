@@ -21,6 +21,7 @@ from otklik_backend.orchestrator.listeners.auto_apply import AutoApplyListener
 from otklik_backend.orchestrator.listeners.auto_submit import AutoSubmitListener
 from otklik_backend.orchestrator.search import SearchService
 from otklik_backend.orchestrator.state_service import StateTransitionService
+from otklik_backend.orchestrator.recovery import InFlightRecovery
 from otklik_backend.orchestrator.workers.letter_pending import LetterPendingWorker
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from otklik_backend.secrets.factory import SecretStoreFactory
@@ -53,16 +54,13 @@ class AppContext:
     authorization_service: AuthorizationService
     auto_apply_canceller: AutoApplyCanceller
     context_source_service: ContextSourceService
+    in_flight_recovery: InFlightRecovery
 
     def runnables(self) -> list[Runnable]:
         return [self.letter_sending_worker, self.letter_pending_worker]
 
     def recoverables(self) -> list[Recoverable]:
-        return [
-            self.letter_sending_worker,
-            self.letter_pending_worker,
-            self.auto_submit_listener,
-        ]
+        return [self.in_flight_recovery]
 
     def event_listeners(self) -> list[EventListener]:
         return [
@@ -150,6 +148,7 @@ class BackendBuilder:
             state_service=state_service,
             session_maker=self._session_maker,
         )
+        in_flight_recovery = InFlightRecovery(state_service=state_service)
         return AppContext(
             browser=browser,
             auth_flow=auth_flow,
@@ -168,6 +167,7 @@ class BackendBuilder:
             authorization_service=authorization_service,
             auto_apply_canceller=auto_apply_canceller,
             context_source_service=context_source_service,
+            in_flight_recovery=in_flight_recovery,
         )
 
     async def _bootstrap_ai_layer(self, secret_store: SecretStore) -> AILayer:

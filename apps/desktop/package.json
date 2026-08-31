@@ -4,6 +4,7 @@
 	"description": "Otklik — automated job applications with AI cover letters",
 	"homepage": "https://github.com/liubimba/otklik",
 	"author": "liubimba",
+	"packageManager": "pnpm@9.15.4",
 	"type": "module",
 	"main": "dist-electron/main.cjs",
 	"scripts": {

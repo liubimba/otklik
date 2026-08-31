@@ -1,11 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { BrowserWindow, app, ipcMain, shell } from "electron";
+import { BrowserWindow, app, ipcMain, session, shell } from "electron";
 import log from "electron-log";
 import { autoUpdater } from "electron-updater";
 import { freePort } from "./free-port";
 import { APP_URL, registerAppSchemePrivileged, serveApp } from "./protocol";
+import { UPDATER_PROXY_BYPASS, resolveUpdaterProxy } from "./proxy";
 import { Sidecar } from "./sidecar";
 
 autoUpdater.autoDownload = false;
@@ -105,6 +106,14 @@ function createWindow(): void {
 
 app.whenReady().then(async () => {
 	serveApp(rendererRoot);
+	const updaterProxy = resolveUpdaterProxy(process.env);
+	if (updaterProxy) {
+		log.info(`updater: routing downloads through proxy ${updaterProxy}`);
+		await session.defaultSession.setProxy({
+			proxyRules: updaterProxy,
+			proxyBypassRules: UPDATER_PROXY_BYPASS,
+		});
+	}
 	backendPort = await freePort();
 	log.info(`backend spawning on port ${backendPort}`);
 	sidecar.onExit((exit) => {

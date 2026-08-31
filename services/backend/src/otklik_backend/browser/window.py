@@ -6,6 +6,7 @@ from otklik_backend.log import get_logger
 CDPSessionProvider = Callable[[], Awaitable[Any]]
 
 OFF_SCREEN_LIMIT = -10000
+OFF_SCREEN_ORIGIN = {"left": -32000, "top": -32000}
 RESCUE_ORIGIN = {"left": 80, "top": 80}
 
 
@@ -67,10 +68,28 @@ class CDPWindowController:
         self._log = get_logger(self.__class__.__name__)
 
     async def hide(self) -> None:
-        await self._set_window_state("minimized")
+        await self._move_off_screen()
 
     async def show_near_app(self) -> None:
         await self._set_window_state("normal", rescue_off_screen=True)
+
+    async def _move_off_screen(self) -> None:
+        try:
+            session = await self._session_provider()
+            if session is None:
+                self._log.warning("Cannot control browser window: no CDP session")
+                return
+            info = await session.send("Browser.getWindowForTarget")
+            window_id = info["windowId"]
+            await session.send(
+                "Browser.setWindowBounds",
+                {"windowId": window_id, "bounds": dict(OFF_SCREEN_ORIGIN)},
+            )
+            self._log.info("Browser window moved off-screen")
+        except Exception as exc:
+            self._log.warning(
+                "Failed to move browser window off-screen", error=str(exc)
+            )
 
     async def _set_window_state(
         self, state: str, rescue_off_screen: bool = False

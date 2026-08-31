@@ -35,16 +35,20 @@ def _provider(session: Any):
     return provide
 
 
-async def test_hide_minimizes_the_browser_window_through_cdp() -> None:
+async def test_hide_moves_the_window_off_screen_not_minimized() -> None:
     session = FakeCDPSession(window_id=7)
     controller = CDPWindowController(_provider(session))
 
     await controller.hide()
 
-    assert (
-        "Browser.setWindowBounds",
-        {"windowId": 7, "bounds": {"windowState": "minimized"}},
-    ) in session.sent
+    updates = session.bounds_updates()
+    assert all(
+        b.get("windowState") != "minimized" for b in updates
+    ), "hide must not minimize — a new tab un-minimizes and raises the window"
+    moved = [b for b in updates if "left" in b]
+    assert moved, "hide must reposition the window off-screen"
+    assert moved[-1]["left"] <= -10000
+    assert moved[-1]["top"] <= -10000
 
 
 async def test_show_restores_the_browser_window_through_cdp() -> None:

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { API } from "$lib/api/client";
+import type { NotificationsSettings } from "$lib/api/types";
 import ErrorState from "$lib/components/error-state.svelte";
 import SettingsAiTab from "$lib/components/settings-ai-tab.svelte";
 import { Button } from "$lib/components/ui/button";
@@ -37,6 +38,7 @@ const form = superForm(defaults(zod4(zform.settings.schema)), {
 				search: form.data.search,
 				user: form.data.user,
 				rate_limits: form.data.rate_limits,
+				notifications: form.data.notifications,
 				llm: {
 					resume_text: form.data.llm.resume_text,
 					letter_style: form.data.llm.letter_style,
@@ -59,6 +61,24 @@ const form = superForm(defaults(zod4(zform.settings.schema)), {
 });
 const { form: formData, enhance, submitting } = form;
 
+const NOTIFICATION_ROWS: {
+	key: Exclude<keyof NotificationsSettings, "enabled">;
+	label: () => string;
+}[] = [
+	{ key: "vacancy_parsed", label: m.settings_notif_vacancy_parsed },
+	{ key: "letter_generated", label: m.settings_notif_letter_generated },
+	{
+		key: "letter_generated_sandbox",
+		label: m.settings_notif_letter_generated_sandbox,
+	},
+	{ key: "application_sent", label: m.settings_notif_application_sent },
+	{ key: "error", label: m.settings_notif_error },
+	{ key: "captcha", label: m.settings_notif_captcha },
+	{ key: "auth_required", label: m.settings_notif_auth_required },
+	{ key: "search_finished", label: m.settings_notif_search_finished },
+	{ key: "rate_limited", label: m.settings_notif_rate_limited },
+];
+
 $effect(() => {
 	if (!settings.data) return;
 	const deployments = settings.data.llm.deployments.map(apiDeploymentToForm);
@@ -67,6 +87,7 @@ $effect(() => {
 		search: settings.data.search,
 		user: settings.data.user,
 		rate_limits: settings.data.rate_limits,
+		notifications: settings.data.notifications,
 		llm: {
 			resume_text: settings.data.llm.resume_text,
 			letter_style: settings.data.llm.letter_style,
@@ -263,6 +284,43 @@ $effect(() => {
                         </Form.Control>
                         <Form.FieldErrors/>
                     </Form.Field>
+            </section>
+
+            <Separator/>
+
+            <section class="space-y-4">
+                <div class="space-y-1">
+                    <h2 class="text-lg font-medium">
+                        {m.settings_section_notifications()}
+                    </h2>
+                    <p class="text-sm text-muted-foreground">
+                        {m.settings_section_notifications_hint()}
+                    </p>
+                </div>
+
+                <div class="flex items-center justify-between gap-4">
+                    <span class="text-sm font-medium"
+                    >{m.settings_notif_enabled()}</span>
+                    <Switch bind:checked={$formData.notifications.enabled}/>
+                </div>
+
+                <div
+                        class="space-y-3 {$formData.notifications.enabled
+                        ? ''
+                        : 'opacity-50'}"
+                >
+                    {#each NOTIFICATION_ROWS as row (row.key)}
+                        <div class="flex items-center justify-between gap-4">
+                            <span class="text-sm">{row.label()}</span>
+                            <Switch
+                                    disabled={!$formData.notifications.enabled}
+                                    checked={$formData.notifications[row.key]}
+                                    onCheckedChange={(v) =>
+                                    ($formData.notifications[row.key] = v)}
+                            />
+                        </div>
+                    {/each}
+                </div>
             </section>
 
             <Separator/>

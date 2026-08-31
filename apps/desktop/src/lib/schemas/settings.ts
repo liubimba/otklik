@@ -33,6 +33,31 @@ export const settingsFormSchema = z.object({
 		min_delay_ms: nonNegativeInt.default(800),
 		delay_jitter_ms: nonNegativeInt.default(400),
 	}),
+	notifications: z
+		.object({
+			enabled: z.boolean().default(true),
+			vacancy_parsed: z.boolean().default(false),
+			letter_generated: z.boolean().default(true),
+			letter_generated_sandbox: z.boolean().default(true),
+			application_sent: z.boolean().default(true),
+			error: z.boolean().default(true),
+			captcha: z.boolean().default(true),
+			auth_required: z.boolean().default(true),
+			search_finished: z.boolean().default(true),
+			rate_limited: z.boolean().default(true),
+		})
+		.default(() => ({
+			enabled: true,
+			vacancy_parsed: false,
+			letter_generated: true,
+			letter_generated_sandbox: true,
+			application_sent: true,
+			error: true,
+			captcha: true,
+			auth_required: true,
+			search_finished: true,
+			rate_limited: true,
+		})),
 	llm: z.object({
 		resume_text: z.string().default(""),
 		letter_style: z.string().default(""),
@@ -74,6 +99,7 @@ export function settingsToWrite(settings: Settings): SettingsWrite {
 		search: settings.search,
 		user: settings.user,
 		rate_limits: settings.rate_limits,
+		notifications: settings.notifications,
 		llm: {
 			resume_text: settings.llm.resume_text,
 			letter_style: settings.llm.letter_style,

@@ -26,6 +26,18 @@ describe("settingsFormSchema — defaults", () => {
 				min_delay_ms: 800,
 				delay_jitter_ms: 400,
 			},
+			notifications: {
+				enabled: true,
+				vacancy_parsed: false,
+				letter_generated: true,
+				letter_generated_sandbox: true,
+				application_sent: true,
+				error: true,
+				captcha: true,
+				auth_required: true,
+				search_finished: true,
+				rate_limited: true,
+			},
 			llm: {
 				resume_text: "",
 				letter_style: "",
@@ -166,6 +178,18 @@ describe("settingsToWrite", () => {
 			min_delay_ms: 800,
 			delay_jitter_ms: 400,
 		},
+		notifications: {
+			enabled: true,
+			vacancy_parsed: false,
+			letter_generated: true,
+			letter_generated_sandbox: true,
+			application_sent: true,
+			error: true,
+			captcha: true,
+			auth_required: true,
+			search_finished: true,
+			rate_limited: true,
+		},
 		llm: {
 			resume_text: "r",
 			letter_style: "s",
@@ -182,6 +206,10 @@ describe("settingsToWrite", () => {
 		expect(write.llm.deployments).toEqual([
 			{ id: "a", model: "gpt", api_base: "https://x", api_key: null },
 		]);
+	});
+
+	it("carries notification flags through unchanged", () => {
+		expect(settingsToWrite(base).notifications).toEqual(base.notifications);
 	});
 
 	it("carries user flags through unchanged so a queue-page toggle can patch them", () => {

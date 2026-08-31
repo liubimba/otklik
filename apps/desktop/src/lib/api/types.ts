@@ -189,12 +189,18 @@ export type APIRequestError = {
 	detail?: string | FastAPIValidationIssue[];
 };
 
+export type RateLimitEvent = {
+	type: "rate_limit_event";
+	data: { reason: string | null };
+};
+
 export type ServerEvent =
 	| AuthEvent
 	| VacancyEvent
 	| SearchEvent
 	| ApplicationEvent
-	| CaptchaEvent;
+	| CaptchaEvent
+	| RateLimitEvent;
 
 export const TERMINAL_SEARCH_STATUSES = new Set<SearchData["status"]>([
 	"exited",
@@ -235,6 +241,19 @@ export type LLMSettings = {
 	deployments: LLMDeployment[];
 };
 
+export type NotificationsSettings = {
+	enabled: boolean;
+	vacancy_parsed: boolean;
+	letter_generated: boolean;
+	letter_generated_sandbox: boolean;
+	application_sent: boolean;
+	error: boolean;
+	captcha: boolean;
+	auth_required: boolean;
+	search_finished: boolean;
+	rate_limited: boolean;
+};
+
 export type Settings = {
 	search: { max_pages: number; max_vacancies: number };
 	user: { auto_generate: boolean; auto_submit: boolean };
@@ -244,6 +263,7 @@ export type Settings = {
 		min_delay_ms: number;
 		delay_jitter_ms: number;
 	};
+	notifications: NotificationsSettings;
 	llm: LLMSettings;
 };
 

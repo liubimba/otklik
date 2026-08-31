@@ -53,3 +53,12 @@ class VacancyWSEvent(BaseModel):
 class AuthWSEvent(BaseModel):
     type: Literal["auth_changed"] = "auth_changed"
     data: AuthStatusAPISchema
+
+
+class RateLimitData(BaseModel):
+    reason: str | None = None
+
+
+class RateLimitWSEvent(BaseModel):
+    type: Literal["rate_limit_event"] = "rate_limit_event"
+    data: RateLimitData

@@ -10,7 +10,9 @@ import { Button } from "$lib/components/ui/button";
 import { Input } from "$lib/components/ui/input";
 import { Label } from "$lib/components/ui/label";
 import { Textarea } from "$lib/components/ui/textarea";
+import { notifySandboxLetter } from "$lib/notifications/notifier";
 import * as m from "$lib/paraglide/messages";
+import { query } from "$lib/queries";
 import FlaskConical from "@lucide/svelte/icons/flask-conical";
 import LoaderCircle from "@lucide/svelte/icons/loader-circle";
 import Sparkles from "@lucide/svelte/icons/sparkles";
@@ -65,6 +67,7 @@ function loadStoredForm(): PlaygroundForm {
 
 const queryClient = useQueryClient();
 const actions = createActions(queryClient).preview;
+const settingsQuery = query.settings.create();
 
 const form = $state<PlaygroundForm>(loadStoredForm());
 let letterText = $state("");
@@ -93,6 +96,9 @@ function generate(event: SubmitEvent) {
 		onSuccess: (data) => {
 			result = data;
 			letterText = data.text;
+			if (settingsQuery.data) {
+				notifySandboxLetter(settingsQuery.data.notifications);
+			}
 		},
 	});
 }

@@ -11,6 +11,8 @@ from otklik_backend.core.events import (
     AuthWSEvent,
     CaptchaData,
     CaptchaWSEvent,
+    RateLimitData,
+    RateLimitWSEvent,
 )
 from otklik_backend.core.site import SiteAuthFlow, SiteWriter
 from otklik_backend.core.site.result import SubmissionResult, SubmissionResultType
@@ -50,6 +52,7 @@ class LetterSendingWorker(Worker):
         self._resume_event = asyncio.Event()
         self._resume_event.set()
         self._pause_reason: str | None = None
+        self._rate_limited = False
         self._subscriber: CallbackEventSubscriber | None = None
 
     def start(self) -> None:
@@ -178,11 +181,16 @@ class LetterSendingWorker(Worker):
             match await rate_limit_gate(session=session):
                 case GateResult.RATE_LIMITED:
                     self._log.warning("Rate limit hit -- re-enqueue + backoff")
+                    if not self._rate_limited:
+                        self._rate_limited = True
+                        await self._broadcaster.publish(
+                            event=RateLimitWSEvent(data=RateLimitData())
+                        )
                     await self.enqueue(application_id=app.id)
                     await asyncio.sleep(delay=self._rate_limit_backoff_sec)
                     return False
                 case _:
-                    pass
+                    self._rate_limited = False
 
             letter: (
                 CoverLetterORM | None

@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     Table,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
@@ -93,6 +94,10 @@ class SettingsORM(Base):
 
     auto_generate: Mapped[bool] = mapped_column(default=False)
     auto_submit: Mapped[bool] = mapped_column(default=False)
+
+    notifications: Mapped[dict[str, bool]] = mapped_column(
+        JSON, default=dict, server_default=text("'{}'")
+    )
 
     llm_deployments: Mapped[list[LLMDeployment]] = mapped_column(
         LLMDeploymentList, default=list

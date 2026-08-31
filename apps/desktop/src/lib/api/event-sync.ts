@@ -1,7 +1,8 @@
+import { dispatchEventNotification } from "$lib/notifications/notifier";
 import { query } from "$lib/queries";
 import { connection } from "$lib/stores/connection.svelte";
 import { type QueryClient, notifyManager } from "@tanstack/svelte-query";
-import type { ServerEvent } from "./types";
+import type { ServerEvent, Settings } from "./types";
 
 export interface EventSync {
 	onEvent: (event: ServerEvent) => void;
@@ -37,6 +38,11 @@ export function createEventSync(queryClient: QueryClient): EventSync {
 					query.summary.invalidate(queryClient);
 			}
 		});
+
+		const settings = queryClient.getQueryData<Settings>(query.settings.key);
+		if (settings) {
+			dispatchEventNotification(event, settings.notifications);
+		}
 	}
 
 	function onConnect(): void {

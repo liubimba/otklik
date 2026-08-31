@@ -252,11 +252,27 @@ class SearchSettingsAPISchema(BaseModel):
     max_vacancies: int = 50
 
 
+class NotificationsSettingsAPISchema(BaseModel):
+    enabled: bool = True
+    vacancy_parsed: bool = False
+    letter_generated: bool = True
+    letter_generated_sandbox: bool = True
+    application_sent: bool = True
+    error: bool = True
+    captcha: bool = True
+    auth_required: bool = True
+    search_finished: bool = True
+    rate_limited: bool = True
+
+
 class SettingsAPISchema(BaseModel):
     search: SearchSettingsAPISchema = Field(default_factory=SearchSettingsAPISchema)
     user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
     llm: LLMSettingsAPISchema = Field(default_factory=LLMSettingsAPISchema)
     rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
+    notifications: NotificationsSettingsAPISchema = Field(
+        default_factory=NotificationsSettingsAPISchema
+    )
 
 
 class SettingsWriteAPISchema(BaseModel):
@@ -264,6 +280,9 @@ class SettingsWriteAPISchema(BaseModel):
     user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
     llm: LLMSettingsWriteAPISchema = Field(default_factory=LLMSettingsWriteAPISchema)
     rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
+    notifications: NotificationsSettingsAPISchema = Field(
+        default_factory=NotificationsSettingsAPISchema
+    )
 
 
 class SecretStorageAPISchema(BaseModel):

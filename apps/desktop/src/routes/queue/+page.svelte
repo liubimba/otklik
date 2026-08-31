@@ -165,7 +165,7 @@ $effect(() => {
                 <span>{m.queue_auto_generate_label()}</span>
             </div>
             <div
-                    class="flex items-center gap-2 pl-6 text-sm {autoGenerate
+                    class="flex items-center gap-2 text-sm {autoGenerate
                     ? ''
                     : 'opacity-50'}"
             >

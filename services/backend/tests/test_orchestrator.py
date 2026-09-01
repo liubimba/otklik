@@ -1,3 +1,4 @@
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from otklik_backend.db.converters import vacancy_to_orm
@@ -317,6 +318,7 @@ async def test_cancel_pending_clears_workers_and_skips_queued_applications(
         auth_flow=fake_browser,  # type: ignore[arg-type]
         writer=fake_writer,  # type: ignore[arg-type]
         broadcaster=recording_broadcaster,
+        pause_controller=PauseController(),
     )
     await pending_worker.enqueue(application_id=pending_id)
     await fake_orchestrator.enqueue(application_id=sending_id)

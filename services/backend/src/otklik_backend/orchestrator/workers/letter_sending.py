@@ -25,6 +25,7 @@ from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.exceptions import ApplicationNotFoundError
 from otklik_backend.orchestrator.gates import GateResult, auth_gate, rate_limit_gate
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.orchestrator.state_machine import ApplicationEvent
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.base import Worker
@@ -40,9 +41,11 @@ class LetterSendingWorker(Worker):
         auth_flow: SiteAuthFlow,
         writer: SiteWriter,
         broadcaster: EventBroadcaster,
+        pause_controller: PauseController,
         rate_limit_backoff_sec: float = 60,
     ) -> None:
         super().__init__()
+        self._pause = pause_controller
         self._state_service = state_service
         self._session_maker = session_maker
         self._auth_flow = auth_flow
@@ -119,7 +122,9 @@ class LetterSendingWorker(Worker):
         try:
             while True:
                 await self._resume_event.wait()
+                await self._pause.wait()
                 application_id = await self.get_next()
+                await self._pause.wait()
                 try:
                     submitted = await self._process_one(application_id=application_id)
                     if submitted:

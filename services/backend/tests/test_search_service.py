@@ -5,6 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from pydantic import HttpUrl
 
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.orchestrator.search import (
     SearchService,
     SearchAlreadyRunningError,
@@ -132,6 +133,7 @@ def _make_service(
         parser=parser,  # type: ignore[arg-type]
         broadcaster=broadcaster,
         session_maker=session_factory,
+        pause_controller=PauseController(),
     )
 
 

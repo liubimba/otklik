@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.log import configure_logging
 from otklik_backend.api.schemas import WorkFormat, EmploymentType
 from otklik_backend.api.app import app
@@ -243,6 +244,7 @@ def fake_orchestrator(
         auth_flow=fake_browser,  # type: ignore[arg-type]
         writer=fake_writer,  # type: ignore[arg-type]
         broadcaster=recording_broadcaster,
+        pause_controller=PauseController(),
         rate_limit_backoff_sec=0.05,
     )
 

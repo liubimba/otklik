@@ -12,6 +12,7 @@ from otklik_backend.orchestrator.exceptions import (
     SearchAlreadyRunningError,
     SearchSessionNotFoundError,
 )
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.orchestrator.search.filter_session import FilterSession
 from otklik_backend.orchestrator.search.search_session import (
     SearchSession,
@@ -26,12 +27,14 @@ class SearchService:
         parser: SiteParser,
         broadcaster: EventBroadcaster,
         session_maker: async_sessionmaker[AsyncSession],
+        pause_controller: PauseController,
     ) -> None:
         self._log = get_logger(__name__)
         self._core = core
         self._parser = parser
         self._broadcaster = broadcaster
         self._session_maker = session_maker
+        self._pause_controller = pause_controller
         self._filter_session: FilterSession | None = None
         self._search_session: SearchSession | None = None
 
@@ -101,6 +104,7 @@ class SearchService:
             parser=self._parser,
             max_pages=max_pages,
             max_vacancies=max_vacancies,
+            pause_controller=self._pause_controller,
         )
 
         task = self._search_session.get_search_task()

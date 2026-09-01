@@ -21,6 +21,7 @@ from otklik_backend.orchestrator.listeners.auto_apply import AutoApplyListener
 from otklik_backend.orchestrator.listeners.auto_submit import AutoSubmitListener
 from otklik_backend.orchestrator.search import SearchService
 from otklik_backend.orchestrator.state_service import StateTransitionService
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.orchestrator.recovery import InFlightRecovery
 from otklik_backend.orchestrator.workers.letter_pending import LetterPendingWorker
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
@@ -92,12 +93,14 @@ class BackendBuilder:
         auth_flow = HHRUAuthFlow(browser=browser)
         broadcaster = EventBroadcaster()
         state_service = StateTransitionService(broadcaster=broadcaster)
+        pause_controller = PauseController()
         writer = HHRUWriter(core=browser, min_delay_ms=800, jitter_delay_ms=400)
         search_service = SearchService(
             core=browser,
             parser=HHRUParser(core=browser),
             broadcaster=broadcaster,
             session_maker=self._session_maker,
+            pause_controller=pause_controller,
         )
         letter_sending_worker = LetterSendingWorker(
             state_service=state_service,
@@ -105,6 +108,7 @@ class BackendBuilder:
             auth_flow=auth_flow,
             writer=writer,
             broadcaster=broadcaster,
+            pause_controller=pause_controller,
         )
         ai_layer = await self._bootstrap_ai_layer(secret_store=secret_store)
         context_source_service = ContextSourceService(
@@ -127,6 +131,7 @@ class BackendBuilder:
             state_service=state_service,
             session_maker=self._session_maker,
             broadcaster=broadcaster,
+            pause_controller=pause_controller,
         )
         auto_submit_listener = AutoSubmitListener(
             state_service=state_service,

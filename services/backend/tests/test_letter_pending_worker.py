@@ -3,6 +3,7 @@ import asyncio
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.api.schemas import (
     ProcessingState,
@@ -80,6 +81,7 @@ async def test_worker_picks_up_pending_event_and_completes_generation(
         state_service=fake_state_service,
         session_maker=session_factory,
         broadcaster=recording_broadcaster,
+        pause_controller=PauseController(),
     )
     worker.start()
     run_task = asyncio.create_task(worker.run())
@@ -105,6 +107,76 @@ async def test_worker_picks_up_pending_event_and_completes_generation(
 
         await wait_until(is_ready)
 
+        assert ai_layer_with_router._router.acompletion.await_count >= 1
+    finally:
+        run_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await run_task
+        worker.stop()
+
+
+async def test_paused_worker_holds_generation_until_resumed(
+    session_factory: async_sessionmaker[AsyncSession],
+    fake_state_service: StateTransitionService,
+    recording_broadcaster: EventBroadcaster,
+    ai_layer_with_router,
+    vacancy_model: VacancyAPISchema,
+) -> None:
+    from tests.test_ai import _fake_model_response
+
+    ai_layer_with_router._router.acompletion.return_value = _fake_model_response(
+        content="Async-produced letter"
+    )
+
+    _, application_id = await _seed_letter_pending(session_factory, vacancy_model)
+
+    service = CoverLetterService(
+        session_maker=session_factory,
+        ai_layer=ai_layer_with_router,
+        state_service=fake_state_service,
+        context_source_service=FakeContextSourceService(),
+    )
+    pause = PauseController()
+    pause.pause()
+    worker = LetterPendingWorker(
+        cover_letter_service=service,
+        state_service=fake_state_service,
+        session_maker=session_factory,
+        broadcaster=recording_broadcaster,
+        pause_controller=pause,
+    )
+    worker.start()
+    run_task = asyncio.create_task(worker.run())
+
+    async def current_status() -> ProcessingState | None:
+        async with session_factory() as session:
+            app = await ApplicationRepository.get_by_id(
+                session=session, application_id=application_id
+            )
+            return app.status if app is not None else None
+
+    try:
+        await recording_broadcaster.publish(
+            event=ApplicationWSEvent(
+                data=ApplicationData(
+                    vacancy_id=1,
+                    application_id=application_id,
+                    status=ProcessingState.LETTER_PENDING,
+                    reason=None,
+                )
+            )
+        )
+
+        await asyncio.sleep(0.2)
+        assert await current_status() == ProcessingState.LETTER_PENDING
+        assert ai_layer_with_router._router.acompletion.await_count == 0
+
+        pause.resume()
+
+        async def is_ready() -> bool:
+            return await current_status() == ProcessingState.LETTER_READY
+
+        await wait_until(is_ready)
         assert ai_layer_with_router._router.acompletion.await_count >= 1
     finally:
         run_task.cancel()

@@ -9,6 +9,7 @@ from otklik_backend.core.events import ApplicationWSEvent
 from otklik_backend.core.state import ProcessingState
 from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.orchestrator.cover_letter_service import CoverLetterService
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.orchestrator.state_machine import ApplicationEvent
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.base import Worker
@@ -23,11 +24,13 @@ class LetterPendingWorker(Worker):
         state_service: StateTransitionService,
         session_maker: async_sessionmaker[AsyncSession],
         broadcaster: EventBroadcaster,
+        pause_controller: PauseController,
     ) -> None:
         super().__init__()
         self._cover_letter_service = cover_letter_service
         self._state_service = state_service
         self._session_maker = session_maker
+        self._pause = pause_controller
         self._broadcaster = broadcaster
         self._subscriber: CallbackEventSubscriber | None = None
 
@@ -64,7 +67,9 @@ class LetterPendingWorker(Worker):
         self._log.info("Consumer started")
         try:
             while True:
+                await self._pause.wait()
                 application_id = await self.get_next()
+                await self._pause.wait()
                 try:
                     await self._process_one(application_id=application_id)
                 except Exception as e:

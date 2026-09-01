@@ -23,6 +23,7 @@ from otklik_backend.db.repositories.search_history import SearchHistoryRepositor
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.exceptions import SearchAlreadyRunningError
+from otklik_backend.orchestrator.pause import PauseController
 
 
 class SearchStateEvent(str, Enum):
@@ -84,6 +85,7 @@ class SearchSession:
         parser: SiteParser,
         max_pages: int,
         max_vacancies: int,
+        pause_controller: PauseController,
     ) -> None:
         self._id = str(uuid.uuid4())
         self._log = get_logger(self.__class__.__name__)
@@ -94,8 +96,7 @@ class SearchSession:
         self._max_pages = max_pages
         self._max_vacancies = max_vacancies
         self._search_task: SearchSessionTask | None = None
-        self._resume_event = asyncio.Event()
-        self._resume_event.set()
+        self._pause = pause_controller
 
         self._log.info("Issued new search session", id=self._id)
 
@@ -106,7 +107,7 @@ class SearchSession:
             or task.state_machine.current_state_value != SearchStatusAPISchema.RUNNING
         ):
             return False
-        self._resume_event.clear()
+        self._pause.pause()
         task.state_machine.send(SearchStateEvent.PAUSE.value)
         self._log.info("Search paused", search_id=self._id)
         await self._update_search_history(task)
@@ -121,7 +122,7 @@ class SearchSession:
         ):
             return False
         task.state_machine.send(SearchStateEvent.RESUME.value)
-        self._resume_event.set()
+        self._pause.resume()
         self._log.info("Search resumed", search_id=self._id)
         await self._update_search_history(task)
         await self._publish_search_event(task)
@@ -163,6 +164,7 @@ class SearchSession:
         if self._search_task is None:
             return False
 
+        self._pause.resume()
         already_cancelling = (
             self._search_task.task.cancelled()
             or self._search_task.task.cancelling() > 0
@@ -194,6 +196,7 @@ class SearchSession:
         parser: SiteParser,
         max_pages: int,
         max_vacancies: int,
+        pause_controller: PauseController,
     ) -> Self:
         session = cls(
             core=core,
@@ -202,6 +205,7 @@ class SearchSession:
             parser=parser,
             max_pages=max_pages,
             max_vacancies=max_vacancies,
+            pause_controller=pause_controller,
         )
         await session.run(url=url)
         return session
@@ -272,10 +276,11 @@ class SearchSession:
         self, task: SearchSessionTask, search_page: BrowserPage
     ) -> None:
         while True:
-            await self._resume_event.wait()
+            await self._pause.wait()
             async for parsed_vacancy in self._parser.parse(
                 search_page=search_page,
             ):
+                await self._pause.wait()
                 async with self._session_maker() as session:
                     vacancy_orm: VacancyORM = await VacancyRepository.upsert(
                         session=session, vacancy=parsed_vacancy

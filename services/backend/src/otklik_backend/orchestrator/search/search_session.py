@@ -292,9 +292,11 @@ class SearchSession:
                     )
                     await session.commit()
 
+                vacancy_schema = vacancy_to_schema(row=vacancy_orm)
+                vacancy_schema.already_responded = parsed_vacancy.already_responded
                 await self._broadcaster.publish(
                     event=VacancyWSEvent(
-                        data=vacancy_to_schema(row=vacancy_orm),
+                        data=vacancy_schema,
                         search_id=self._id,
                     )
                 )

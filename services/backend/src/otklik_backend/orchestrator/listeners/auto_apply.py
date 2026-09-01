@@ -73,8 +73,13 @@ class AutoApplyListener:
                     vacancy_id=vacancy_orm.id,
                 )
                 return
+            event_kind = (
+                ApplicationEvent.MARK_ALREADY_APPLIED
+                if event.data.already_responded
+                else ApplicationEvent.ENQUEUE_FOR_LETTER
+            )
             await self._state_service.transition_or_skip(
                 session=session,
                 application_id=application.id,
-                event=ApplicationEvent.ENQUEUE_FOR_LETTER,
+                event=event_kind,
             )

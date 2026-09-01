@@ -7,6 +7,9 @@ SERP_HTML = (
     '<a data-qa="serp-item__title" href="https://hh.ru/vacancy/2">B</a>'
 )
 VACANCY_HTML = "<div><h1>x</h1></div>"
+VACANCY_HTML_RESPONDED = (
+    '<div><h1>x</h1><a data-qa="vacancy-response-link-view-topic">Чат</a></div>'
+)
 
 
 class FakeElement:
@@ -18,6 +21,9 @@ class FakeElement:
 
 
 class FakeVacancyPage:
+    def __init__(self, content_html: str = VACANCY_HTML) -> None:
+        self._content_html = content_html
+
     async def set_viewport_size(self, width: int, height: int) -> None:
         pass
 
@@ -28,7 +34,7 @@ class FakeVacancyPage:
         return FakeElement("value")
 
     async def content(self) -> str:
-        return VACANCY_HTML
+        return self._content_html
 
     async def close(self) -> None:
         pass
@@ -55,8 +61,8 @@ class FakeSearchPage:
 
 
 class FakeCore:
-    def __init__(self) -> None:
-        self._page = FakeVacancyPage()
+    def __init__(self, vacancy_html: str = VACANCY_HTML) -> None:
+        self._page = FakeVacancyPage(vacancy_html)
 
     async def open_reusable_page(self, key: str, url: str) -> FakeVacancyPage:
         await self._page.goto(url)
@@ -78,3 +84,17 @@ async def test_parse_drains_one_page_and_terminates() -> None:
         "https://hh.ru/vacancy/1",
         "https://hh.ru/vacancy/2",
     ]
+    assert all(v.already_responded is False for v in vacancies)
+
+
+async def test_parse_flags_already_responded_vacancies() -> None:
+    parser = HHRUParser(core=FakeCore(VACANCY_HTML_RESPONDED), selectors=HHRU_SELECTORS)  # type: ignore[arg-type]
+    parser._delay_sec = 0
+    parser._jitter_ms = 0
+
+    vacancies: list[VacancyAPISchema] = []
+    async for vacancy in parser.parse(search_page=FakeSearchPage()):  # type: ignore[arg-type]
+        vacancies.append(vacancy)
+
+    assert len(vacancies) == 2
+    assert all(v.already_responded is True for v in vacancies)

@@ -45,6 +45,8 @@ const statusBadge = $derived.by((): StatusBadge | null => {
 			return { label: m.card_status_error(), variant: "destructive" };
 		case "interrupted":
 			return { label: m.card_status_interrupted(), variant: "secondary" };
+		case "already_applied":
+			return { label: m.card_status_already_applied(), variant: "success" };
 		case "skipped":
 			return { label: m.card_status_skipped(), variant: "ghost" };
 		default:

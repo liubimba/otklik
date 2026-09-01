@@ -25,6 +25,7 @@ class Selectors:
         work_experience: str
         employment_type: str
         respond_link_top: str
+        responded_marker: str
 
     @dataclass(frozen=True)
     class VacancyResponsePage:
@@ -65,6 +66,10 @@ HHRU_SELECTORS = Selectors(
         work_experience='[data-qa="work-experience-text"]',
         employment_type='[data-qa="common-employment-text"]',
         respond_link_top='[data-qa="vacancy-response-link-top"]',
+        responded_marker=(
+            '[data-qa="vacancy-response-link-top-again"], '
+            '[data-qa="vacancy-response-link-view-topic"]'
+        ),
     ),
     response=Selectors.VacancyResponsePage(
         respond_button='[data-qa="vacancy-response-submit-popup"]',

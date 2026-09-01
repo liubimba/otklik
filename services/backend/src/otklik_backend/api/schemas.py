@@ -66,6 +66,7 @@ class VacancyAPISchema(BaseModel):
     work_formats: list[WorkFormat] = [WorkFormat.UNKNOWN]
     employment_types: list[EmploymentType] = [EmploymentType.UNKNOWN]
     work_experience: Optional[str] = None
+    already_responded: bool = False
 
 
 class VacancyStatusFilterAPISchema(str, Enum):
@@ -78,6 +79,7 @@ class VacancyStatusFilterAPISchema(str, Enum):
     LETTER_SENT = "letter_sent"
     ERROR = "error"
     INTERRUPTED = "interrupted"
+    ALREADY_APPLIED = "already_applied"
     SKIPPED = "skipped"
 
 

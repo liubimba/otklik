@@ -28,6 +28,7 @@ export type ProcessingState =
 	| "letter_sent"
 	| "error"
 	| "interrupted"
+	| "already_applied"
 	| "skipped";
 
 export type ErrorDomain = "model" | "submission";
@@ -67,6 +68,7 @@ export type VacancyStatusFilter =
 	| "letter_sent"
 	| "error"
 	| "interrupted"
+	| "already_applied"
 	| "skipped";
 
 export type VacancyWithStatus = Vacancy & {

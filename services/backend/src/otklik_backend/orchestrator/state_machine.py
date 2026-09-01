@@ -18,6 +18,7 @@ class ApplicationEvent(str, Enum):
     FAIL = "fail"
     REGENERATE = "regenerate"
     INTERRUPT = "interrupt"
+    MARK_ALREADY_APPLIED = "mark_already_applied"
 
 
 ERROR_DOMAIN_BY_EVENT: dict[ApplicationEvent, ErrorDomain] = {
@@ -30,7 +31,11 @@ class ProcessingStateMachine(StateMachine):
     _ = States.from_enum(
         ProcessingState,
         initial=ProcessingState.PARSED,
-        final=[ProcessingState.LETTER_SENT, ProcessingState.SKIPPED],
+        final=[
+            ProcessingState.LETTER_SENT,
+            ProcessingState.ALREADY_APPLIED,
+            ProcessingState.SKIPPED,
+        ],
     )
 
     enqueue_for_letter = _.PARSED.to(_.LETTER_PENDING)
@@ -74,6 +79,7 @@ class ProcessingStateMachine(StateMachine):
         | _.LETTER_QUEUED.to(_.INTERRUPTED)
         | _.LETTER_SENDING.to(_.INTERRUPTED)
     )
+    mark_already_applied = _.PARSED.to(_.ALREADY_APPLIED)
     fail = (
         _.LETTER_PENDING.to(_.ERROR)
         | _.LETTER_READY.to(_.ERROR)

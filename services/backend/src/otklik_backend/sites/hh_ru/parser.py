@@ -156,12 +156,18 @@ class HHRUParser:
         employment_type_text = self._extract_text(
             page_parser, selectors.vacancy.employment_type
         )
+        already_responded = (
+            page_parser.css_first(selectors.vacancy.responded_marker) is not None
+        )
 
-        self._logger.info(f"Parsed vacancy: {href}")
+        self._logger.info(
+            f"Parsed vacancy: {href}", already_responded=already_responded
+        )
         return VacancyAPISchema(
             title=title,
             apply_link=href,
             description=description,
+            already_responded=already_responded,
             company_stars=self._extract_text(
                 page_parser, selectors.vacancy.company_stars
             ),

@@ -132,6 +132,7 @@
 	"card_status_letter_sent": "Отправлено",
 	"card_status_error": "Ошибка",
 	"card_status_interrupted": "Незавершён",
+	"card_status_already_applied": "Уже откликались",
 	"card_status_skipped": "Пропущено",
 	"status_pending": "ожидание",
 	"status_running": "идёт",

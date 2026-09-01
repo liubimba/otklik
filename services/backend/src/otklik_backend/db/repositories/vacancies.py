@@ -40,7 +40,7 @@ class VacancyRepository:
     async def upsert(
         cls, session: AsyncSession, vacancy: VacancyAPISchema
     ) -> VacancyORM:
-        values = vacancy.model_dump(mode="json", exclude={"id"})
+        values = vacancy.model_dump(mode="json", exclude={"id", "already_responded"})
         stmt = sqlite_insert(VacancyORM).values(**values)
         stmt = stmt.on_conflict_do_update(
             index_elements=[VacancyORM.apply_link],

@@ -60,4 +60,4 @@ jobs:
         run: |
           pnpm build
           pnpm electron:compile
-          npx electron-builder --publish always
+          pnpm exec electron-builder --publish always

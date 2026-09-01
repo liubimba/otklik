@@ -70,6 +70,10 @@ async def list_all_with_status(
     ),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    search_id: str = Query(
+        default="all",
+        description='Scope: "all", "latest" (current search), or a search UUID.',
+    ),
 ) -> VacancyListPageAPISchema:
     chips = status_filter or []
     include_unapplied = VacancyStatusFilterAPISchema.NONE in chips
@@ -79,6 +83,17 @@ async def list_all_with_status(
         if chip is not VacancyStatusFilterAPISchema.NONE
     ]
 
+    scope: str | None
+    if search_id == "all":
+        scope = None
+    elif search_id == "latest":
+        latest = await SearchHistoryRepository.get_latest_id(session=session)
+        if latest is None:
+            return VacancyListPageAPISchema(items=[], total=0)
+        scope = latest
+    else:
+        scope = search_id
+
     rows, total = await VacancyRepository.list_with_status(
         session=session,
         statuses=statuses,
@@ -86,6 +101,7 @@ async def list_all_with_status(
         search=q,
         limit=limit,
         offset=offset,
+        search_id=scope,
     )
     return VacancyListPageAPISchema(
         items=[

@@ -1,11 +1,13 @@
 <script lang="ts">
 import { createActions } from "$lib/actions";
+import type { VacancyStatusFilter } from "$lib/api/types";
 import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ListSkeleton from "$lib/components/list-skeleton.svelte";
 import LiveStatus from "$lib/components/live-status.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Button } from "$lib/components/ui/button";
+import { Input } from "$lib/components/ui/input";
 import { Switch } from "$lib/components/ui/switch";
 import VacancyCard from "$lib/components/vacancy-card.svelte";
 import * as m from "$lib/paraglide/messages";
@@ -16,7 +18,10 @@ import Inbox from "@lucide/svelte/icons/inbox";
 import Pause from "@lucide/svelte/icons/pause";
 import Play from "@lucide/svelte/icons/play";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+import Search from "@lucide/svelte/icons/search";
+import SearchX from "@lucide/svelte/icons/search-x";
 import Send from "@lucide/svelte/icons/send";
+import X from "@lucide/svelte/icons/x";
 import { useQueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
 import { createSearchPageView } from "./search.view.svelte";
@@ -25,10 +30,74 @@ import { createSearchPageViewModel } from "./search.view_model.svelte";
 const queryClient = useQueryClient();
 const actions = createActions(queryClient);
 
+const PAGE_SIZE = 50;
+const SEARCH_DEBOUNCE_MS = 300;
+
+const FILTERS: { value: VacancyStatusFilter; label: () => string }[] = [
+	{ value: "none", label: m.vacancies_filter_none },
+	{ value: "letter_pending", label: m.card_status_letter_pending },
+	{ value: "letter_ready", label: m.card_status_letter_ready },
+	{ value: "letter_reviewing", label: m.card_status_letter_reviewing },
+	{ value: "letter_queued", label: m.card_status_letter_queued },
+	{ value: "letter_sending", label: m.card_status_letter_sending },
+	{ value: "letter_sent", label: m.card_status_letter_sent },
+	{ value: "error", label: m.card_status_error },
+	{ value: "interrupted", label: m.card_status_interrupted },
+	{ value: "skipped", label: m.card_status_skipped },
+];
+
+let activeFilters = $state<VacancyStatusFilter[]>([]);
+let searchInput = $state("");
+let search = $state("");
+let limit = $state(PAGE_SIZE);
+
+$effect(() => {
+	const next = searchInput;
+	const timer = setTimeout(() => {
+		if (next === search) return;
+		search = next;
+		limit = PAGE_SIZE;
+	}, SEARCH_DEBOUNCE_MS);
+	return () => clearTimeout(timer);
+});
+
+function toggleFilter(value: VacancyStatusFilter) {
+	activeFilters = activeFilters.includes(value)
+		? activeFilters.filter((f) => f !== value)
+		: [...activeFilters, value];
+	limit = PAGE_SIZE;
+}
+
+function clearFilters() {
+	activeFilters = [];
+	limit = PAGE_SIZE;
+}
+
+function clearSearch() {
+	searchInput = "";
+	search = "";
+	limit = PAGE_SIZE;
+}
+
 const settingsQuery = query.settings.create();
-const vacanciesQuery = query.vacancies.create();
+const vacanciesQuery = query.all_vacancies.create(
+	() => activeFilters,
+	() => search,
+	() => limit,
+	() => "latest",
+);
 const searchQuery = query.search.vacancies.create();
 const restartCountsQuery = query.restart_counts.create();
+
+const vacancyItems = $derived(vacanciesQuery.data?.items ?? []);
+const vacancyTotal = $derived(vacanciesQuery.data?.total ?? 0);
+const hasMoreVacancies = $derived(vacancyItems.length < vacancyTotal);
+const loadingMoreVacancies = $derived(
+	vacanciesQuery.isFetching && vacancyItems.length > 0,
+);
+const vacanciesFiltered = $derived(
+	activeFilters.length > 0 || search.trim() !== "",
+);
 
 const model = createSearchPageViewModel(searchQuery);
 const view = createSearchPageView(searchQuery, actions, model);
@@ -274,6 +343,49 @@ $effect(() => {
 
     <LiveStatus text={liveStatus}/>
 
+    <div class="relative">
+        <Search
+                class="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2"
+        />
+        <Input
+                type="search"
+                bind:value={searchInput}
+                placeholder={m.vacancies_search_placeholder()}
+                aria-label={m.vacancies_search_placeholder()}
+                class="pl-9 pr-9"
+        />
+        {#if searchInput}
+            <button
+                    type="button"
+                    onclick={clearSearch}
+                    aria-label={m.vacancies_search_clear()}
+                    class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/40 absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 focus-visible:outline-none focus-visible:ring-2"
+            >
+                <X class="size-4"/>
+            </button>
+        {/if}
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+        <Button
+                variant={activeFilters.length === 0 ? "default" : "outline"}
+                size="sm"
+                onclick={clearFilters}
+        >
+            {m.vacancies_filter_all()}
+        </Button>
+        {#each FILTERS as filter (filter.value)}
+            <Button
+                    variant={activeFilters.includes(filter.value) ? "default" : "outline"}
+                    size="sm"
+                    aria-pressed={activeFilters.includes(filter.value)}
+                    onclick={() => toggleFilter(filter.value)}
+            >
+                {filter.label()}
+            </Button>
+        {/each}
+    </div>
+
     {#if vacanciesQuery.isPending}
         <ListSkeleton/>
     {:else if vacanciesQuery.isError}
@@ -283,12 +395,27 @@ $effect(() => {
                 })}
                 onRetry={() => vacanciesQuery.refetch()}
         />
-    {:else if vacanciesQuery.data.length === 0 && !model.search.vacancies.inFlight}
-        <EmptyState icon={Inbox} title={m.queue_empty()}>
-            <Button onclick={view.search.filter.start} disabled={!model.search.filter.inactive}>
-                {m.queue_button_new_search()}
-            </Button>
-        </EmptyState>
+    {:else if vacancyItems.length === 0 && !model.search.vacancies.inFlight}
+        {#if vacanciesFiltered}
+            <EmptyState icon={SearchX} title={m.vacancies_empty_filtered()}>
+                <Button
+                        variant="outline"
+                        size="sm"
+                        onclick={() => {
+                        clearFilters();
+                        clearSearch();
+                    }}
+                >
+                    {m.vacancies_filter_all()}
+                </Button>
+            </EmptyState>
+        {:else}
+            <EmptyState icon={Inbox} title={m.queue_empty()}>
+                <Button onclick={view.search.filter.start} disabled={!model.search.filter.inactive}>
+                    {m.queue_button_new_search()}
+                </Button>
+            </EmptyState>
+        {/if}
     {:else}
         <ul class="space-y-3" aria-busy={model.search.vacancies.inFlight}>
             {#if model.search.vacancies.inFlight}
@@ -300,14 +427,29 @@ $effect(() => {
                     </div>
                 </li>
             {/if}
-            {#each vacanciesQuery.data as vacancy (vacancy.id)}
+            {#each vacancyItems as vacancy (vacancy.id)}
                 <li>
                     <VacancyCard
                             {vacancy}
+                            status={vacancy.status}
                             onclick={(v) => letterReview.open(v.id)}
                     />
                 </li>
             {/each}
         </ul>
+
+        {#if hasMoreVacancies}
+            <div class="flex justify-center">
+                <Button
+                        variant="outline"
+                        onclick={() => (limit += PAGE_SIZE)}
+                        disabled={loadingMoreVacancies}
+                >
+                    {loadingMoreVacancies
+                        ? m.vacancies_loading_more()
+                        : m.vacancies_load_more()}
+                </Button>
+            </div>
+        {/if}
     {/if}
 </div>

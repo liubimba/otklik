@@ -261,6 +261,7 @@ export const API = {
 			search?: string;
 			limit?: number;
 			offset?: number;
+			searchId?: string;
 		}) =>
 			api<VacancyListPage>(
 				`vacancies/all${qs({
@@ -268,6 +269,7 @@ export const API = {
 					q: opts?.search,
 					limit: opts?.limit,
 					offset: opts?.offset,
+					search_id: opts?.searchId,
 				})}`,
 			),
 	},

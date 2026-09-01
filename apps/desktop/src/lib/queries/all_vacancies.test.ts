@@ -40,11 +40,11 @@ describe("allVacanciesPageQueryKey", () => {
 	it("normalises absent filter and search to null so the key stays stable", () => {
 		expect(allVacanciesPageQueryKey(undefined, undefined, 50)).toEqual([
 			"all-vacancies",
-			{ statuses: null, search: null, limit: 50 },
+			{ statuses: null, search: null, limit: 50, searchId: null },
 		]);
 		expect(allVacanciesPageQueryKey([], "", 50)).toEqual([
 			"all-vacancies",
-			{ statuses: null, search: null, limit: 50 },
+			{ statuses: null, search: null, limit: 50, searchId: null },
 		]);
 	});
 });

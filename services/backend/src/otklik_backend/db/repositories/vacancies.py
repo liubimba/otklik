@@ -125,6 +125,7 @@ class VacancyRepository:
         search: str | None = None,
         limit: int = 50,
         offset: int = 0,
+        search_id: str | None = None,
     ) -> tuple[Sequence[tuple[VacancyORM, ProcessingState | None]], int]:
         logger.info(
             "List vacancies with status",
@@ -153,6 +154,14 @@ class VacancyRepository:
             filters.append(or_(*status_conditions))
         if search and search.strip():
             filters.extend(cls._search_conditions(search))
+        if search_id is not None:
+            filters.append(
+                VacancyORM.id.in_(
+                    select(search_vacancies_table.c.vacancy_id).where(
+                        search_vacancies_table.c.search_id == search_id
+                    )
+                )
+            )
 
         count_stmt = (
             select(func.count())

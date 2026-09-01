@@ -16,12 +16,14 @@ async def _has_letter(session: AsyncSession, application_id: int) -> bool:
     return latest is not None
 
 
-async def generation_targets(session: AsyncSession) -> list[int]:
+async def generation_targets(
+    session: AsyncSession, search_id: str | None = None
+) -> list[int]:
     interrupted = await ApplicationRepository.list_by_status(
-        session=session, status=ProcessingState.INTERRUPTED
+        session=session, status=ProcessingState.INTERRUPTED, search_id=search_id
     )
     errored = await ApplicationRepository.list_by_status(
-        session=session, status=ProcessingState.ERROR
+        session=session, status=ProcessingState.ERROR, search_id=search_id
     )
     ids: list[int] = []
     for application in interrupted:
@@ -33,12 +35,14 @@ async def generation_targets(session: AsyncSession) -> list[int]:
     return ids
 
 
-async def submission_targets(session: AsyncSession) -> list[int]:
+async def submission_targets(
+    session: AsyncSession, search_id: str | None = None
+) -> list[int]:
     interrupted = await ApplicationRepository.list_by_status(
-        session=session, status=ProcessingState.INTERRUPTED
+        session=session, status=ProcessingState.INTERRUPTED, search_id=search_id
     )
     errored = await ApplicationRepository.list_by_status(
-        session=session, status=ProcessingState.ERROR
+        session=session, status=ProcessingState.ERROR, search_id=search_id
     )
     ids: list[int] = []
     for application in interrupted:
@@ -51,12 +55,14 @@ async def submission_targets(session: AsyncSession) -> list[int]:
 
 
 async def restart_generation(
-    session: AsyncSession, state_service: StateTransitionService
+    session: AsyncSession,
+    state_service: StateTransitionService,
+    search_id: str | None = None,
 ) -> int:
     settings = await SettingsRepository.get(session=session)
     if not settings.auto_generate:
         return 0
-    ids = await generation_targets(session=session)
+    ids = await generation_targets(session=session, search_id=search_id)
     for application_id in ids:
         await state_service.transition_or_skip(
             session=session,
@@ -67,12 +73,14 @@ async def restart_generation(
 
 
 async def restart_submission(
-    session: AsyncSession, state_service: StateTransitionService
+    session: AsyncSession,
+    state_service: StateTransitionService,
+    search_id: str | None = None,
 ) -> int:
     settings = await SettingsRepository.get(session=session)
     if not settings.auto_submit:
         return 0
-    ids = await submission_targets(session=session)
+    ids = await submission_targets(session=session, search_id=search_id)
     for application_id in ids:
         await state_service.transition_or_skip(
             session=session,
@@ -82,7 +90,9 @@ async def restart_submission(
     return len(ids)
 
 
-async def restart_counts(session: AsyncSession) -> tuple[int, int]:
-    generation = len(await generation_targets(session=session))
-    submission = len(await submission_targets(session=session))
+async def restart_counts(
+    session: AsyncSession, search_id: str | None = None
+) -> tuple[int, int]:
+    generation = len(await generation_targets(session=session, search_id=search_id))
+    submission = len(await submission_targets(session=session, search_id=search_id))
     return generation, submission

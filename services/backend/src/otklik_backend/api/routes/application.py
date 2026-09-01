@@ -73,25 +73,55 @@ async def summary(
     )
 
 
+async def _resolve_restart_scope(
+    session: AsyncSession, search_id: str
+) -> tuple[str | None, bool]:
+    if search_id == "all":
+        return None, True
+    if search_id == "latest":
+        latest = await SearchHistoryRepository.get_latest_id(session=session)
+        return latest, latest is not None
+    return search_id, True
+
+
 @applications_router.get("/restart-counts")
-async def restart_counts_route(session: SessionDep) -> RestartCountsAPISchema:
-    generation, submission = await restart_counts(session=session)
+async def restart_counts_route(
+    session: SessionDep, search_id: str = Query(default="latest")
+) -> RestartCountsAPISchema:
+    scope, active = await _resolve_restart_scope(session, search_id)
+    if not active:
+        return RestartCountsAPISchema(generation=0, submission=0)
+    generation, submission = await restart_counts(session=session, search_id=scope)
     return RestartCountsAPISchema(generation=generation, submission=submission)
 
 
 @applications_router.post("/restart-generation")
 async def restart_generation_route(
-    session: SessionDep, state_service: StateServiceDep
+    session: SessionDep,
+    state_service: StateServiceDep,
+    search_id: str = Query(default="latest"),
 ) -> RestartResultAPISchema:
-    restarted = await restart_generation(session=session, state_service=state_service)
+    scope, active = await _resolve_restart_scope(session, search_id)
+    if not active:
+        return RestartResultAPISchema(restarted=0)
+    restarted = await restart_generation(
+        session=session, state_service=state_service, search_id=scope
+    )
     return RestartResultAPISchema(restarted=restarted)
 
 
 @applications_router.post("/restart-submission")
 async def restart_submission_route(
-    session: SessionDep, state_service: StateServiceDep
+    session: SessionDep,
+    state_service: StateServiceDep,
+    search_id: str = Query(default="latest"),
 ) -> RestartResultAPISchema:
-    restarted = await restart_submission(session=session, state_service=state_service)
+    scope, active = await _resolve_restart_scope(session, search_id)
+    if not active:
+        return RestartResultAPISchema(restarted=0)
+    restarted = await restart_submission(
+        session=session, state_service=state_service, search_id=scope
+    )
     return RestartResultAPISchema(restarted=restarted)
 
 

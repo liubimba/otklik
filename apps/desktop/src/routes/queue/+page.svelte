@@ -153,9 +153,9 @@ $effect(() => {
         </div>
     </header>
 
-    <section class="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-3">
-        <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2 text-sm">
+    <section class="bg-card rounded-lg border text-sm">
+        <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <div class="flex items-center gap-2.5">
                 <Switch
                         checked={autoGenerate}
                         disabled={savingAuto || !settingsQuery.data}
@@ -164,11 +164,25 @@ $effect(() => {
                 />
                 <span>{m.queue_auto_generate_label()}</span>
             </div>
-            <div
-                    class="flex items-center gap-2 text-sm {autoGenerate
-                    ? ''
-                    : 'opacity-50'}"
-            >
+            {#if autoGenerate && generationCount > 0}
+                <Button
+                        variant="ghost"
+                        size="sm"
+                        class="text-muted-foreground"
+                        onclick={view.applications.restartGeneration}
+                        disabled={restartingGeneration}
+                >
+                    <RotateCcw class="size-3.5"/>
+                    {m.queue_restart_generation({ count: generationCount })}
+                </Button>
+            {/if}
+        </div>
+        <div
+                class="flex items-center justify-between gap-3 border-t px-4 py-3 {autoGenerate
+                ? ''
+                : 'opacity-50'}"
+        >
+            <div class="flex items-center gap-2.5">
                 <Switch
                         checked={autoSubmit}
                         disabled={!autoGenerate || savingAuto || !settingsQuery.data}
@@ -177,28 +191,18 @@ $effect(() => {
                 />
                 <span>{m.queue_auto_submit_label()}</span>
             </div>
-        </div>
-        <div class="flex flex-col gap-2">
-            <Button
-                    variant="outline"
-                    onclick={view.applications.restartGeneration}
-                    disabled={!autoGenerate ||
-                    generationCount === 0 ||
-                    restartingGeneration}
-            >
-                <RotateCcw class="size-4"/>
-                {m.queue_restart_generation({ count: generationCount })}
-            </Button>
-            <Button
-                    variant="outline"
-                    onclick={view.applications.restartSubmission}
-                    disabled={!autoSubmit ||
-                    submissionCount === 0 ||
-                    restartingSubmission}
-            >
-                <Send class="size-4"/>
-                {m.queue_restart_submission({ count: submissionCount })}
-            </Button>
+            {#if autoSubmit && submissionCount > 0}
+                <Button
+                        variant="ghost"
+                        size="sm"
+                        class="text-muted-foreground"
+                        onclick={view.applications.restartSubmission}
+                        disabled={restartingSubmission}
+                >
+                    <Send class="size-3.5"/>
+                    {m.queue_restart_submission({ count: submissionCount })}
+                </Button>
+            {/if}
         </div>
     </section>
 

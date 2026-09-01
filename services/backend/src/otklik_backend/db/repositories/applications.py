@@ -98,11 +98,21 @@ class ApplicationRepository:
 
     @classmethod
     async def list_by_status(
-        cls, session: AsyncSession, status: ProcessingState
+        cls,
+        session: AsyncSession,
+        status: ProcessingState,
+        search_id: str | None = None,
     ) -> Sequence[ApplicationORM]:
-        result = await session.execute(
-            select(ApplicationORM).where(ApplicationORM.status == status)
-        )
+        stmt = select(ApplicationORM).where(ApplicationORM.status == status)
+        if search_id is not None:
+            stmt = stmt.where(
+                ApplicationORM.vacancy_id.in_(
+                    select(search_vacancies_table.c.vacancy_id).where(
+                        search_vacancies_table.c.search_id == search_id
+                    )
+                )
+            )
+        result = await session.execute(stmt)
         return result.scalars().all()
 
     @classmethod

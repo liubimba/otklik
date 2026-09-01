@@ -167,6 +167,53 @@ async def test_restart_submission_does_nothing_when_auto_submit_off(
     assert await _status(session_factory, app_id) == ProcessingState.INTERRUPTED
 
 
+async def _seed_in_search(
+    session_factory: async_sessionmaker[AsyncSession],
+    apply_link: str,
+    search_id: str,
+) -> None:
+    from otklik_backend.api.schemas import SearchStatusAPISchema
+    from otklik_backend.db.repositories.search_history import SearchHistoryRepository
+
+    async with session_factory() as session:
+        existing = await SearchHistoryRepository.get_latest_id(session=session)
+        if existing != search_id:
+            await SearchHistoryRepository.create(
+                session=session,
+                search_id=search_id,
+                url="https://hh.ru/search/vacancy",
+                max_vacancies=50,
+                max_pages=5,
+                search_status=SearchStatusAPISchema.RUNNING,
+            )
+        vacancy = await VacancyRepository.create(
+            session=session,
+            vacancy=vacancy_to_orm(
+                VacancyAPISchema(title="t", apply_link=apply_link, description="d")
+            ),
+        )
+        app = await ApplicationRepository.create(session=session, vacancy_id=vacancy.id)
+        app.status = ProcessingState.INTERRUPTED
+        await VacancyRepository.link_to_search(
+            session=session, search_id=search_id, vacancy_id=vacancy.id
+        )
+        await session.commit()
+
+
+async def test_restart_counts_are_scoped_to_the_given_search(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _seed_in_search(session_factory, "in-a", "search-a")
+    await _seed_in_search(session_factory, "in-b", "search-b")
+
+    async with session_factory() as session:
+        gen_a, _ = await restart_counts(session, search_id="search-a")
+        gen_all, _ = await restart_counts(session, search_id=None)
+
+    assert gen_a == 1
+    assert gen_all == 2
+
+
 async def test_restart_counts_split_by_phase(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

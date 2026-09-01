@@ -36,6 +36,9 @@ export function createEventSync(queryClient: QueryClient): EventSync {
 					query.application.apply(queryClient, event);
 					query.all_vacancies.invalidate(queryClient);
 					query.summary.invalidate(queryClient);
+					queryClient.invalidateQueries({
+						queryKey: query.restart_counts.key,
+					});
 			}
 		});
 

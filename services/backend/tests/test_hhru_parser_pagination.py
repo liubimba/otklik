@@ -55,8 +55,12 @@ class FakeSearchPage:
 
 
 class FakeCore:
-    async def new_page(self, url: str) -> FakeVacancyPage:
-        return FakeVacancyPage()
+    def __init__(self) -> None:
+        self._page = FakeVacancyPage()
+
+    async def open_reusable_page(self, key: str, url: str) -> FakeVacancyPage:
+        await self._page.goto(url)
+        return self._page
 
 
 async def test_parse_drains_one_page_and_terminates() -> None:

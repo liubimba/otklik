@@ -46,7 +46,7 @@ class _StubCore:
         self._page = page
         self.opened_urls: list[str] = []
 
-    async def new_page(self, url: str) -> _StubPage:
+    async def open_reusable_page(self, key: str, url: str) -> _StubPage:
         self.opened_urls.append(url)
         return self._page
 
@@ -290,4 +290,4 @@ async def test_writer_opens_modal_before_touching_textarea(
     assert driving[7] == ("click", respond_button)
 
     assert result.type == SubmissionResultType.SUBMITTED
-    assert stub_page.closed
+    assert not stub_page.closed

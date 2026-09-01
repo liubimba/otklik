@@ -49,6 +49,7 @@ class BrowserCore:
         self._cdp: CDPSession | None = None
         self._guard: SinglePageGuard | None = None
         self._guard_tasks: set[asyncio.Task[None]] = set()
+        self._reusable_pages: dict[str, BrowserPage] = {}
         self._start_lock = asyncio.Lock()
         self._window = window or CDPWindowController(self._open_cdp_session)
 
@@ -83,6 +84,16 @@ class BrowserCore:
         self._context = None
         self._cdp = None
         self._guard = None
+        self._reusable_pages.clear()
+
+    async def open_reusable_page(self, key: str, url: str) -> BrowserPage:
+        existing = self._reusable_pages.get(key)
+        if existing is not None and not existing.is_closed():
+            await existing.goto(url)
+            return existing
+        page = await self.new_page(url)
+        self._reusable_pages[key] = page
+        return page
 
     async def _open_cdp_session(self) -> CDPSession | None:
         context = self._context

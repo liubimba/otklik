@@ -40,7 +40,7 @@ class HHRUWriter:
         selectors = self._selectors
         page: BrowserPage | None = None
         try:
-            page = await self._core.new_page(url=vacancy_url)
+            page = await self._core.open_reusable_page("submit", vacancy_url)
 
             await page.wait_for_selector(
                 selector=selectors.vacancy.respond_link_top, timeout=self._timeout
@@ -79,9 +79,6 @@ class HHRUWriter:
         except Exception as e:
             self._logger.exception(f"Failed to submit: {vacancy_url}", error=str(e))
             return SubmissionResult.failed(reason=str(e))
-        finally:
-            if page is not None:
-                await page.close()
 
     async def _verify(self, page: BrowserPage) -> SubmissionResult:
         deadline = asyncio.get_running_loop().time() + self._timeout / 1000.0

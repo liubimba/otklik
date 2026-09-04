@@ -35,7 +35,10 @@ class _StubPage:
 
     async def query_selector(self, selector: str) -> Any:
         self.events.append(("query", selector))
-        if selector == HHRU_SELECTORS.response.open_letter_textarea_button:
+        if selector in (
+            HHRU_SELECTORS.response.open_letter_textarea_button,
+            HHRU_SELECTORS.response.respond_button,
+        ):
             return object()
         return None
 
@@ -103,7 +106,11 @@ async def test_writer_skips_the_vacancy_when_an_employer_test_is_present_even_wi
 ):
     response = HHRU_SELECTORS.response
     page = _FormStubPage(
-        present={response.employer_test_marker, response.respond_no_test_button}
+        present={
+            response.respond_button,
+            response.employer_test_marker,
+            response.respond_no_test_button,
+        }
     )
     writer = HHRUWriter(
         core=_StubCore(page),  # type: ignore[arg-type]
@@ -130,7 +137,7 @@ class _EmptyLetterStubPage(_FormStubPage):
 
 async def test_writer_does_not_respond_when_the_letter_field_stays_empty() -> None:
     response = HHRU_SELECTORS.response
-    page = _EmptyLetterStubPage(present=set())
+    page = _EmptyLetterStubPage(present={response.respond_button})
     writer = HHRUWriter(
         core=_StubCore(page),  # type: ignore[arg-type]
         min_delay_ms=0,
@@ -152,7 +159,9 @@ async def test_writer_attaches_the_letter_when_no_questions_link_exists_without_
     None
 ):
     response = HHRU_SELECTORS.response
-    page = _FormStubPage(present={response.respond_no_test_button})
+    page = _FormStubPage(
+        present={response.respond_button, response.respond_no_test_button}
+    )
     writer = HHRUWriter(
         core=_StubCore(page),  # type: ignore[arg-type]
         min_delay_ms=0,
@@ -172,7 +181,9 @@ async def test_writer_attaches_the_letter_when_no_questions_link_exists_without_
 
 async def test_writer_skips_the_vacancy_when_the_employer_test_is_mandatory() -> None:
     response = HHRU_SELECTORS.response
-    page = _FormStubPage(present={response.employer_test_marker})
+    page = _FormStubPage(
+        present={response.respond_button, response.employer_test_marker}
+    )
     writer = HHRUWriter(
         core=_StubCore(page),  # type: ignore[arg-type]
         min_delay_ms=0,
@@ -199,6 +210,8 @@ class _RelocationStubPage(_StubPage):
         self.events.append(("query", selector))
         confirm = HHRU_SELECTORS.response.relocation_confirm
         if selector == confirm and not self._confirmed:
+            return object()
+        if selector == HHRU_SELECTORS.response.respond_button:
             return object()
         return None
 
@@ -254,6 +267,8 @@ class _PreFormRelocationStubPage(_StubPage):
         confirm = HHRU_SELECTORS.response.relocation_confirm
         if selector == confirm and not self._confirmed:
             return object()
+        if selector == HHRU_SELECTORS.response.respond_button and self._confirmed:
+            return object()
         return None
 
     async def click(self, selector: str, timeout: float | None = None) -> None:
@@ -283,7 +298,10 @@ async def test_writer_confirms_relocation_modal_that_blocks_the_response_form() 
 class _BottomSheetStubPage(_StubPage):
     async def query_selector(self, selector: str) -> Any:
         self.events.append(("query", selector))
-        if selector == HHRU_SELECTORS.response.letter_textarea:
+        if selector in (
+            HHRU_SELECTORS.response.letter_textarea,
+            HHRU_SELECTORS.response.respond_button,
+        ):
             return object()
         return None
 
@@ -329,20 +347,177 @@ async def test_writer_opens_modal_before_touching_textarea(
     respond_link_top = HHRU_SELECTORS.vacancy.respond_link_top
     respond_button = HHRU_SELECTORS.response.respond_button
     relocation_confirm = HHRU_SELECTORS.response.relocation_confirm
+    chat_open = HHRU_SELECTORS.vacancy.chat_open
     open_letter = HHRU_SELECTORS.response.open_letter_textarea_button
     textarea = HHRU_SELECTORS.response.letter_textarea
 
     assert driving[0] == ("wait", respond_link_top)
     assert driving[1] == ("click", respond_link_top)
 
-    assert driving[2] == ("wait", f"{relocation_confirm}, {respond_button}")
-    assert driving[3] == ("wait", respond_button)
+    assert driving[2] == (
+        "wait",
+        f"{relocation_confirm}, {respond_button}, {chat_open}",
+    )
 
-    assert driving[4] == ("click", open_letter)
-    assert driving[5] == ("wait", textarea)
-    assert driving[6] == ("fill", textarea)
+    assert driving[3] == ("click", open_letter)
+    assert driving[4] == ("wait", textarea)
+    assert driving[5] == ("fill", textarea)
 
-    assert driving[7] == ("click", respond_button)
+    assert driving[6] == ("click", respond_button)
 
     assert result.type == SubmissionResultType.SUBMITTED
     assert not stub_page.closed
+
+
+class _FakeChatFrame:
+    def __init__(self, sticks: bool = True) -> None:
+        self.events: list[tuple[str, str]] = []
+        self._values: dict[str, str] = {}
+        self._sticks = sticks
+        self._sent = False
+
+    async def wait_for_selector(
+        self, selector: str, timeout: float | None = None
+    ) -> Any:
+        self.events.append(("wait", selector))
+        return object()
+
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        return object()
+
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        self.events.append(("click", selector))
+        if selector == HHRU_SELECTORS.chat.send_message:
+            self._sent = True
+
+    async def fill(
+        self, selector: str, text: str, timeout: float | None = None
+    ) -> None:
+        self.events.append(("fill", selector))
+        if self._sticks:
+            self._values[selector] = text
+
+    async def input_value(self, selector: str, timeout: float | None = None) -> str:
+        self.events.append(("input_value", selector))
+        return self._values.get(selector, "")
+
+    async def content(self) -> str:
+        letter = self._values.get(HHRU_SELECTORS.chat.letter_input, "")
+        return f"<div>{letter}</div>" if self._sent else "<div></div>"
+
+
+class _ChatStubPage(_StubPage):
+    def __init__(self, frame: _FakeChatFrame | None) -> None:
+        super().__init__(body_text="")
+        self._frame = frame
+
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        if selector == HHRU_SELECTORS.vacancy.chat_open:
+            return object()
+        return None
+
+    async def wait_for_frame(
+        self, url_marker: str, timeout: float | None = None
+    ) -> Any:
+        self.events.append(("frame", url_marker))
+        return self._frame
+
+
+async def test_writer_attaches_letter_via_chat_when_the_response_has_no_popup() -> None:
+    chat = HHRU_SELECTORS.chat
+    frame = _FakeChatFrame(sticks=True)
+    page = _ChatStubPage(frame)
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://novosibirsk.hh.ru/vacancy/136883018",
+        letter_text="Здравствуйте, меня заинтересовала ваша вакансия",
+    )
+
+    assert ("click", HHRU_SELECTORS.vacancy.chat_open) in page.events
+    assert ("click", chat.add_cover_letter) in frame.events
+    assert ("fill", chat.letter_input) in frame.events
+    assert ("click", chat.send_message) in frame.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
+async def test_writer_does_not_send_chat_letter_when_the_field_stays_empty() -> None:
+    chat = HHRU_SELECTORS.chat
+    frame = _FakeChatFrame(sticks=False)
+    page = _ChatStubPage(frame)
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://novosibirsk.hh.ru/vacancy/136883018",
+        letter_text="dear team",
+    )
+
+    assert ("fill", chat.letter_input) in frame.events
+    assert ("click", chat.send_message) not in frame.events
+    assert result.type == SubmissionResultType.FAILED
+    assert result.reason is not None and "письмо" in result.reason.lower()
+
+
+class _ReloadChatStubPage(_ChatStubPage):
+    def __init__(self, frame: _FakeChatFrame | None) -> None:
+        super().__init__(frame)
+        self._reloaded = False
+
+    async def goto(self, url: str) -> None:
+        self.events.append(("goto", url))
+        self._reloaded = True
+
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        if selector == HHRU_SELECTORS.vacancy.chat_open and self._reloaded:
+            return object()
+        return None
+
+
+async def test_writer_reloads_to_reach_the_chat_when_response_is_not_inline() -> None:
+    chat = HHRU_SELECTORS.chat
+    frame = _FakeChatFrame(sticks=True)
+    page = _ReloadChatStubPage(frame)
+    url = "https://novosibirsk.hh.ru/vacancy/136883018"
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(vacancy_url=url, letter_text="dear team")
+
+    assert ("goto", url) in page.events
+    assert ("click", chat.send_message) in frame.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
+async def test_writer_fails_when_the_response_chat_does_not_open() -> None:
+    page = _ChatStubPage(None)
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://novosibirsk.hh.ru/vacancy/136883018",
+        letter_text="dear team",
+    )
+
+    assert result.type == SubmissionResultType.FAILED
+    assert result.reason is not None and "чат" in result.reason.lower()

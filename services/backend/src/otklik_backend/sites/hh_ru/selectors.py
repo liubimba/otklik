@@ -26,6 +26,7 @@ class Selectors:
         employment_type: str
         respond_link_top: str
         responded_marker: str
+        chat_open: str
 
     @dataclass(frozen=True)
     class VacancyResponsePage:
@@ -38,12 +39,20 @@ class Selectors:
         success_marker: str | None = None
 
     @dataclass(frozen=True)
+    class Chat:
+        frame_url_marker: str
+        add_cover_letter: str
+        letter_input: str
+        send_message: str
+
+    @dataclass(frozen=True)
     class Captcha:
         marker: str | None = None
 
     search: SearchPage
     vacancy: VacancyPage
     response: VacancyResponsePage
+    chat: Chat
     captcha: Captcha
 
 
@@ -70,6 +79,7 @@ HHRU_SELECTORS = Selectors(
             '[data-qa="vacancy-response-link-top-again"], '
             '[data-qa="vacancy-response-link-view-topic"]'
         ),
+        chat_open='[data-qa="vacancy-response-link-view-topic"]',
     ),
     response=Selectors.VacancyResponsePage(
         respond_button='[data-qa="vacancy-response-submit-popup"]',
@@ -80,6 +90,12 @@ HHRU_SELECTORS = Selectors(
         relocation_confirm='[data-qa="relocation-warning-confirm"]',
         respond_no_test_button='[data-qa="vacancy-response-link-no-questions"]',
         employer_test_marker='[data-qa="employer-asking-for-test"]',
+    ),
+    chat=Selectors.Chat(
+        frame_url_marker="chatik.hh.ru/chat",
+        add_cover_letter='[data-qa="chatik-chat-message-applicant-action"]',
+        letter_input='[data-qa="text-input"]',
+        send_message='[data-qa="chatik-do-send-message"]',
     ),
     captcha=Selectors.Captcha(),
 )

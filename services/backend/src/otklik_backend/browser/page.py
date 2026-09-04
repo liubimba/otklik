@@ -1,10 +1,39 @@
+import asyncio
+
 from otklik_backend.log import get_logger
-from patchright.async_api import Page, ElementHandle, TimeoutError
+from patchright.async_api import Frame, Page, ElementHandle, TimeoutError
 from typing import List
 from otklik_backend.browser.exceptions import (
     ClosePageTimeoutError,
     OpenPageTimeoutError,
 )
+
+
+class BrowserFrame:
+    def __init__(self, frame: Frame) -> None:
+        self._frame = frame
+
+    async def wait_for_selector(
+        self, selector: str, timeout: float | None = None
+    ) -> ElementHandle | None:
+        return await self._frame.wait_for_selector(selector=selector, timeout=timeout)
+
+    async def query_selector(self, selector: str) -> ElementHandle | None:
+        return await self._frame.query_selector(selector=selector)
+
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        await self._frame.click(selector=selector, timeout=timeout)
+
+    async def fill(
+        self, selector: str, text: str, timeout: float | None = None
+    ) -> None:
+        await self._frame.fill(selector=selector, value=text, timeout=timeout)
+
+    async def input_value(self, selector: str, timeout: float | None = None) -> str:
+        return await self._frame.input_value(selector=selector, timeout=timeout)
+
+    async def content(self) -> str:
+        return await self._frame.content()
 
 
 class BrowserPage:
@@ -48,6 +77,18 @@ class BrowserPage:
 
     async def input_value(self, selector: str, timeout: float | None = None) -> str:
         return await self._context.input_value(selector=selector, timeout=timeout)
+
+    async def wait_for_frame(
+        self, url_marker: str, timeout: float | None = None
+    ) -> BrowserFrame | None:
+        deadline = asyncio.get_running_loop().time() + (timeout or 0) / 1000.0
+        while True:
+            for frame in self._context.frames:
+                if url_marker in (frame.url or ""):
+                    return BrowserFrame(frame)
+            if asyncio.get_running_loop().time() >= deadline:
+                return None
+            await asyncio.sleep(0.4)
 
     async def bring_to_front(self) -> None:
         self._logger.info("Bringing page to front")

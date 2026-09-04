@@ -115,6 +115,28 @@ async def test_writer_responds_without_the_test_when_the_employer_test_is_option
     assert result.type == SubmissionResultType.SUBMITTED
 
 
+async def test_writer_attaches_the_letter_when_no_questions_link_exists_without_a_test() -> (
+    None
+):
+    response = HHRU_SELECTORS.response
+    page = _FormStubPage(present={response.respond_no_test_button})
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://hh.ru/vacancy/136643038", letter_text="dear team"
+    )
+
+    assert ("fill", response.letter_textarea) in page.events
+    assert ("click", response.respond_button) in page.events
+    assert ("click", response.respond_no_test_button) not in page.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
 async def test_writer_skips_the_vacancy_when_the_employer_test_is_mandatory() -> None:
     response = HHRU_SELECTORS.response
     page = _FormStubPage(present={response.employer_test_marker})

@@ -111,10 +111,18 @@ class HHRUWriter:
 
     async def _submit_selector(self, page: BrowserPage) -> str:
         response = self._selectors.response
-        if await page.query_selector(selector=response.respond_no_test_button) is None:
-            return response.respond_button
-        self._logger.info("Employer test is optional, responding without it")
-        return response.respond_no_test_button
+        has_test = (
+            await page.query_selector(selector=response.employer_test_marker)
+            is not None
+        )
+        has_no_test_link = (
+            await page.query_selector(selector=response.respond_no_test_button)
+            is not None
+        )
+        if has_test and has_no_test_link:
+            self._logger.info("Employer test is optional, responding without it")
+            return response.respond_no_test_button
+        return response.respond_button
 
     async def _reveal_letter_field(self, page: BrowserPage) -> None:
         response = self._selectors.response

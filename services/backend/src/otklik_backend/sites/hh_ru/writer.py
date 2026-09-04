@@ -16,6 +16,10 @@ MANDATORY_TEST_REASON = (
     "Работодатель требует пройти тест — откликнитесь на эту вакансию вручную"
 )
 
+LETTER_NOT_ATTACHED_REASON = (
+    "Не удалось прикрепить сопроводительное письмо — отклик не отправлен"
+)
+
 
 class HHRUWriter:
     def __init__(
@@ -72,8 +76,11 @@ class HHRUWriter:
             )
             await self._human_delay()
 
+            if not await self._letter_attached(page=page, expected=letter_text):
+                return SubmissionResult.failed(reason=LETTER_NOT_ATTACHED_REASON)
+
             await page.click(
-                selector=await self._submit_selector(page=page), timeout=self._timeout
+                selector=selectors.response.respond_button, timeout=self._timeout
             )
             return await self._verify(page=page)
         except Exception as e:
@@ -102,27 +109,27 @@ class HHRUWriter:
         return SubmissionResult.failed(reason="verification timeout")
 
     async def _mandatory_test_blocks_submission(self, page: BrowserPage) -> bool:
-        response = self._selectors.response
-        if await page.query_selector(selector=response.employer_test_marker) is None:
-            return False
-        return (
-            await page.query_selector(selector=response.respond_no_test_button) is None
-        )
+        marker = self._selectors.response.employer_test_marker
+        return await page.query_selector(selector=marker) is not None
 
-    async def _submit_selector(self, page: BrowserPage) -> str:
-        response = self._selectors.response
-        has_test = (
-            await page.query_selector(selector=response.employer_test_marker)
-            is not None
-        )
-        has_no_test_link = (
-            await page.query_selector(selector=response.respond_no_test_button)
-            is not None
-        )
-        if has_test and has_no_test_link:
-            self._logger.info("Employer test is optional, responding without it")
-            return response.respond_no_test_button
-        return response.respond_button
+    async def _letter_attached(self, page: BrowserPage, expected: str) -> bool:
+        stripped = expected.strip()
+        if not stripped:
+            return True
+        try:
+            value = await page.input_value(
+                selector=self._selectors.response.letter_textarea,
+                timeout=self._timeout,
+            )
+        except Exception as error:  # noqa: BLE001
+            self._logger.warning(
+                "Could not read back the cover letter field", error=str(error)
+            )
+            return False
+        if stripped in value:
+            return True
+        self._logger.warning("Cover letter did not stick in the response field")
+        return False
 
     async def _reveal_letter_field(self, page: BrowserPage) -> None:
         response = self._selectors.response

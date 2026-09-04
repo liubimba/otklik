@@ -11,6 +11,7 @@ class _StubPage:
     def __init__(self, body_text: str = "Вы откликнулись") -> None:
         self.events: list[tuple[str, str | None]] = []
         self._body_text = body_text
+        self.values: dict[str, str] = {}
         self.closed = False
 
     async def wait_for_selector(
@@ -26,6 +27,11 @@ class _StubPage:
         self, selector: str, text: str, timeout: float | None = None
     ) -> None:
         self.events.append(("fill", selector))
+        self.values[selector] = text
+
+    async def input_value(self, selector: str, timeout: float | None = None) -> str:
+        self.events.append(("input_value", selector))
+        return self.values.get(selector, "")
 
     async def query_selector(self, selector: str) -> Any:
         self.events.append(("query", selector))
@@ -92,7 +98,7 @@ class _FormStubPage(_StubPage):
         return "Вы откликнулись" if self._submitted else ""
 
 
-async def test_writer_responds_without_the_test_when_the_employer_test_is_optional() -> (
+async def test_writer_skips_the_vacancy_when_an_employer_test_is_present_even_with_the_no_questions_link() -> (
     None
 ):
     response = HHRU_SELECTORS.response
@@ -110,9 +116,36 @@ async def test_writer_responds_without_the_test_when_the_employer_test_is_option
         vacancy_url="https://hh.ru/vacancy/135583370", letter_text="dear team"
     )
 
-    assert ("click", response.respond_no_test_button) in page.events
+    assert result.type == SubmissionResultType.FAILED
+    assert result.reason is not None and "тест" in result.reason.lower()
+    assert ("click", response.respond_no_test_button) not in page.events
     assert ("click", response.respond_button) not in page.events
-    assert result.type == SubmissionResultType.SUBMITTED
+
+
+class _EmptyLetterStubPage(_FormStubPage):
+    async def input_value(self, selector: str, timeout: float | None = None) -> str:
+        self.events.append(("input_value", selector))
+        return ""
+
+
+async def test_writer_does_not_respond_when_the_letter_field_stays_empty() -> None:
+    response = HHRU_SELECTORS.response
+    page = _EmptyLetterStubPage(present=set())
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://hh.ru/vacancy/136643038", letter_text="dear team"
+    )
+
+    assert result.type == SubmissionResultType.FAILED
+    assert result.reason is not None and "письмо" in result.reason.lower()
+    assert ("click", response.respond_button) not in page.events
+    assert ("click", response.respond_no_test_button) not in page.events
 
 
 async def test_writer_attaches_the_letter_when_no_questions_link_exists_without_a_test() -> (

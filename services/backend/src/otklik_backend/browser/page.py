@@ -46,6 +46,9 @@ class BrowserPage:
         self._logger.info("Fill", selector=selector, text=text, timeout=timeout)
         await self._context.fill(selector=selector, value=text, timeout=timeout)
 
+    async def input_value(self, selector: str, timeout: float | None = None) -> str:
+        return await self._context.input_value(selector=selector, timeout=timeout)
+
     async def bring_to_front(self) -> None:
         self._logger.info("Bringing page to front")
         await self._context.bring_to_front()

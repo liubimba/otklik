@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from otklik_backend.core.state import ErrorDomain
 from otklik_backend.api.schemas import ProcessingState
+from otklik_backend.db.models import ApplicationORM, SettingsORM
 from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.db.repositories.cover_letters import CoverLetterRepository
 from otklik_backend.db.repositories.settings import SettingsRepository
@@ -88,6 +89,38 @@ async def restart_submission(
             event=ApplicationEvent.SUBMIT,
         )
     return len(ids)
+
+
+async def reprocess_stale_application(
+    session: AsyncSession,
+    state_service: StateTransitionService,
+    application: ApplicationORM,
+    settings: SettingsORM,
+) -> bool:
+    if application.status == ProcessingState.INTERRUPTED:
+        if await _has_letter(session=session, application_id=application.id):
+            if not settings.auto_submit:
+                return False
+            event = ApplicationEvent.SUBMIT
+        elif settings.auto_generate:
+            event = ApplicationEvent.REGENERATE
+        else:
+            return False
+    elif application.status == ProcessingState.ERROR:
+        if application.error_domain == ErrorDomain.MODEL and settings.auto_generate:
+            event = ApplicationEvent.REGENERATE
+        elif (
+            application.error_domain == ErrorDomain.SUBMISSION and settings.auto_submit
+        ):
+            event = ApplicationEvent.SUBMIT
+        else:
+            return False
+    else:
+        return False
+    await state_service.transition_or_skip(
+        session=session, application_id=application.id, event=event
+    )
+    return True
 
 
 async def restart_counts(

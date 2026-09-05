@@ -10,6 +10,7 @@ from otklik_backend.db.repositories.applications import ApplicationRepository
 from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.log import get_logger
+from otklik_backend.orchestrator.restart import reprocess_stale_application
 from otklik_backend.orchestrator.state_machine import ApplicationEvent
 from otklik_backend.orchestrator.state_service import StateTransitionService
 
@@ -60,6 +61,19 @@ class AutoApplyListener:
                 self._log.error(
                     "Failed to find vacancy for VacancyWSEvent",
                     apply_link=event.data.apply_link,
+                )
+                return
+            existing = await ApplicationRepository.get_by_vacancy_id(
+                session=session, vacancy_id=vacancy_orm.id
+            )
+            if existing is not None:
+                if event.data.already_responded:
+                    return
+                await reprocess_stale_application(
+                    session=session,
+                    state_service=self._state_service,
+                    application=existing,
+                    settings=settings,
                 )
                 return
             try:

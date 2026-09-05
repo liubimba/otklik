@@ -123,7 +123,7 @@ register_error_handlers(app=app)
 def run(port: int = 8001, host: str = "127.0.0.1") -> None:
     import uvicorn
 
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(app, host=host, port=port, access_log=False)
 
 
 def main() -> None:

@@ -1,9 +1,24 @@
 import logging
+import logging.handlers
+import queue
 from typing import Any
 import structlog
 from rich.traceback import install as install_rich_traceback
 
 from structlog.typing import EventDict, WrappedLogger
+
+LOG_QUEUE_SIZE = 20000
+UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
+
+_listener: logging.handlers.QueueListener | None = None
+
+
+class DroppingQueueHandler(logging.handlers.QueueHandler):
+    def enqueue(self, record: logging.LogRecord) -> None:
+        try:
+            self.queue.put_nowait(record)
+        except queue.Full:
+            pass
 
 
 def fold_logger_name(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
@@ -14,8 +29,28 @@ def fold_logger_name(_: WrappedLogger, __: str, event_dict: EventDict) -> EventD
 
 
 def configure_logging(level: int = logging.INFO) -> None:
+    global _listener
     install_rich_traceback(show_locals=False)
-    logging.basicConfig(format="%(message)s", level=level)
+
+    log_queue: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=LOG_QUEUE_SIZE)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    if _listener is not None:
+        _listener.stop()
+    _listener = logging.handlers.QueueListener(
+        log_queue, stream_handler, respect_handler_level=True
+    )
+    _listener.start()
+
+    root = logging.getLogger()
+    root.handlers = [DroppingQueueHandler(log_queue)]
+    root.setLevel(level)
+
+    for name in UVICORN_LOGGERS:
+        uvicorn_logger = logging.getLogger(name)
+        uvicorn_logger.handlers = []
+        uvicorn_logger.propagate = True
 
     structlog.configure(
         processors=[

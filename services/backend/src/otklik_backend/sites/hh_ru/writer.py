@@ -119,9 +119,10 @@ class HHRUWriter:
     ) -> SubmissionResult:
         chat = self._selectors.chat
         await self._human_delay()
-        await page.click(
+        if not await page.click_first_visible(
             selector=self._selectors.vacancy.chat_open, timeout=self._timeout
-        )
+        ):
+            return SubmissionResult.failed(reason="Кнопка чата отклика не найдена")
         frame = await page.wait_for_frame(
             url_marker=chat.frame_url_marker, timeout=self._timeout
         )

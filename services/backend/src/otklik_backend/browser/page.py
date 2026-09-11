@@ -69,6 +69,22 @@ class BrowserPage:
         self._logger.info("Click", selector=selector, timeout=timeout)
         await self._context.click(selector=selector, timeout=timeout)
 
+    async def click_first_visible(
+        self, selector: str, timeout: float | None = None
+    ) -> bool:
+        for handle in await self._context.query_selector_all(selector):
+            try:
+                if await handle.is_visible():
+                    await handle.click(timeout=timeout)
+                    return True
+            except Exception as error:  # noqa: BLE001
+                self._logger.warning(
+                    "Skipping a non-clickable match",
+                    selector=selector,
+                    error=str(error),
+                )
+        return False
+
     async def fill(
         self, selector: str, text: str, timeout: float | None = None
     ) -> None:

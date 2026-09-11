@@ -23,6 +23,12 @@ class _StubPage:
     async def click(self, selector: str, timeout: float | None = None) -> None:
         self.events.append(("click", selector))
 
+    async def click_first_visible(
+        self, selector: str, timeout: float | None = None
+    ) -> bool:
+        self.events.append(("click_visible", selector))
+        return True
+
     async def fill(
         self, selector: str, text: str, timeout: float | None = None
     ) -> None:
@@ -441,9 +447,39 @@ async def test_writer_attaches_letter_via_chat_when_the_response_has_no_popup() 
         letter_text="Здравствуйте, меня заинтересовала ваша вакансия",
     )
 
-    assert ("click", HHRU_SELECTORS.vacancy.chat_open) in page.events
+    assert ("click_visible", HHRU_SELECTORS.vacancy.chat_open) in page.events
     assert ("click", chat.add_cover_letter) in frame.events
     assert ("fill", chat.letter_input) in frame.events
+    assert ("click", chat.send_message) in frame.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
+class _MultiChatButtonStubPage(_ChatStubPage):
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        self.events.append(("click", selector))
+        if selector == HHRU_SELECTORS.vacancy.chat_open:
+            raise RuntimeError(
+                "Page.click: Timeout 5000ms exceeded. locator resolved to 3 elements"
+            )
+
+
+async def test_writer_attaches_letter_when_the_chat_button_has_several_copies() -> None:
+    chat = HHRU_SELECTORS.chat
+    frame = _FakeChatFrame(sticks=True)
+    page = _MultiChatButtonStubPage(frame)
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=1000,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://novosibirsk.hh.ru/vacancy/136883018",
+        letter_text="dear team",
+    )
+
+    assert ("click_visible", HHRU_SELECTORS.vacancy.chat_open) in page.events
     assert ("click", chat.send_message) in frame.events
     assert result.type == SubmissionResultType.SUBMITTED
 

@@ -48,15 +48,12 @@ class HHRUWriter:
         try:
             page = await self._core.open_reusable_page("submit", vacancy_url)
 
-            await page.wait_for_selector(
-                selector=selectors.vacancy.respond_link_top, timeout=self._timeout
-            )
-            await self._human_delay()
-            await page.click(
-                selector=selectors.vacancy.respond_link_top, timeout=self._timeout
-            )
-
-            await self._pass_relocation_gate(page=page)
+            if await self._respond_link_present(page=page):
+                await self._human_delay()
+                await page.click(
+                    selector=selectors.vacancy.respond_link_top, timeout=self._timeout
+                )
+                await self._pass_relocation_gate(page=page)
             await self._human_delay()
 
             if await self._captcha_present(page=page):
@@ -83,6 +80,17 @@ class HHRUWriter:
         except Exception as e:
             self._logger.exception(f"Failed to submit: {vacancy_url}", error=str(e))
             return SubmissionResult.failed(reason=str(e))
+
+    async def _respond_link_present(self, page: BrowserPage) -> bool:
+        try:
+            await page.wait_for_selector(
+                selector=self._selectors.vacancy.respond_link_top,
+                timeout=self._timeout,
+            )
+            return True
+        except Exception:  # noqa: BLE001
+            self._logger.info("Respond link absent — treating as already responded")
+            return False
 
     async def _detect_flow(self, page: BrowserPage) -> str | None:
         response = self._selectors.response

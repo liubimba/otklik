@@ -580,6 +580,46 @@ async def test_writer_keeps_reloading_until_the_response_chat_appears() -> None:
     assert result.type == SubmissionResultType.SUBMITTED
 
 
+class _AlreadyRespondedStubPage(_ChatStubPage):
+    async def wait_for_selector(
+        self, selector: str, timeout: float | None = None
+    ) -> Any:
+        self.events.append(("wait", selector))
+        if selector == HHRU_SELECTORS.vacancy.respond_link_top:
+            raise RuntimeError("Timeout: respond link absent (already responded)")
+        return object()
+
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        if selector == HHRU_SELECTORS.vacancy.chat_open:
+            return object()
+        return None
+
+
+async def test_writer_attaches_letter_without_re_responding_when_already_applied() -> (
+    None
+):
+    chat = HHRU_SELECTORS.chat
+    frame = _FakeChatFrame(sticks=True)
+    page = _AlreadyRespondedStubPage(frame)
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=200,
+    )
+
+    result = await writer.submit(
+        vacancy_url="https://novosibirsk.hh.ru/vacancy/136306464",
+        letter_text="dear team",
+    )
+
+    assert ("click", HHRU_SELECTORS.vacancy.respond_link_top) not in page.events
+    assert ("click_visible", HHRU_SELECTORS.vacancy.chat_open) in page.events
+    assert ("click", chat.send_message) in frame.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
 async def test_writer_fails_when_the_response_chat_does_not_open() -> None:
     page = _ChatStubPage(None)
     writer = HHRUWriter(

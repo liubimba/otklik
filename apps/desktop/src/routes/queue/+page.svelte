@@ -387,6 +387,12 @@ $effect(() => {
         {/each}
     </div>
 
+    {#if vacanciesQuery.data}
+        <div class="text-muted-foreground text-sm">
+            {m.queue_shown({ total: vacancyTotal })}
+        </div>
+    {/if}
+
     {#if vacanciesQuery.isPending}
         <ListSkeleton/>
     {:else if vacanciesQuery.isError}

@@ -95,6 +95,7 @@
 	"queue_header_pages": "Страниц: {n}",
 	"queue_header_vacancies": "Вакансий: {n}",
 	"queue_header_status": "Статус: {status}",
+	"queue_shown": "В списке: {total}",
 	"queue_button_new_search": "Новый поиск",
 	"queue_button_cancel_search": "Отменить поиск",
 	"queue_button_pause_search": "Приостановить поиск",

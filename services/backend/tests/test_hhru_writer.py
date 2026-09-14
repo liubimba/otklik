@@ -541,6 +541,45 @@ async def test_writer_reloads_to_reach_the_chat_when_response_is_not_inline() ->
     assert result.type == SubmissionResultType.SUBMITTED
 
 
+class _LateChatStubPage(_ChatStubPage):
+    def __init__(self, frame: _FakeChatFrame | None, reloads_needed: int) -> None:
+        super().__init__(frame)
+        self._reloads = 0
+        self._reloads_needed = reloads_needed
+
+    async def goto(self, url: str) -> None:
+        self.events.append(("goto", url))
+        self._reloads += 1
+
+    async def query_selector(self, selector: str) -> Any:
+        self.events.append(("query", selector))
+        if (
+            selector == HHRU_SELECTORS.vacancy.chat_open
+            and self._reloads >= self._reloads_needed
+        ):
+            return object()
+        return None
+
+
+async def test_writer_keeps_reloading_until_the_response_chat_appears() -> None:
+    chat = HHRU_SELECTORS.chat
+    frame = _FakeChatFrame(sticks=True)
+    page = _LateChatStubPage(frame, reloads_needed=2)
+    url = "https://novosibirsk.hh.ru/vacancy/136306464"
+    writer = HHRUWriter(
+        core=_StubCore(page),  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        timeout=200,
+    )
+
+    result = await writer.submit(vacancy_url=url, letter_text="dear team")
+
+    assert page.events.count(("goto", url)) >= 2
+    assert ("click", chat.send_message) in frame.events
+    assert result.type == SubmissionResultType.SUBMITTED
+
+
 async def test_writer_fails_when_the_response_chat_does_not_open() -> None:
     page = _ChatStubPage(None)
     writer = HHRUWriter(

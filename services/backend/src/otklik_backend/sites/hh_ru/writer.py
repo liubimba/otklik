@@ -20,6 +20,8 @@ LETTER_NOT_ATTACHED_REASON = (
     "Не удалось прикрепить сопроводительное письмо — отклик не отправлен"
 )
 
+CHAT_RELOAD_ATTEMPTS = 3
+
 
 class HHRUWriter:
     def __init__(
@@ -61,8 +63,13 @@ class HHRUWriter:
                 return SubmissionResult.captcha()
 
             flow = await self._detect_flow(page=page)
-            if flow is None:
-                self._logger.info("No response form inline, reloading to re-check")
+            attempts = 0
+            while flow is None and attempts < CHAT_RELOAD_ATTEMPTS:
+                attempts += 1
+                self._logger.info(
+                    "Response state not settled, reloading", attempt=attempts
+                )
+                await self._human_delay()
                 await page.goto(url=vacancy_url)
                 flow = await self._detect_flow(page=page)
             self._logger.info("Detected response flow", flow=flow)

@@ -13,6 +13,7 @@ from otklik_backend.sites.hh_ru.mappers import (
 from otklik_backend.browser.page import BrowserPage
 from otklik_backend.sites.hh_ru.selectors import Selectors
 from otklik_backend.api.schemas import VacancyAPISchema
+from otklik_backend.exceptions import CaptchaChallenge
 from otklik_backend.log import get_logger
 
 _AD_HREF_PREFIX = "https://adsrv.hh.ru"
@@ -61,6 +62,8 @@ class HHRUParser:
                     yield vacancy
 
                 await self._sleep_before_next_parse()
+            except CaptchaChallenge:
+                raise
             except Exception as error:
                 self._logger.error(f"Skipped vacancy link {vacancy_link}: {error}")
 
@@ -131,6 +134,8 @@ class HHRUParser:
         if vacancy_page is None or href is None:
             return None
 
+        await self._raise_if_captcha(vacancy_page)
+
         title_element = await vacancy_page.wait_for_selector(
             selector=selectors.vacancy.title, timeout=self._timeout_ms
         )
@@ -190,6 +195,14 @@ class HHRUParser:
                 employment_type_text
             ),
         )
+
+    async def _raise_if_captcha(self, page: BrowserPage) -> None:
+        marker = self._selectors.captcha.marker
+        if marker is None:
+            return
+        if await page.query_selector(marker) is not None:
+            self._logger.warning("Captcha challenge detected while parsing")
+            raise CaptchaChallenge()
 
     def _extract_text(self, parser: HTMLParser, selector: str | None) -> str | None:
         if selector is None:

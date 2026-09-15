@@ -97,5 +97,7 @@ HHRU_SELECTORS = Selectors(
         letter_input='[data-qa="text-input"]',
         send_message='[data-qa="chatik-do-send-message"]',
     ),
-    captcha=Selectors.Captcha(),
+    captcha=Selectors.Captcha(
+        marker='[data-qa="account-captcha-input"], [data-qa="account-captcha-picture"]',
+    ),
 )

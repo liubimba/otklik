@@ -1,4 +1,7 @@
+import pytest
+
 from otklik_backend.api.schemas import VacancyAPISchema
+from otklik_backend.exceptions import CaptchaChallenge
 from otklik_backend.sites.hh_ru.parser import HHRUParser
 from otklik_backend.sites.hh_ru.selectors import HHRU_SELECTORS
 
@@ -33,11 +36,24 @@ class FakeVacancyPage:
     async def wait_for_selector(self, selector: str, timeout: int = 0) -> FakeElement:
         return FakeElement("value")
 
+    async def query_selector(self, selector: str) -> object | None:
+        return None
+
     async def content(self) -> str:
         return self._content_html
 
     async def close(self) -> None:
         pass
+
+
+class CaptchaVacancyPage(FakeVacancyPage):
+    async def query_selector(self, selector: str) -> object | None:
+        return object()
+
+
+class CaptchaCore:
+    async def open_reusable_page(self, key: str, url: str) -> "CaptchaVacancyPage":
+        return CaptchaVacancyPage()
 
 
 class FakeSearchPage:
@@ -98,3 +114,13 @@ async def test_parse_flags_already_responded_vacancies() -> None:
 
     assert len(vacancies) == 2
     assert all(v.already_responded is True for v in vacancies)
+
+
+async def test_parse_raises_captcha_challenge_when_the_captcha_page_loads() -> None:
+    parser = HHRUParser(core=CaptchaCore(), selectors=HHRU_SELECTORS)  # type: ignore[arg-type]
+    parser._delay_sec = 0
+    parser._jitter_ms = 0
+
+    with pytest.raises(CaptchaChallenge):
+        async for _ in parser.parse(search_page=FakeSearchPage()):  # type: ignore[arg-type]
+            pass

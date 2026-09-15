@@ -20,8 +20,13 @@ class ApplicationNotFoundError(ConflictError):
     code = "APPLICATION_NOT_FOUND"
 
 
+class CaptchaChallenge(Exception):
+    pass
+
+
 __all__ = [
     "ApplicationNotFoundError",
+    "CaptchaChallenge",
     "ConflictError",
     "DomainError",
     "NotFoundError",

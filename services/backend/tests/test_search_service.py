@@ -5,6 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from pydantic import HttpUrl
 
+from otklik_backend.exceptions import CaptchaChallenge
 from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.orchestrator.search import (
     SearchService,
@@ -99,6 +100,20 @@ class SlowParser:
         yield _vacancy(0)
 
 
+class CaptchaParser:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def parse(
+        self, search_page: FakeBrowserPage
+    ) -> AsyncIterator[VacancyAPISchema]:
+        self.calls += 1
+        if self.calls == 1:
+            raise CaptchaChallenge()
+        if False:
+            yield _vacancy(0)
+
+
 def _vacancy(i: int) -> VacancyAPISchema:
     return VacancyAPISchema(
         title=f"v{i}",
@@ -187,6 +202,35 @@ async def test_publishes_vacancy_new_event_per_parsed_vacancy(
     assert len(vacancy_events) == 2
     apply_links = {e.data.apply_link for e in vacancy_events}
     assert apply_links == {"https://hh.ru/vacancy/1", "https://hh.ru/vacancy/2"}
+
+
+async def test_captcha_during_parsing_shows_window_and_pauses_the_search(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    svc = _make_service(
+        fake_browser_core, CaptchaParser(), recording_broadcaster, session_factory
+    )
+
+    search_task = await svc.open_search_session(request=_filter(max_pages=1))
+    search_id = search_task.id
+
+    for _ in range(200):
+        task = svc.find_search_task(search_id=search_id)
+        if (
+            task is not None
+            and task.state_machine.current_state_value == SearchStatusAPISchema.PAUSED
+        ):
+            break
+        await asyncio.sleep(0.01)
+
+    task = svc.find_search_task(search_id=search_id)
+    assert task is not None
+    assert task.state_machine.current_state_value == SearchStatusAPISchema.PAUSED
+    assert fake_browser_core.show_calls >= 1
+
+    await svc.shutdown()
 
 
 async def test_second_start_search_raises_already_running(

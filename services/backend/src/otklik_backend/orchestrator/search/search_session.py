@@ -17,6 +17,7 @@ from otklik_backend.browser.page import BrowserPage
 from otklik_backend.core.events import SearchData, SearchWSEvent, VacancyWSEvent
 from otklik_backend.core.exceptions import DomainError
 from otklik_backend.core.site import SiteParser
+from otklik_backend.exceptions import CaptchaChallenge
 from otklik_backend.db.converters import vacancy_to_schema
 from otklik_backend.db.models import VacancyORM
 from otklik_backend.db.repositories.search_history import SearchHistoryRepository
@@ -275,40 +276,23 @@ class SearchSession:
     async def _search_loop(
         self, task: SearchSessionTask, search_page: BrowserPage
     ) -> None:
+        captcha_pending = False
         while True:
             await self._pause.wait()
-            async for parsed_vacancy in self._parser.parse(
-                search_page=search_page,
-            ):
-                await self._pause.wait()
-                async with self._session_maker() as session:
-                    vacancy_orm: VacancyORM = await VacancyRepository.upsert(
-                        session=session, vacancy=parsed_vacancy
-                    )
-                    await VacancyRepository.link_to_search(
-                        session=session,
-                        search_id=self._id,
-                        vacancy_id=vacancy_orm.id,
-                    )
-                    await session.commit()
-
-                vacancy_schema = vacancy_to_schema(row=vacancy_orm)
-                vacancy_schema.already_responded = parsed_vacancy.already_responded
-                await self._broadcaster.publish(
-                    event=VacancyWSEvent(
-                        data=vacancy_schema,
-                        search_id=self._id,
-                    )
+            if captcha_pending:
+                await self._core.hide_window()
+                captcha_pending = False
+            try:
+                await self._parse_page(task, search_page)
+            except CaptchaChallenge:
+                self._log.warning(
+                    "Captcha during parsing — showing window and pausing search",
+                    search_id=self._id,
                 )
-                task.parsed_count += 1
-                await self._publish_search_event(task)
-                await self._update_search_history(task)
-
-                if task.parsed_count >= self._max_vacancies:
-                    break
-
-            task.parsed_pages += 1
-            await self._update_search_history(task)
+                await self._core.show_window()
+                await self.pause()
+                captcha_pending = True
+                continue
 
             if (
                 task.parsed_count >= self._max_vacancies
@@ -317,6 +301,37 @@ class SearchSession:
                 break
 
             await self._open_next_page(search_page)
+
+    async def _parse_page(
+        self, task: SearchSessionTask, search_page: BrowserPage
+    ) -> None:
+        async for parsed_vacancy in self._parser.parse(search_page=search_page):
+            await self._pause.wait()
+            async with self._session_maker() as session:
+                vacancy_orm: VacancyORM = await VacancyRepository.upsert(
+                    session=session, vacancy=parsed_vacancy
+                )
+                await VacancyRepository.link_to_search(
+                    session=session,
+                    search_id=self._id,
+                    vacancy_id=vacancy_orm.id,
+                )
+                await session.commit()
+
+            vacancy_schema = vacancy_to_schema(row=vacancy_orm)
+            vacancy_schema.already_responded = parsed_vacancy.already_responded
+            await self._broadcaster.publish(
+                event=VacancyWSEvent(data=vacancy_schema, search_id=self._id)
+            )
+            task.parsed_count += 1
+            await self._publish_search_event(task)
+            await self._update_search_history(task)
+
+            if task.parsed_count >= self._max_vacancies:
+                break
+
+        task.parsed_pages += 1
+        await self._update_search_history(task)
 
     async def _open_next_page(self, search_page: BrowserPage) -> None:
         parsed_url = urllib.parse.urlparse(search_page.get_url())

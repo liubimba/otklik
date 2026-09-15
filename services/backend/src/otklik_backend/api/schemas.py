@@ -85,6 +85,7 @@ class VacancyStatusFilterAPISchema(str, Enum):
 
 class VacancyWithStatusAPISchema(VacancyAPISchema):
     status: Optional[ProcessingState] = None
+    scheduled_send_at: Optional[datetime] = None
 
 
 class VacancyListPageAPISchema(BaseModel):

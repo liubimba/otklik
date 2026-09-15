@@ -56,6 +56,7 @@ export type Vacancy = {
 	work_formats: WorkFormat[];
 	employment_types: EmploymentType[];
 	work_experience: string | null;
+	scheduled_send_at?: string | null;
 };
 
 export type VacancyStatusFilter =

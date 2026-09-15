@@ -71,6 +71,47 @@ def test_list_all_returns_envelope_and_null_status_and_is_not_shadowed_by_the_in
     assert page.items[0].status is None
 
 
+@pytest.fixture
+async def queued_application(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        session.add(
+            VacancyORM(
+                id=5,
+                title="Queued",
+                apply_link="https://hh.ru/vacancy/5",
+                description="desc",
+                work_formats=[],
+                employment_types=[],
+            )
+        )
+        await session.flush()
+        session.add(ApplicationORM(vacancy_id=5, status=ProcessingState.LETTER_QUEUED))
+        await session.commit()
+
+
+def test_list_all_exposes_scheduled_send_at_for_queued_items(
+    client, queued_application: None
+) -> None:
+    response: Response = client.get("/api/v1/vacancies/all?status=letter_queued")
+    assert response.status_code == 200
+
+    page = VacancyListPageAPISchema.model_validate(response.json())
+    item = next(item for item in page.items if item.id == 5)
+    assert item.scheduled_send_at is not None
+
+
+def test_list_all_leaves_scheduled_send_at_null_for_non_queued(
+    client, seeded_applications: None
+) -> None:
+    response: Response = client.get("/api/v1/vacancies/all")
+    assert response.status_code == 200
+
+    page = VacancyListPageAPISchema.model_validate(response.json())
+    assert all(item.scheduled_send_at is None for item in page.items)
+
+
 def test_list_all_carries_status_inline(client, seeded_applications: None) -> None:
     response: Response = client.get("/api/v1/vacancies/all")
     assert response.status_code == 200

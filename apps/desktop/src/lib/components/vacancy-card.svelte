@@ -54,6 +54,38 @@ const statusBadge = $derived.by((): StatusBadge | null => {
 	}
 });
 
+let nowMs = $state(Date.now());
+
+$effect(() => {
+	if (effectiveStatus !== "letter_queued" || !vacancy.scheduled_send_at) return;
+	const timer = setInterval(() => {
+		nowMs = Date.now();
+	}, 1000);
+	return () => clearInterval(timer);
+});
+
+function formatEta(totalSec: number): string {
+	if (totalSec <= 0) return m.card_send_eta_now();
+	const hours = Math.floor(totalSec / 3600);
+	const minutes = Math.floor((totalSec % 3600) / 60);
+	const seconds = totalSec % 60;
+	const time =
+		hours > 0
+			? `${hours} ч ${minutes} мин`
+			: minutes > 0
+				? `${minutes} мин`
+				: `${seconds} с`;
+	return m.card_send_eta({ time });
+}
+
+const sendEta = $derived.by(() => {
+	if (effectiveStatus !== "letter_queued" || !vacancy.scheduled_send_at)
+		return null;
+	const targetMs = new Date(vacancy.scheduled_send_at).getTime();
+	if (Number.isNaN(targetMs)) return null;
+	return formatEta(Math.max(0, Math.round((targetMs - nowMs) / 1000)));
+});
+
 function handleClick() {
 	onclick?.(vacancy);
 }
@@ -99,6 +131,11 @@ function handleKeydown(e: KeyboardEvent) {
 		</ExternalLinkButton>
 		{#if statusBadge}
 			<Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+		{/if}
+		{#if sendEta}
+			<span class="text-muted-foreground whitespace-nowrap text-xs">
+				{sendEta}
+			</span>
 		{/if}
 	</div>
 </div>

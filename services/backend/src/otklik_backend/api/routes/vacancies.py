@@ -7,6 +7,7 @@ from otklik_backend.api.schemas import (
     VacancyAPISchema,
     VacancyListPageAPISchema,
     VacancyStatusFilterAPISchema,
+    VacancyWithStatusAPISchema,
 )
 from otklik_backend.core.state import ProcessingState
 from otklik_backend.db.converters import (
@@ -16,6 +17,7 @@ from otklik_backend.db.converters import (
 from otklik_backend.db.models import VacancyORM
 from otklik_backend.db.repositories.search_history import SearchHistoryRepository
 from otklik_backend.db.repositories.vacancies import VacancyRepository
+from otklik_backend.orchestrator.send_schedule import scheduled_send_times
 from otklik_backend.log import get_logger
 
 vacancies_router = APIRouter(prefix="/vacancies", tags=["vacancies"])
@@ -103,13 +105,14 @@ async def list_all_with_status(
         offset=offset,
         search_id=scope,
     )
-    return VacancyListPageAPISchema(
-        items=[
-            vacancy_with_status_to_schema(row=row, status=row_status)
-            for row, row_status in rows
-        ],
-        total=total,
-    )
+    schedule = await scheduled_send_times(session=session)
+    items: list[VacancyWithStatusAPISchema] = []
+    for row, row_status in rows:
+        item = vacancy_with_status_to_schema(row=row, status=row_status)
+        if row_status == ProcessingState.LETTER_QUEUED:
+            item.scheduled_send_at = schedule.get(row.id)
+        items.append(item)
+    return VacancyListPageAPISchema(items=items, total=total)
 
 
 @vacancies_router.get(

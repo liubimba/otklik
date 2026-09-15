@@ -135,6 +135,8 @@
 	"card_status_interrupted": "Незавершён",
 	"card_status_already_applied": "Уже откликались",
 	"card_status_skipped": "Пропущено",
+	"card_send_eta": "Отправка через {time}",
+	"card_send_eta_now": "Отправка вот-вот",
 	"status_pending": "ожидание",
 	"status_running": "идёт",
 	"status_paused": "на паузе",

@@ -175,6 +175,32 @@ async def test_process_one_flips_queued_to_sending_before_writer(
         assert app.status == ProcessingState.LETTER_SENT
 
 
+async def test_rate_limited_application_stays_queued_not_sending(
+    fake_orchestrator: LetterSendingWorker,
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    fake_orchestrator._rate_limit_backoff_sec = 0
+    app_id = await seed_app_in_letter_queued(session_factory)
+    async with session_factory() as session:
+        settings = await SettingsRepository.get(session=session)
+        for _ in range(settings.hourly_limit):
+            session.add(RateLimitEventORM())
+        await session.commit()
+
+    submitted = await fake_orchestrator._process_one(application_id=app_id)
+
+    assert submitted is False
+    assert fake_writer.calls == []
+    async with session_factory() as session:
+        app = await ApplicationRepository.get_by_id(
+            session=session, application_id=app_id
+        )
+        assert app is not None
+        assert app.status == ProcessingState.LETTER_QUEUED
+
+
 async def test_process_one_skips_application_still_in_letter_ready(
     fake_orchestrator: LetterSendingWorker,
     fake_writer: FakeWriter,

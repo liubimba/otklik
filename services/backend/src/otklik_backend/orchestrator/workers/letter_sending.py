@@ -159,6 +159,20 @@ class LetterSendingWorker(Worker):
                 )
                 return False
 
+            match await rate_limit_gate(session=session):
+                case GateResult.RATE_LIMITED:
+                    self._log.warning("Rate limit hit -- re-enqueue + backoff")
+                    if not self._rate_limited:
+                        self._rate_limited = True
+                        await self._broadcaster.publish(
+                            event=RateLimitWSEvent(data=RateLimitData())
+                        )
+                    await self.enqueue(application_id=app.id)
+                    await asyncio.sleep(delay=self._rate_limit_backoff_sec)
+                    return False
+                case _:
+                    self._rate_limited = False
+
             if app.status == ProcessingState.LETTER_QUEUED:
                 await self._state_service.transition(
                     session=session,
@@ -182,20 +196,6 @@ class LetterSendingWorker(Worker):
                     return False
                 case _:
                     pass
-
-            match await rate_limit_gate(session=session):
-                case GateResult.RATE_LIMITED:
-                    self._log.warning("Rate limit hit -- re-enqueue + backoff")
-                    if not self._rate_limited:
-                        self._rate_limited = True
-                        await self._broadcaster.publish(
-                            event=RateLimitWSEvent(data=RateLimitData())
-                        )
-                    await self.enqueue(application_id=app.id)
-                    await asyncio.sleep(delay=self._rate_limit_backoff_sec)
-                    return False
-                case _:
-                    self._rate_limited = False
 
             letter: (
                 CoverLetterORM | None

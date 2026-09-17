@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const stub = vi.hoisted(() => ({
 	lastVacancyIdGetter: null as (() => number | null) | null,
+	sendNow: vi.fn(),
 }));
 
 vi.mock("$lib/queries/applications", () => ({
@@ -13,6 +14,17 @@ vi.mock("$lib/queries/applications", () => ({
 		stub.lastVacancyIdGetter = getVacancyId;
 		return { data: undefined };
 	},
+}));
+
+vi.mock("@tanstack/svelte-query", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/svelte-query")>()),
+	useQueryClient: () => ({}),
+}));
+
+vi.mock("$lib/actions/applications", () => ({
+	createApplicationsActions: () => ({
+		sendNow: { mutate: stub.sendNow, isPending: false },
+	}),
 }));
 
 const openUrl = vi.fn();
@@ -186,5 +198,34 @@ describe("<VacancyCard> — status prop", () => {
 		render(VacancyCard, { vacancy: vacancy({ id: 42 }) });
 
 		expect(stub.lastVacancyIdGetter?.()).toBe(42);
+	});
+});
+
+describe("<VacancyCard> — force send", () => {
+	beforeEach(() => {
+		stub.sendNow.mockReset();
+	});
+
+	it("has no force-send button unless the application is queued", () => {
+		render(VacancyCard, { vacancy: vacancy(), status: "letter_ready" });
+		expect(
+			screen.queryByRole("button", { name: m.card_force_send() }),
+		).not.toBeInTheDocument();
+	});
+
+	it("force-sends a queued application only after confirmation", async () => {
+		render(VacancyCard, {
+			vacancy: vacancy({ id: 9 }),
+			status: "letter_queued",
+		});
+		const user = userEvent.setup();
+
+		await user.click(screen.getByRole("button", { name: m.card_force_send() }));
+		expect(stub.sendNow).not.toHaveBeenCalled();
+
+		await user.click(
+			screen.getByRole("button", { name: m.card_force_send_confirm() }),
+		);
+		expect(stub.sendNow).toHaveBeenCalledWith(9);
 	});
 });

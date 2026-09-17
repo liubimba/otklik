@@ -56,7 +56,13 @@ class LetterSendingWorker(Worker):
         self._resume_event.set()
         self._pause_reason: str | None = None
         self._rate_limited = False
+        self._forced: set[int] = set()
         self._subscriber: CallbackEventSubscriber | None = None
+
+    async def force_send(self, application_id: int) -> None:
+        self._log.info("Force send requested", application_id=application_id)
+        self._forced.add(application_id)
+        await self.enqueue_front(application_id=application_id)
 
     def start(self) -> None:
         subscriber = CallbackEventSubscriber.from_callback(
@@ -159,19 +165,26 @@ class LetterSendingWorker(Worker):
                 )
                 return False
 
-            match await rate_limit_gate(session=session):
-                case GateResult.RATE_LIMITED:
-                    self._log.warning("Rate limit hit -- re-enqueue + backoff")
-                    if not self._rate_limited:
-                        self._rate_limited = True
-                        await self._broadcaster.publish(
-                            event=RateLimitWSEvent(data=RateLimitData())
-                        )
-                    await self.enqueue(application_id=app.id)
-                    await asyncio.sleep(delay=self._rate_limit_backoff_sec)
-                    return False
-                case _:
-                    self._rate_limited = False
+            forced = app.id in self._forced
+            self._forced.discard(app.id)
+
+            gate = await rate_limit_gate(session=session)
+            if gate == GateResult.RATE_LIMITED and not forced:
+                self._log.warning("Rate limit hit -- re-enqueue + backoff")
+                if not self._rate_limited:
+                    self._rate_limited = True
+                    await self._broadcaster.publish(
+                        event=RateLimitWSEvent(data=RateLimitData())
+                    )
+                await self.enqueue(application_id=app.id)
+                await asyncio.sleep(delay=self._rate_limit_backoff_sec)
+                return False
+            if gate != GateResult.RATE_LIMITED:
+                self._rate_limited = False
+            if forced and gate == GateResult.RATE_LIMITED:
+                self._log.info(
+                    "Force send bypassing the rate limit", application_id=app.id
+                )
 
             if app.status == ProcessingState.LETTER_QUEUED:
                 await self._state_service.transition(

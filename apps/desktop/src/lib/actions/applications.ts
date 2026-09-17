@@ -30,5 +30,13 @@ export function createApplicationsActions(queryClient: QueryClient) {
 				invalidateQueues(queryClient);
 			},
 		})),
+		sendNow: createMutation(() => ({
+			mutationFn: async (vacancyId: number) => {
+				return API.application.sendNow(vacancyId);
+			},
+			onSuccess() {
+				invalidateQueues(queryClient);
+			},
+		})),
 	};
 }

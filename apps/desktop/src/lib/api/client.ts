@@ -300,6 +300,10 @@ export const API = {
 			api<ApplicationDetail>(`vacancies/${vacancyId}/application/retry`, {
 				method: "POST",
 			}),
+		sendNow: (vacancyId: number) =>
+			api<{ ok: boolean }>(`vacancies/${vacancyId}/application/send-now`, {
+				method: "POST",
+			}),
 		chat: {
 			list: (vacancyId: number) =>
 				api<ChatMessage[]>(`vacancies/${vacancyId}/application/chat`),

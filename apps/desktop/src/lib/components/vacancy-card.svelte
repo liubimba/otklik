@@ -1,10 +1,13 @@
 <script lang="ts">
+import { createApplicationsActions } from "$lib/actions/applications";
 import type { ProcessingState, Vacancy } from "$lib/api/types";
 import ExternalLinkButton from "$lib/components/external-link-button.svelte";
 import { Badge } from "$lib/components/ui/badge";
+import { Button } from "$lib/components/ui/button";
 import * as m from "$lib/paraglide/messages";
 import { createApplicationQuery } from "$lib/queries/applications";
 import ExternalLink from "@lucide/svelte/icons/external-link";
+import { useQueryClient } from "@tanstack/svelte-query";
 
 interface Props {
 	vacancy: Vacancy;
@@ -86,6 +89,26 @@ const sendEta = $derived.by(() => {
 	return formatEta(Math.max(0, Math.round((targetMs - nowMs) / 1000)));
 });
 
+const applications = createApplicationsActions(useQueryClient());
+const forcing = $derived(applications.sendNow.isPending);
+let confirmingForce = $state(false);
+
+function askForceSend(e: MouseEvent) {
+	e.stopPropagation();
+	confirmingForce = true;
+}
+
+function cancelForceSend(e: MouseEvent) {
+	e.stopPropagation();
+	confirmingForce = false;
+}
+
+function confirmForceSend(e: MouseEvent) {
+	e.stopPropagation();
+	applications.sendNow.mutate(vacancy.id);
+	confirmingForce = false;
+}
+
 function handleClick() {
 	onclick?.(vacancy);
 }
@@ -136,6 +159,32 @@ function handleKeydown(e: KeyboardEvent) {
 			<span class="text-muted-foreground whitespace-nowrap text-xs">
 				{sendEta}
 			</span>
+		{/if}
+		{#if effectiveStatus === "letter_queued"}
+			{#if confirmingForce}
+				<div class="flex items-center gap-1">
+					<Button
+						size="sm"
+						variant="destructive"
+						disabled={forcing}
+						onclick={confirmForceSend}
+					>
+						{m.card_force_send_confirm()}
+					</Button>
+					<Button size="sm" variant="ghost" onclick={cancelForceSend}>
+						{m.card_force_send_cancel()}
+					</Button>
+				</div>
+			{:else}
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={forcing}
+					onclick={askForceSend}
+				>
+					{m.card_force_send()}
+				</Button>
+			{/if}
 		{/if}
 	</div>
 </div>

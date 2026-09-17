@@ -1,5 +1,6 @@
 import asyncio
 from abc import ABC, abstractmethod
+from collections import deque
 from typing import ClassVar, Sequence
 
 from otklik_backend.core.state import ProcessingState
@@ -11,16 +12,27 @@ class Worker(ABC):
 
     def __init__(self) -> None:
         self._log = get_logger(self.__class__.__name__)
-        self._queue: asyncio.Queue[int] = asyncio.Queue()
+        self._queue: deque[int] = deque()
         self._pending: list[int] = []
+        self._available = asyncio.Event()
         self._once = False
 
     async def enqueue(self, application_id: int) -> None:
-        await self._queue.put(application_id)
+        self._queue.append(application_id)
         self._pending.append(application_id)
+        self._available.set()
+
+    async def enqueue_front(self, application_id: int) -> None:
+        self._queue.appendleft(application_id)
+        self._pending.append(application_id)
+        self._available.set()
 
     async def get_next(self) -> int:
-        application_id = await self._queue.get()
+        while not self._queue:
+            self._available.clear()
+            if not self._queue:
+                await self._available.wait()
+        application_id = self._queue.popleft()
         try:
             self._pending.remove(application_id)
         except ValueError:
@@ -28,19 +40,16 @@ class Worker(ABC):
         return application_id
 
     def qsize(self) -> int:
-        return self._queue.qsize()
+        return len(self._queue)
 
     def get_application_ids(self) -> Sequence[int]:
         return list(self._pending)
 
     def clear(self) -> list[int]:
-        dropped: list[int] = []
-        while True:
-            try:
-                dropped.append(self._queue.get_nowait())
-            except asyncio.QueueEmpty:
-                break
+        dropped = list(self._queue)
+        self._queue.clear()
         self._pending.clear()
+        self._available.clear()
         return dropped
 
     @abstractmethod

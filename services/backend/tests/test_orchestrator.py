@@ -201,6 +201,45 @@ async def test_rate_limited_application_stays_queued_not_sending(
         assert app.status == ProcessingState.LETTER_QUEUED
 
 
+async def test_enqueue_front_jumps_the_queue(
+    fake_orchestrator: LetterSendingWorker,
+) -> None:
+    await fake_orchestrator.enqueue(application_id=1)
+    await fake_orchestrator.enqueue(application_id=2)
+    await fake_orchestrator.enqueue_front(application_id=3)
+
+    assert await fake_orchestrator.get_next() == 3
+    assert await fake_orchestrator.get_next() == 1
+    assert await fake_orchestrator.get_next() == 2
+
+
+async def test_force_send_bypasses_the_rate_limit(
+    fake_orchestrator: LetterSendingWorker,
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    app_id = await seed_app_in_letter_queued(session_factory)
+    fake_writer.queue(SubmissionResult.submitted())
+    async with session_factory() as session:
+        settings = await SettingsRepository.get(session=session)
+        for _ in range(settings.hourly_limit):
+            session.add(RateLimitEventORM())
+        await session.commit()
+
+    await fake_orchestrator.force_send(application_id=app_id)
+    submitted = await fake_orchestrator._process_one(application_id=app_id)
+
+    assert submitted is True
+    assert len(fake_writer.calls) == 1
+    async with session_factory() as session:
+        app = await ApplicationRepository.get_by_id(
+            session=session, application_id=app_id
+        )
+        assert app is not None
+        assert app.status == ProcessingState.LETTER_SENT
+
+
 async def test_process_one_skips_application_still_in_letter_ready(
     fake_orchestrator: LetterSendingWorker,
     fake_writer: FakeWriter,

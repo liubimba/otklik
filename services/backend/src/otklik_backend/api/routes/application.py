@@ -330,6 +330,24 @@ async def retry(
     return await _build_detail(session=session, application=application)
 
 
+@application_router.post("/send-now")
+async def send_now(
+    vacancy_id: int, session: SessionDep, orchestrator: OrchestratorDep
+) -> dict[str, bool]:
+    await _load_or_404(session, vacancy_id)
+    application = await ApplicationRepository.get_by_vacancy_id(
+        session=session, vacancy_id=vacancy_id
+    )
+    if application is None:
+        raise HTTPException(status_code=409, detail="Application does not exist")
+    if application.status != ProcessingState.LETTER_QUEUED:
+        raise HTTPException(
+            status_code=409, detail="Only queued applications can be force-sent"
+        )
+    await orchestrator.force_send(application_id=application.id)
+    return {"ok": True}
+
+
 @application_router.get("/chat")
 async def chat_history(
     vacancy_id: int, session: SessionDep

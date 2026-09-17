@@ -5,6 +5,7 @@ import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ListSkeleton from "$lib/components/list-skeleton.svelte";
 import LiveStatus from "$lib/components/live-status.svelte";
+import NewSearchButton from "$lib/components/new-search-button.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Button } from "$lib/components/ui/button";
 import { Input } from "$lib/components/ui/input";
@@ -213,13 +214,20 @@ $effect(() => {
                     {/if}
                 </Button>
             {/if}
-            <Button onclick={view.search.filter.start} disabled={!model.search.filter.inactive}>
-                {#if model.search.vacancies.inFlight}
+            {#if model.search.vacancies.inFlight}
+                <Button
+                        onclick={view.search.filter.start}
+                        disabled={!model.search.filter.inactive}
+                >
                     {m.queue_button_cancel_search()}
-                {:else}
-                    {m.queue_button_new_search()}
-                {/if}
-            </Button>
+                </Button>
+            {:else}
+                <NewSearchButton
+                        disabled={!model.search.filter.inactive}
+                        onSelect={(kind) =>
+                        kind === "hh_ru" && view.search.filter.start()}
+                />
+            {/if}
         </div>
     </header>
 

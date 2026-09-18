@@ -1,7 +1,9 @@
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from otklik_backend.api.schemas import SearchStatusAPISchema, VacancyAPISchema
 from otklik_backend.core.board import Board
+from otklik_backend.db.models import SearchHistoryORM
 from otklik_backend.db.repositories.search_history import SearchHistoryRepository
 from otklik_backend.db.repositories.vacancies import VacancyRepository
 
@@ -32,6 +34,22 @@ async def _seed_search(
             session=session, search_id=search_id, vacancy_id=vacancy.id
         )
     await session.commit()
+
+
+async def test_board_column_stores_and_reads_the_lowercase_value(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        await _seed_search(session, "s1", Board.HH_RU, [])
+
+        raw = (
+            await session.execute(text("SELECT board FROM searches WHERE id = 's1'"))
+        ).scalar_one()
+        assert raw == "hh_ru"
+
+        row = await session.get(SearchHistoryORM, "s1")
+        assert row is not None
+        assert row.board is Board.HH_RU
 
 
 async def test_get_latest_id_is_scoped_per_board(

@@ -58,7 +58,7 @@ class SearchHistoryORM(Base):
     __tablename__ = "searches"
     id: Mapped[str] = mapped_column(primary_key=True)
     board: Mapped[Board] = mapped_column(
-        Enum(Board),
+        Enum(Board, values_callable=lambda enum: [member.value for member in enum]),
         default=DEFAULT_BOARD,
         server_default=DEFAULT_BOARD.value,
         index=True,

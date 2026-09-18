@@ -367,7 +367,8 @@ async def client(
     from otklik_backend.orchestrator.cover_letter_service import CoverLetterService
 
     authorization_service = AuthorizationService(
-        broadcaster=recording_broadcaster, auth_flow=fake_browser
+        broadcaster=recording_broadcaster,
+        auth_flows={Board.HH_RU: fake_browser},
     )
     cover_letter_service = CoverLetterService(
         session_maker=session_factory,

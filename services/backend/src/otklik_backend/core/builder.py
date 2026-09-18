@@ -30,7 +30,7 @@ from otklik_backend.secrets.factory import SecretStoreFactory
 from otklik_backend.secrets.migrator import SecretMigrator
 from otklik_backend.secrets.service import DeploymentSecretsService
 from otklik_backend.secrets.store import SecretStore
-from otklik_backend.sites.habr import HabrParser
+from otklik_backend.sites.habr import HabrAuthFlow, HabrParser
 from otklik_backend.sites.hh_ru import HHRUAuthFlow, HHRUParser, HHRUWriter
 from otklik_backend.sources.fetchers import SourceFetcherRegistry
 from otklik_backend.sources.service import ContextSourceService
@@ -93,6 +93,7 @@ class BackendBuilder:
         ).migrate()
         browser = BrowserCore()
         auth_flow = HHRUAuthFlow(browser=browser)
+        habr_auth_flow = HabrAuthFlow(browser=browser)
         broadcaster = EventBroadcaster()
         state_service = StateTransitionService(broadcaster=broadcaster)
         pause_controller = PauseController()
@@ -150,7 +151,8 @@ class BackendBuilder:
             broadcaster=broadcaster,
         )
         authorization_service = AuthorizationService(
-            broadcaster=broadcaster, auth_flow=auth_flow
+            broadcaster=broadcaster,
+            auth_flows={Board.HH_RU: auth_flow, Board.HABR: habr_auth_flow},
         )
         auto_apply_canceller = AutoApplyCanceller(
             letter_pending_worker=letter_pending_worker,

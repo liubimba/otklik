@@ -69,15 +69,18 @@ describe("createEventSync", () => {
 	});
 
 	describe("onEvent — cache mutations preserved after the extraction", () => {
-		it("auth_changed writes the new status straight into the auth cache", () => {
+		it("auth_changed invalidates the auth cache so the active board refetches", () => {
 			const qc = client();
-			const set = vi.spyOn(qc, "setQueryData");
+			const invalidate = vi.spyOn(qc, "invalidateQueries");
 			const event: AuthEvent = {
 				type: "auth_changed",
 				data: { status: "authorized" },
 			};
 			createEventSync(qc).onEvent(event);
-			expect(set).toHaveBeenCalledWith(query.auth.key, event.data);
+			const keys = invalidate.mock.calls.map((c) =>
+				JSON.stringify(c[0]?.queryKey),
+			);
+			expect(keys).toContain(JSON.stringify(query.auth.key));
 		});
 
 		it("application_event invalidates summary and the archive list", () => {

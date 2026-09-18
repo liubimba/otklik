@@ -20,11 +20,13 @@ export type AuthStatus =
 
 const {
 	status,
+	platform,
 	onSignIn,
 	onSignOut,
 	onCancel,
 }: {
 	status: AuthStatus;
+	platform: string;
 	onSignIn: () => void;
 	onSignOut: () => void;
 	onCancel: () => void;
@@ -48,7 +50,7 @@ function activate() {
 const ariaLabel = $derived(
 	{
 		loading: "",
-		unauthorized: m.account_aria_sign_in(),
+		unauthorized: m.account_aria_sign_in({ platform }),
 		authorizing: m.account_aria_cancel(),
 		authorized: m.account_aria_open_menu(),
 		offline: "",
@@ -76,7 +78,7 @@ const ariaLabel = $derived(
 
 {#snippet body()}
 	<span class="flex min-w-0 flex-1 flex-col">
-		<span class="truncate text-sm leading-tight font-medium">{m.account_platform()}</span>
+		<span class="truncate text-sm leading-tight font-medium">{platform}</span>
 		<span class="truncate text-xs leading-tight text-muted-foreground">
 			{statusLabel}
 		</span>

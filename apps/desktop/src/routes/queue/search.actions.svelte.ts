@@ -132,18 +132,18 @@ export function createAuthActions(queryClient: QueryClient) {
 	return {
 		authenticate: createMutation(() => ({
 			mutationFn: async () => {
-				return API.auth.signIn();
+				return API.auth.signIn(boardStore.active);
 			},
 			onSuccess(response) {},
 		})),
 		cancel: createMutation(() => ({
 			mutationFn: async () => {
-				return API.auth.signInCancel();
+				return API.auth.signInCancel(boardStore.active);
 			},
 		})),
 		unauthorize: createMutation(() => ({
 			mutationFn: async () => {
-				return API.auth.signOut();
+				return API.auth.signOut(boardStore.active);
 			},
 		})),
 	};

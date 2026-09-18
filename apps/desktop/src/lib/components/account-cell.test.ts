@@ -15,6 +15,7 @@ describe("<AccountCell>", () => {
 	it("loading: renders a skeleton and no button", () => {
 		render(AccountCell, {
 			status: "loading",
+			platform: "hh.ru",
 			onSignIn: noop,
 			onSignOut: noop,
 			onCancel: noop,
@@ -26,6 +27,7 @@ describe("<AccountCell>", () => {
 	it("offline: shows 'Нет связи' and is NOT an interactive button — the backend is unreachable, so a click can't do anything (bug #2)", () => {
 		render(AccountCell, {
 			status: "offline",
+			platform: "hh.ru",
 			onSignIn: noop,
 			onSignOut: noop,
 			onCancel: noop,
@@ -39,6 +41,7 @@ describe("<AccountCell>", () => {
 		const onSignIn = vi.fn();
 		render(AccountCell, {
 			status: "unauthorized",
+			platform: "hh.ru",
 			onSignIn,
 			onSignOut: noop,
 			onCancel: noop,
@@ -55,6 +58,7 @@ describe("<AccountCell>", () => {
 		const onCancel = vi.fn();
 		render(AccountCell, {
 			status: "authorizing",
+			platform: "hh.ru",
 			onSignIn: noop,
 			onSignOut: noop,
 			onCancel,
@@ -71,6 +75,7 @@ describe("<AccountCell>", () => {
 		it("shows the status text and has an accessible name naming the menu, not the sign-out action", () => {
 			render(AccountCell, {
 				status: "authorized",
+				platform: "hh.ru",
 				onSignIn: noop,
 				onSignOut: noop,
 				onCancel: noop,
@@ -86,6 +91,7 @@ describe("<AccountCell>", () => {
 			const onSignOut = vi.fn();
 			render(AccountCell, {
 				status: "authorized",
+				platform: "hh.ru",
 				onSignIn: noop,
 				onSignOut,
 				onCancel: noop,
@@ -101,6 +107,7 @@ describe("<AccountCell>", () => {
 			const onSignOut = vi.fn();
 			render(AccountCell, {
 				status: "authorized",
+				platform: "hh.ru",
 				onSignIn: noop,
 				onSignOut,
 				onCancel: noop,

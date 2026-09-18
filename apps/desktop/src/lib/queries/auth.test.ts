@@ -4,16 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { applyAuthEvent, authQueryKey } from "./auth";
 
 function makeFakeQueryClient() {
-	const setQueryData = vi.fn();
+	const invalidateQueries = vi.fn();
 	return {
-		client: { setQueryData } as unknown as QueryClient,
-		setQueryData,
+		client: { invalidateQueries } as unknown as QueryClient,
+		invalidateQueries,
 	};
 }
 
 describe("applyAuthEvent", () => {
-	it("writes the event payload into the auth cache verbatim", () => {
-		const { client, setQueryData } = makeFakeQueryClient();
+	it("invalidates the board-agnostic auth key so the active board refetches", () => {
+		const { client, invalidateQueries } = makeFakeQueryClient();
 		const event: AuthEvent = {
 			type: "auth_changed",
 			data: { status: "authorized" },
@@ -21,38 +21,20 @@ describe("applyAuthEvent", () => {
 
 		applyAuthEvent(client, event);
 
-		expect(setQueryData).toHaveBeenCalledTimes(1);
-		expect(setQueryData).toHaveBeenCalledWith(authQueryKey, event.data);
-	});
-
-	it("uses the same key for every write (query cache stability)", () => {
-		const { client, setQueryData } = makeFakeQueryClient();
-
-		applyAuthEvent(client, {
-			type: "auth_changed",
-			data: { status: "authorizing" },
-		});
-		applyAuthEvent(client, {
-			type: "auth_changed",
-			data: { status: "unauthorized" },
-		});
-
-		const [firstKey] = setQueryData.mock.calls[0];
-		const [secondKey] = setQueryData.mock.calls[1];
-		expect(firstKey).toBe(secondKey);
+		expect(invalidateQueries).toHaveBeenCalledTimes(1);
+		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: authQueryKey });
 	});
 
 	it.each(["authorized", "unauthorized", "authorizing"] as const)(
-		"forwards status=%s unchanged",
+		"invalidates regardless of the event status=%s",
 		(status) => {
-			const { client, setQueryData } = makeFakeQueryClient();
+			const { client, invalidateQueries } = makeFakeQueryClient();
 
-			applyAuthEvent(client, {
-				type: "auth_changed",
-				data: { status },
+			applyAuthEvent(client, { type: "auth_changed", data: { status } });
+
+			expect(invalidateQueries).toHaveBeenCalledWith({
+				queryKey: authQueryKey,
 			});
-
-			expect(setQueryData).toHaveBeenCalledWith(authQueryKey, { status });
 		},
 	);
 });

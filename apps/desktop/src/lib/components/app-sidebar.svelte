@@ -2,6 +2,7 @@
 import { page } from "$app/state";
 import { createActions } from "$lib/actions";
 import type { SummaryScope } from "$lib/api/types";
+import { BOARDS } from "$lib/boards";
 import AccountCell from "$lib/components/account-cell.svelte";
 import {
 	authCellStatus,
@@ -12,6 +13,7 @@ import SidebarNavRow from "$lib/components/sidebar-nav-row.svelte";
 import SidebarNotch from "$lib/components/sidebar-notch.svelte";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
+import { boardStore } from "$lib/stores/board.svelte";
 import { connection } from "$lib/stores/connection.svelte";
 import type { Icon as IconType } from "@lucide/svelte";
 import Briefcase from "@lucide/svelte/icons/briefcase";
@@ -40,7 +42,8 @@ const actions = createActions(queryClient);
 
 const summaryAll = query.summary.create("all");
 const summaryLatest = query.summary.create("latest");
-const authQuery = query.auth.create();
+const authQuery = query.auth.create(() => boardStore.active);
+const activeBoardLabel = $derived(BOARDS[boardStore.active].label());
 
 const activePath = $derived(page.url.pathname);
 
@@ -188,7 +191,13 @@ $effect(() => {
 				{/if}
 			</button>
 
-			<AccountCell status={authStatus} {onSignIn} {onSignOut} onCancel={onCancelAuth} />
+			<AccountCell
+				status={authStatus}
+				platform={activeBoardLabel}
+				{onSignIn}
+				{onSignOut}
+				onCancel={onCancelAuth}
+			/>
 		</div>
 	</div>
 </aside>

@@ -200,11 +200,16 @@ async function* streamChromium(): AsyncGenerator<PullProgress> {
 
 export const API = {
 	auth: {
-		status: () => api<AuthStatus>("auth/status"),
-		signIn: () => api<AuthStatus>("auth/sign-in", { method: "POST" }),
-		signInCancel: () =>
-			api<AuthStatus>("auth/sign-in/cancel", { method: "POST" }),
-		signOut: () => api<AuthStatus>("auth/sign-out", { method: "POST" }),
+		status: (board?: BoardKind) =>
+			api<AuthStatus>(`auth/status${qs({ board })}`),
+		signIn: (board?: BoardKind) =>
+			api<AuthStatus>(`auth/sign-in${qs({ board })}`, { method: "POST" }),
+		signInCancel: (board?: BoardKind) =>
+			api<AuthStatus>(`auth/sign-in/cancel${qs({ board })}`, {
+				method: "POST",
+			}),
+		signOut: (board?: BoardKind) =>
+			api<AuthStatus>(`auth/sign-out${qs({ board })}`, { method: "POST" }),
 	},
 	applications: {
 		summary: (scope: SummaryScope = "all") =>

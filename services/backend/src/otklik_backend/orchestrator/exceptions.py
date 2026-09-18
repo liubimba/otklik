@@ -14,6 +14,13 @@ class FilterSessionClosedError(ServerError):
 class SearchAlreadyRunningError(ServerError):
     status_code = 409
     detail = "Search service busy right now by another search task"
+    code = "search_already_running"
+
+    def __init__(self, busy_board: str | None = None) -> None:
+        super().__init__()
+        self.busy_board = busy_board
+        if busy_board is not None:
+            self.detail = f"A search on {busy_board} is already running"
 
 
 class SearchSessionNotFoundError(ServerError):
@@ -24,6 +31,17 @@ class SearchSessionNotFoundError(ServerError):
 class InvalidSearchURLError(ServerError):
     status_code = 422
     detail = "Search URL must be on hh.ru"
+
+
+class BoardNotSupportedError(ServerError):
+    status_code = 422
+    detail = "This board is not supported yet"
+    code = "board_not_supported"
+
+    def __init__(self, board: str | None = None) -> None:
+        super().__init__()
+        if board is not None:
+            self.detail = f"Board {board} is not supported yet"
 
 
 class FilterSessionRunningAlreadyError(ServerError):

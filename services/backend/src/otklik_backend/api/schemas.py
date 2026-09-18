@@ -2,10 +2,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional, Literal, Self, Sequence
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from otklik_backend.ai.deployment import LLMDeployment
 
+from otklik_backend.core.board import Board, DEFAULT_BOARD
 from otklik_backend.core.context_source import ContextSourceKind, ContextSourceStatus
 from otklik_backend.core.state import ErrorDomain as ErrorDomain
 from otklik_backend.core.state import ProcessingState as ProcessingState
@@ -95,6 +96,7 @@ class VacancyListPageAPISchema(BaseModel):
 
 class SearchHistoryAPISchema(BaseModel):
     id: str
+    board: Board
     url: str
     max_vacancies: int
     max_pages: int
@@ -133,21 +135,31 @@ class AIHealthStatusAPISchema(BaseModel):
     status: str
 
 
+_BOARD_HOST_SUFFIX: dict[Board, str] = {
+    Board.HH_RU: "hh.ru",
+    Board.HABR: "career.habr.com",
+}
+
+
 class VacanciesStartSearchRequestAPISchema(BaseModel):
     url: HttpUrl
+    board: Board = DEFAULT_BOARD
     max_pages: int | None = None
     max_vacancies: int | None = None
 
-    @field_validator("url")
-    @classmethod
-    def _only_hh_ru(cls, v: HttpUrl) -> HttpUrl:
-        if v.host is None or not v.host.endswith("hh.ru"):
-            raise ValueError("URL must be on hh.ru")
-        return v
+    @model_validator(mode="after")
+    def _url_matches_board(self) -> Self:
+        suffix = _BOARD_HOST_SUFFIX.get(self.board)
+        if suffix is not None and (
+            self.url.host is None or not self.url.host.endswith(suffix)
+        ):
+            raise ValueError(f"URL must be on {suffix}")
+        return self
 
 
 class VacanciesSearchAPISchema(BaseModel):
     search_id: str
+    board: Board
     status: SearchStatusAPISchema
     parsed_pages: int
     parsed_vacancies: int

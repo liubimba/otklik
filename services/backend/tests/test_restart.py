@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from otklik_backend.core.board import Board
 from otklik_backend.api.schemas import ProcessingState, VacancyAPISchema
 from otklik_backend.core.state import ErrorDomain
 from otklik_backend.db.converters import vacancy_to_orm
@@ -181,6 +182,7 @@ async def _seed_in_search(
             await SearchHistoryRepository.create(
                 session=session,
                 search_id=search_id,
+                board=Board.HH_RU,
                 url="https://hh.ru/search/vacancy",
                 max_vacancies=50,
                 max_pages=5,

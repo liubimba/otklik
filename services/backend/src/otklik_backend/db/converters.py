@@ -120,6 +120,7 @@ def vacancy_with_status_to_schema(
 def search_history_to_schema(orm: SearchHistoryORM) -> SearchHistoryAPISchema:
     return SearchHistoryAPISchema(
         id=orm.id,
+        board=orm.board,
         url=orm.url,
         max_vacancies=orm.max_vacancies,
         max_pages=orm.max_pages,

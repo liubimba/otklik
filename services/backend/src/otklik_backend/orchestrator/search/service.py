@@ -1,12 +1,16 @@
+from typing import Mapping
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from otklik_backend.browser.core import BrowserCore
+from otklik_backend.core.board import Board
 from otklik_backend.core.site import SiteParser
 from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.exceptions import (
+    BoardNotSupportedError,
     FilterSessionNotFoundError,
     FilterSessionRunningAlreadyError,
     SearchAlreadyRunningError,
@@ -24,19 +28,19 @@ class SearchService:
     def __init__(
         self,
         core: BrowserCore,
-        parser: SiteParser,
+        parsers: Mapping[Board, SiteParser],
         broadcaster: EventBroadcaster,
         session_maker: async_sessionmaker[AsyncSession],
         pause_controller: PauseController,
     ) -> None:
         self._log = get_logger(__name__)
         self._core = core
-        self._parser = parser
+        self._parsers = parsers
         self._broadcaster = broadcaster
         self._session_maker = session_maker
         self._pause_controller = pause_controller
         self._filter_session: FilterSession | None = None
-        self._search_session: SearchSession | None = None
+        self._search_sessions: dict[Board, SearchSession] = {}
 
     async def open_filter_session(self) -> str:
         if self._filter_session is not None:
@@ -70,17 +74,37 @@ class SearchService:
             return None
         return self._filter_session.id
 
-    async def open_search_session(
-        self, request: VacanciesStartSearchRequestAPISchema
-    ) -> SearchSessionTask:
-        if self._search_session is not None:
-            task = self._search_session.get_search_task()
+    def _prune_inactive(self) -> None:
+        for board, search_session in list(self._search_sessions.items()):
+            task = search_session.get_search_task()
             if task is None or not task.is_active:
-                self._search_session = None
+                del self._search_sessions[board]
 
-        if self._search_session is not None:
-            self._log.warning("Search already running")
-            raise SearchAlreadyRunningError()
+    def _active_board(self) -> Board | None:
+        self._prune_inactive()
+        for board, search_session in self._search_sessions.items():
+            task = search_session.get_search_task()
+            if task is not None and task.is_active:
+                return board
+        return None
+
+    def _find_session(self, search_id: str) -> SearchSession | None:
+        for search_session in self._search_sessions.values():
+            if search_session.id == search_id:
+                return search_session
+        return None
+
+    async def open_search_session(
+        self, board: Board, request: VacanciesStartSearchRequestAPISchema
+    ) -> SearchSessionTask:
+        parser = self._parsers.get(board)
+        if parser is None:
+            raise BoardNotSupportedError(board=board.value)
+
+        busy = self._active_board()
+        if busy is not None:
+            self._log.warning("Search already running", board=busy.value)
+            raise SearchAlreadyRunningError(busy_board=busy.value)
 
         async with self._session_maker() as session:
             settings = await SettingsRepository.get(session=session)
@@ -96,52 +120,59 @@ class SearchService:
             else settings.max_vacancies
         )
 
-        self._search_session = await SearchSession.execute(
+        search_session = await SearchSession.execute(
             url=str(request.url),
             core=self._core,
+            board=board,
             session_maker=self._session_maker,
             broadcaster=self._broadcaster,
-            parser=self._parser,
+            parser=parser,
             max_pages=max_pages,
             max_vacancies=max_vacancies,
             pause_controller=self._pause_controller,
         )
+        self._search_sessions[board] = search_session
 
-        task = self._search_session.get_search_task()
+        task = search_session.get_search_task()
         assert task is not None, "SearchSession.execute() must initialise the task"
         return task
 
     async def cancel_search_session(self, search_id: str) -> bool:
-        if self._search_session is None or self._search_session.id != search_id:
+        search_session = self._find_session(search_id)
+        if search_session is None:
             raise SearchSessionNotFoundError()
 
-        cancelled = await self._search_session.cancel()
-        self._search_session = None
+        cancelled = await search_session.cancel()
+        self._search_sessions.pop(search_session.board, None)
         return cancelled
 
     async def pause_search_session(self, search_id: str) -> bool:
-        if self._search_session is None or self._search_session.id != search_id:
+        search_session = self._find_session(search_id)
+        if search_session is None:
             raise SearchSessionNotFoundError()
-        return await self._search_session.pause()
+        return await search_session.pause()
 
     async def resume_search_session(self, search_id: str) -> bool:
-        if self._search_session is None or self._search_session.id != search_id:
+        search_session = self._find_session(search_id)
+        if search_session is None:
             raise SearchSessionNotFoundError()
-        return await self._search_session.resume()
+        return await search_session.resume()
 
     def find_search_task(self, search_id: str) -> SearchSessionTask | None:
-        if self._search_session is not None and self._search_session.id == search_id:
-            return self._search_session.get_search_task()
+        search_session = self._find_session(search_id)
+        if search_session is not None:
+            return search_session.get_search_task()
         return None
 
-    def get_current_search_task(self) -> SearchSessionTask | None:
-        if self._search_session is None:
+    def get_current_search_task(self, board: Board) -> SearchSessionTask | None:
+        search_session = self._search_sessions.get(board)
+        if search_session is None:
             return None
-        task = self._search_session.get_search_task()
+        task = search_session.get_search_task()
         return task if (task and task.is_active) else None
 
     async def shutdown(self) -> None:
-        if self._search_session is not None:
-            await self._search_session.cancel()
+        for search_session in list(self._search_sessions.values()):
+            await search_session.cancel()
         if self._filter_session is not None:
             await self._filter_session.cancel()

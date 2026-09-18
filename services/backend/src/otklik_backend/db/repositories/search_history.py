@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from otklik_backend.api.schemas import SearchStatusAPISchema
+from otklik_backend.core.board import Board
 from otklik_backend.db.models import SearchHistoryORM
 
 
@@ -18,6 +19,7 @@ class SearchHistoryRepository:
         cls,
         session: AsyncSession,
         search_id: str,
+        board: Board,
         url: str,
         max_vacancies: int,
         max_pages: int,
@@ -25,6 +27,7 @@ class SearchHistoryRepository:
     ) -> SearchHistoryORM:
         search_history = SearchHistoryORM(
             id=search_id,
+            board=board,
             url=url,
             max_vacancies=max_vacancies,
             max_pages=max_pages,
@@ -35,19 +38,26 @@ class SearchHistoryRepository:
         return search_history
 
     @classmethod
-    async def list_all(cls, session: AsyncSession) -> Sequence[SearchHistoryORM]:
-        result = await session.execute(
-            select(SearchHistoryORM).order_by(SearchHistoryORM.started_at.desc())
-        )
+    async def list_all(
+        cls, session: AsyncSession, board: Board | None = None
+    ) -> Sequence[SearchHistoryORM]:
+        stmt = select(SearchHistoryORM).order_by(SearchHistoryORM.started_at.desc())
+        if board is not None:
+            stmt = stmt.where(SearchHistoryORM.board == board)
+        result = await session.execute(stmt)
         return result.scalars().all()
 
     @classmethod
-    async def get_latest_id(cls, session: AsyncSession) -> str | None:
+    async def get_latest_id(
+        cls, session: AsyncSession, board: Board | None = None
+    ) -> str | None:
         stmt = (
             select(SearchHistoryORM.id)
             .order_by(SearchHistoryORM.started_at.desc())
             .limit(1)
         )
+        if board is not None:
+            stmt = stmt.where(SearchHistoryORM.board == board)
         result = await session.execute(statement=stmt)
         return result.scalar_one_or_none()
 

@@ -12,6 +12,7 @@ from otklik_backend.api.schemas import (
     VacanciesSearchAPISchema,
     VacanciesStartSearchRequestAPISchema,
 )
+from otklik_backend.core.board import Board, DEFAULT_BOARD
 from otklik_backend.db.converters import search_history_to_schema
 from otklik_backend.db.repositories.search_history import SearchHistoryRepository
 from otklik_backend.orchestrator.search import SearchSessionTask
@@ -50,10 +51,11 @@ async def start_parse(
     filter: VacanciesStartSearchRequestAPISchema, search_service: SearchServiceDep
 ) -> VacanciesSearchAPISchema:
     search_task: SearchSessionTask = await search_service.open_search_session(
-        request=filter
+        board=filter.board, request=filter
     )
     return VacanciesSearchAPISchema(
         search_id=search_task.id,
+        board=filter.board,
         parsed_pages=search_task.parsed_pages,
         parsed_vacancies=search_task.parsed_count,
         status=search_task.state_machine.current_state_value,
@@ -67,12 +69,16 @@ async def start_parse(
 )
 async def current_parse(
     search_service: SearchServiceDep,
+    board: Board = DEFAULT_BOARD,
 ) -> VacanciesSearchAPISchema | Response:
-    search_task: SearchSessionTask | None = search_service.get_current_search_task()
+    search_task: SearchSessionTask | None = search_service.get_current_search_task(
+        board=board
+    )
     if search_task is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return VacanciesSearchAPISchema(
         search_id=search_task.id,
+        board=board,
         parsed_pages=search_task.parsed_pages,
         parsed_vacancies=search_task.parsed_count,
         status=search_task.state_machine.current_state_value,
@@ -111,8 +117,10 @@ async def resume_parse(search_id: str, search_service: SearchServiceDep) -> None
 
 
 @search_router.get("/history", summary="List past search runs (newest first)")
-async def list_search_history(session: SessionDep) -> list[SearchHistoryAPISchema]:
-    rows = await SearchHistoryRepository.list_all(session=session)
+async def list_search_history(
+    session: SessionDep, board: Board | None = None
+) -> list[SearchHistoryAPISchema]:
+    rows = await SearchHistoryRepository.list_all(session=session, board=board)
     return [search_history_to_schema(orm=row) for row in rows]
 
 

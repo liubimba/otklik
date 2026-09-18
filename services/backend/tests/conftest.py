@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
+from otklik_backend.core.board import Board
 from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.log import configure_logging
 from otklik_backend.api.schemas import WorkFormat, EmploymentType
@@ -101,7 +102,7 @@ class FakeSearchService:
         self._queue: dict[str, SearchSessionTask] = {}
 
     async def open_search_session(
-        self, request: VacanciesStartSearchRequestAPISchema
+        self, board: Board, request: VacanciesStartSearchRequestAPISchema
     ) -> SearchSessionTask:
         if len(self._queue) > 0:
             raise SearchAlreadyRunningError()
@@ -119,7 +120,7 @@ class FakeSearchService:
     def find_search_task(self, search_id: str) -> SearchSessionTask | None:
         return self._queue.get(search_id)
 
-    def get_current_search_task(self) -> SearchSessionTask | None:
+    def get_current_search_task(self, board: Board) -> SearchSessionTask | None:
         for task in self._queue.values():
             return task
         return None

@@ -7,6 +7,7 @@ from otklik_backend.ai.layer import AILayer
 from otklik_backend.ai.proxy import apply_llm_proxy
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.browser.core import BrowserCore
+from otklik_backend.core.board import Board
 from otklik_backend.core.protocols import EventListener, Recoverable, Runnable
 from otklik_backend.db.migrations import SchemaMigrator
 from otklik_backend.db.models import SettingsORM
@@ -97,7 +98,7 @@ class BackendBuilder:
         writer = HHRUWriter(core=browser, min_delay_ms=800, jitter_delay_ms=400)
         search_service = SearchService(
             core=browser,
-            parser=HHRUParser(core=browser),
+            parsers={Board.HH_RU: HHRUParser(core=browser)},
             broadcaster=broadcaster,
             session_maker=self._session_maker,
             pause_controller=pause_controller,

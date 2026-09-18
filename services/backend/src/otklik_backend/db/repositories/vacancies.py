@@ -5,9 +5,11 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from otklik_backend.api.schemas import VacancyAPISchema
+from otklik_backend.core.board import Board
 from otklik_backend.core.state import ProcessingState
 from otklik_backend.db.models import (
     ApplicationORM,
+    SearchHistoryORM,
     VacancyORM,
     search_vacancies_table,
 )
@@ -25,6 +27,17 @@ _SEARCHABLE_COLUMNS = (
 def _like_pattern(term: str) -> str:
     escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def _board_membership(board: Board) -> ColumnElement[bool]:
+    return VacancyORM.id.in_(
+        select(search_vacancies_table.c.vacancy_id)
+        .join(
+            SearchHistoryORM,
+            SearchHistoryORM.id == search_vacancies_table.c.search_id,
+        )
+        .where(SearchHistoryORM.board == board)
+    )
 
 
 class VacancyRepository:
@@ -84,21 +97,29 @@ class VacancyRepository:
 
     @classmethod
     async def list_all(
-        cls, session: AsyncSession, search_id: str | None = None
+        cls,
+        session: AsyncSession,
+        search_id: str | None = None,
+        board: Board | None = None,
     ) -> Sequence[VacancyORM]:
         logger.info("List vacancies")
-        if search_id is None:
-            result = await session.execute(select(VacancyORM))
-            return result.scalars().all()
-        stmt = (
-            select(VacancyORM)
-            .join(
-                search_vacancies_table,
-                VacancyORM.id == search_vacancies_table.c.vacancy_id,
+        if search_id is not None:
+            stmt = (
+                select(VacancyORM)
+                .join(
+                    search_vacancies_table,
+                    VacancyORM.id == search_vacancies_table.c.vacancy_id,
+                )
+                .where(search_vacancies_table.c.search_id == search_id)
             )
-            .where(search_vacancies_table.c.search_id == search_id)
-        )
-        result = await session.execute(stmt)
+            result = await session.execute(stmt)
+            return result.scalars().all()
+        if board is not None:
+            result = await session.execute(
+                select(VacancyORM).where(_board_membership(board))
+            )
+            return result.scalars().all()
+        result = await session.execute(select(VacancyORM))
         return result.scalars().all()
 
     @staticmethod
@@ -126,6 +147,7 @@ class VacancyRepository:
         limit: int = 50,
         offset: int = 0,
         search_id: str | None = None,
+        board: Board | None = None,
     ) -> tuple[Sequence[tuple[VacancyORM, ProcessingState | None]], int]:
         logger.info(
             "List vacancies with status",
@@ -162,6 +184,8 @@ class VacancyRepository:
                     )
                 )
             )
+        if board is not None:
+            filters.append(_board_membership(board))
 
         count_stmt = (
             select(func.count())

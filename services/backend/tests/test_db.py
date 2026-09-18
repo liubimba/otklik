@@ -1,6 +1,7 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
+from otklik_backend.core.board import Board
 from otklik_backend.db.models import VacancyORM
 from otklik_backend.api.schemas import VacancyAPISchema
 from otklik_backend.db.models import (
@@ -206,6 +207,7 @@ async def test_create_search_history(
         search_history: SearchHistoryORM = await SearchHistoryRepository.create(
             session=session,
             search_id=search_id,
+            board=Board.HH_RU,
             url=url,
             search_status=search_status,
             max_vacancies=max_vacancies,
@@ -230,6 +232,7 @@ async def test_list_search_history(
         search_history: SearchHistoryORM = await SearchHistoryRepository.create(
             session=session,
             search_id=search_id,
+            board=Board.HH_RU,
             url=url,
             search_status=search_status,
             max_vacancies=max_vacancies,
@@ -334,6 +337,7 @@ async def test_search_history_update(
         await SearchHistoryRepository.create(
             session=session,
             search_id=search_id,
+            board=Board.HH_RU,
             url=url,
             search_status=search_status,
             max_vacancies=max_vacancies,

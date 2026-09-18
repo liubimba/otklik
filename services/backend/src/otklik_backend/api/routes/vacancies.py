@@ -9,6 +9,7 @@ from otklik_backend.api.schemas import (
     VacancyStatusFilterAPISchema,
     VacancyWithStatusAPISchema,
 )
+from otklik_backend.core.board import Board
 from otklik_backend.core.state import ProcessingState
 from otklik_backend.db.converters import (
     vacancy_to_schema,
@@ -35,12 +36,15 @@ async def find_all(
         default="latest",
         description='Search filter: "latest" (current/most recent search), "all" (no filter), or a search UUID.',
     ),
+    board: Board | None = None,
 ) -> Sequence[VacancyAPISchema]:
     if search_id == "all":
-        rows: Sequence[VacancyORM] = await VacancyRepository.list_all(session=session)
+        rows: Sequence[VacancyORM] = await VacancyRepository.list_all(
+            session=session, board=board
+        )
     elif search_id == "latest":
         latest: str | None = await SearchHistoryRepository.get_latest_id(
-            session=session
+            session=session, board=board
         )
         if latest is None:
             return []
@@ -76,6 +80,7 @@ async def list_all_with_status(
         default="all",
         description='Scope: "all", "latest" (current search), or a search UUID.',
     ),
+    board: Board | None = None,
 ) -> VacancyListPageAPISchema:
     chips = status_filter or []
     include_unapplied = VacancyStatusFilterAPISchema.NONE in chips
@@ -86,10 +91,14 @@ async def list_all_with_status(
     ]
 
     scope: str | None
+    board_scope: Board | None = None
     if search_id == "all":
         scope = None
+        board_scope = board
     elif search_id == "latest":
-        latest = await SearchHistoryRepository.get_latest_id(session=session)
+        latest = await SearchHistoryRepository.get_latest_id(
+            session=session, board=board
+        )
         if latest is None:
             return VacancyListPageAPISchema(items=[], total=0)
         scope = latest
@@ -104,6 +113,7 @@ async def list_all_with_status(
         limit=limit,
         offset=offset,
         search_id=scope,
+        board=board_scope,
     )
     schedule = await scheduled_send_times(session=session)
     items: list[VacancyWithStatusAPISchema] = []

@@ -1,10 +1,7 @@
-from typing import ClassVar
-
-
 class DomainError(Exception):
-    status_code: ClassVar[int] = 500
-    detail: ClassVar[str] = "Internal server error"
-    code: ClassVar[str] = "DOMAIN_ERROR"
+    status_code: int = 500
+    detail: str = "Internal server error"
+    code: str = "DOMAIN_ERROR"
 
 
 class NotFoundError(DomainError):

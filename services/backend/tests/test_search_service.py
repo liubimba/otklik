@@ -11,13 +11,17 @@ from otklik_backend.orchestrator.search import (
     SearchService,
     SearchAlreadyRunningError,
 )
-from otklik_backend.orchestrator.exceptions import SearchSessionNotFoundError
+from otklik_backend.orchestrator.exceptions import (
+    BoardNotSupportedError,
+    SearchSessionNotFoundError,
+)
 from otklik_backend.api.schemas import (
     VacanciesStartSearchRequestAPISchema,
     SearchStatusAPISchema,
     VacancyAPISchema,
 )
 from otklik_backend.browser.exceptions import BrowserNetworkError
+from otklik_backend.core.board import Board
 from otklik_backend.db.models import SearchHistoryORM, VacancyORM
 from otklik_backend.core.events import SearchWSEvent, VacancyWSEvent
 
@@ -145,7 +149,7 @@ def _make_service(
 ) -> SearchService:
     return SearchService(
         core=browser,  # type: ignore[arg-type]
-        parser=parser,  # type: ignore[arg-type]
+        parsers={Board.HH_RU: parser},  # type: ignore[dict-item]
         broadcaster=broadcaster,
         session_maker=session_factory,
         pause_controller=PauseController(),
@@ -162,7 +166,9 @@ async def test_start_search_persists_and_finishes(
         fake_browser_core, parser, recording_broadcaster, session_factory
     )
 
-    search_task = await svc.open_search_session(request=_filter(max_pages=1))
+    search_task = await svc.open_search_session(
+        board=Board.HH_RU, request=_filter(max_pages=1)
+    )
     search_id = search_task.id
 
     await search_task.task
@@ -193,7 +199,9 @@ async def test_publishes_vacancy_new_event_per_parsed_vacancy(
         fake_browser_core, parser, recording_broadcaster, session_factory
     )
 
-    search_task = await svc.open_search_session(request=_filter(max_pages=1))
+    search_task = await svc.open_search_session(
+        board=Board.HH_RU, request=_filter(max_pages=1)
+    )
     await search_task.task
 
     vacancy_events = [
@@ -213,7 +221,9 @@ async def test_captcha_during_parsing_shows_window_and_pauses_the_search(
         fake_browser_core, CaptchaParser(), recording_broadcaster, session_factory
     )
 
-    search_task = await svc.open_search_session(request=_filter(max_pages=1))
+    search_task = await svc.open_search_session(
+        board=Board.HH_RU, request=_filter(max_pages=1)
+    )
     search_id = search_task.id
 
     for _ in range(200):
@@ -245,9 +255,9 @@ async def test_second_start_search_raises_already_running(
         session_factory,
     )
 
-    await svc.open_search_session(request=_filter(max_pages=99))
+    await svc.open_search_session(board=Board.HH_RU, request=_filter(max_pages=99))
     with pytest.raises(SearchAlreadyRunningError):
-        await svc.open_search_session(request=_filter(max_pages=99))
+        await svc.open_search_session(board=Board.HH_RU, request=_filter(max_pages=99))
 
     await svc.shutdown()
 
@@ -263,7 +273,7 @@ async def test_max_vacancies_cap_respected(
     )
 
     search_task = await svc.open_search_session(
-        request=_filter(max_vacancies=2, max_pages=1)
+        board=Board.HH_RU, request=_filter(max_vacancies=2, max_pages=1)
     )
     search_id = search_task.id
 
@@ -285,7 +295,7 @@ async def test_zero_limits_from_the_filter_fall_back_to_settings_not_stop_after_
     )
 
     search_task = await svc.open_search_session(
-        request=_filter(max_vacancies=0, max_pages=0)
+        board=Board.HH_RU, request=_filter(max_vacancies=0, max_pages=0)
     )
     await search_task.task
 
@@ -305,7 +315,7 @@ async def test_cancel_running_search(
         recording_broadcaster,
         session_factory,
     )
-    search_task = await svc.open_search_session(request=_filter())
+    search_task = await svc.open_search_session(board=Board.HH_RU, request=_filter())
     search_id = search_task.id
 
     await wait_until(
@@ -368,7 +378,7 @@ async def test_started_search_is_announced_before_any_vacancy_is_parsed(
         fake_browser_core, SlowParser(), recording_broadcaster, session_factory
     )
 
-    search_task = await svc.open_search_session(request=_filter())
+    search_task = await svc.open_search_session(board=Board.HH_RU, request=_filter())
 
     def announced() -> bool:
         return any(isinstance(e, SearchWSEvent) for e in recording_broadcaster.events)
@@ -394,7 +404,7 @@ async def test_running_search_is_persisted_as_running(
         fake_browser_core, SlowParser(), recording_broadcaster, session_factory
     )
 
-    search_task = await svc.open_search_session(request=_filter())
+    search_task = await svc.open_search_session(board=Board.HH_RU, request=_filter())
 
     async def row_is_running() -> bool:
         async with session_factory() as session:
@@ -417,7 +427,7 @@ async def test_search_fails_cleanly_when_the_page_cannot_be_opened(
         session_factory,
     )
 
-    search_task = await svc.open_search_session(request=_filter())
+    search_task = await svc.open_search_session(board=Board.HH_RU, request=_filter())
     await search_task.task
 
     assert search_task.state_machine.current_state_value == SearchStatusAPISchema.FAILED
@@ -441,7 +451,7 @@ async def test_failed_search_is_persisted_with_its_error(
         session_factory,
     )
 
-    search_task = await svc.open_search_session(request=_filter())
+    search_task = await svc.open_search_session(board=Board.HH_RU, request=_filter())
     await search_task.task
 
     async with session_factory() as session:
@@ -464,12 +474,12 @@ async def test_failed_search_does_not_block_the_next_one(
         session_factory,
     )
 
-    first = await svc.open_search_session(request=_filter())
+    first = await svc.open_search_session(board=Board.HH_RU, request=_filter())
     await first.task
 
-    assert svc.get_current_search_task() is None
+    assert svc.get_current_search_task(board=Board.HH_RU) is None
 
-    second = await svc.open_search_session(request=_filter())
+    second = await svc.open_search_session(board=Board.HH_RU, request=_filter())
     await second.task
     assert second.id != first.id
 
@@ -484,7 +494,9 @@ async def test_finished_search_hides_the_browser_window(
         fake_browser_core, parser, recording_broadcaster, session_factory
     )
 
-    search_task = await svc.open_search_session(request=_filter(max_pages=1))
+    search_task = await svc.open_search_session(
+        board=Board.HH_RU, request=_filter(max_pages=1)
+    )
     await search_task.task
 
     assert fake_browser_core.hide_calls >= 1, "browser must hide when the search ends"
@@ -502,7 +514,7 @@ async def test_failed_search_hides_the_browser_window(
         session_factory,
     )
 
-    search_task = await svc.open_search_session(request=_filter())
+    search_task = await svc.open_search_session(board=Board.HH_RU, request=_filter())
     await search_task.task
 
     assert browser.hide_calls >= 1, "browser must hide even when the search fails"
@@ -519,7 +531,7 @@ async def test_cancelled_search_hides_the_browser_window(
         recording_broadcaster,
         session_factory,
     )
-    search_task = await svc.open_search_session(request=_filter())
+    search_task = await svc.open_search_session(board=Board.HH_RU, request=_filter())
     search_id = search_task.id
 
     await wait_until(
@@ -546,7 +558,7 @@ async def test_shutdown_cancels_running_tasks(
         recording_broadcaster,
         session_factory,
     )
-    search_task = await svc.open_search_session(request=_filter())
+    search_task = await svc.open_search_session(board=Board.HH_RU, request=_filter())
 
     await asyncio.sleep(0.05)
     await svc.shutdown()
@@ -555,3 +567,52 @@ async def test_shutdown_cancels_running_tasks(
     task = svc.find_search_task(search_id=search_task.id)
     assert task is not None
     assert task.task.cancelled() or task.task.done()
+
+
+def _filter_habr(
+    max_vacancies: int = 50, max_pages: int = 1
+) -> VacanciesStartSearchRequestAPISchema:
+    return VacanciesStartSearchRequestAPISchema(
+        url=HttpUrl("https://career.habr.com/vacancies"),
+        board=Board.HABR,
+        max_vacancies=max_vacancies,
+        max_pages=max_pages,
+    )
+
+
+async def test_second_board_search_while_one_active_names_the_busy_board(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    svc = SearchService(
+        core=fake_browser_core,  # type: ignore[arg-type]
+        parsers={Board.HH_RU: SlowParser(), Board.HABR: SlowParser()},  # type: ignore[dict-item]
+        broadcaster=recording_broadcaster,
+        session_maker=session_factory,
+        pause_controller=PauseController(),
+    )
+
+    await svc.open_search_session(board=Board.HH_RU, request=_filter(max_pages=99))
+    with pytest.raises(SearchAlreadyRunningError) as excinfo:
+        await svc.open_search_session(
+            board=Board.HABR, request=_filter_habr(max_pages=99)
+        )
+
+    assert excinfo.value.busy_board == Board.HH_RU.value
+    assert svc.get_current_search_task(board=Board.HABR) is None
+
+    await svc.shutdown()
+
+
+async def test_open_search_on_unregistered_board_raises_board_not_supported(
+    fake_browser_core: FakeBrowserCore,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    svc = _make_service(
+        fake_browser_core, FakeParser([]), recording_broadcaster, session_factory
+    )
+
+    with pytest.raises(BoardNotSupportedError):
+        await svc.open_search_session(board=Board.HABR, request=_filter_habr())

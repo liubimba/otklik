@@ -13,6 +13,7 @@ from statemachine.states import States
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.api.schemas import SearchStatusAPISchema
 from otklik_backend.browser.core import BrowserCore
+from otklik_backend.core.board import Board
 from otklik_backend.browser.page import BrowserPage
 from otklik_backend.core.events import SearchData, SearchWSEvent, VacancyWSEvent
 from otklik_backend.core.exceptions import DomainError
@@ -81,6 +82,7 @@ class SearchSession:
     def __init__(
         self,
         core: BrowserCore,
+        board: Board,
         session_maker: async_sessionmaker[AsyncSession],
         broadcaster: EventBroadcaster,
         parser: SiteParser,
@@ -91,6 +93,7 @@ class SearchSession:
         self._id = str(uuid.uuid4())
         self._log = get_logger(self.__class__.__name__)
         self._core = core
+        self._board = board
         self._session_maker = session_maker
         self._broadcaster = broadcaster
         self._parser = parser
@@ -133,6 +136,10 @@ class SearchSession:
     def id(self) -> str:
         return self._id
 
+    @property
+    def board(self) -> Board:
+        return self._board
+
     async def run(self, url: str) -> SearchSessionTask:
         self._log.info(
             "Queuing search",
@@ -149,6 +156,7 @@ class SearchSession:
             await SearchHistoryRepository.create(
                 session=session,
                 search_id=self._id,
+                board=self._board,
                 url=url,
                 max_pages=self._max_pages,
                 max_vacancies=self._max_vacancies,
@@ -192,6 +200,7 @@ class SearchSession:
         cls,
         url: str,
         core: BrowserCore,
+        board: Board,
         session_maker: async_sessionmaker[AsyncSession],
         broadcaster: EventBroadcaster,
         parser: SiteParser,
@@ -201,6 +210,7 @@ class SearchSession:
     ) -> Self:
         session = cls(
             core=core,
+            board=board,
             session_maker=session_maker,
             broadcaster=broadcaster,
             parser=parser,

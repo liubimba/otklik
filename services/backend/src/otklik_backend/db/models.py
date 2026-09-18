@@ -23,6 +23,7 @@ from otklik_backend.api.schemas import (
     SearchStatusAPISchema,
 )
 from otklik_backend.ai.deployment import LLMDeployment
+from otklik_backend.core.board import Board, DEFAULT_BOARD
 from otklik_backend.core.context_source import ContextSourceKind, ContextSourceStatus
 
 
@@ -56,6 +57,12 @@ class LLMDeploymentList(TypeDecorator[list[LLMDeployment]]):
 class SearchHistoryORM(Base):
     __tablename__ = "searches"
     id: Mapped[str] = mapped_column(primary_key=True)
+    board: Mapped[Board] = mapped_column(
+        Enum(Board),
+        default=DEFAULT_BOARD,
+        server_default=DEFAULT_BOARD.value,
+        index=True,
+    )
     url: Mapped[str]
     max_vacancies: Mapped[int]
     max_pages: Mapped[int]

@@ -1,6 +1,7 @@
 from fastapi import Response
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from otklik_backend.core.board import Board
 from otklik_backend.api.schemas import (
     ProcessingState,
     SearchStatusAPISchema,
@@ -132,6 +133,7 @@ async def _seed_search_with_application(
             await SearchHistoryRepository.create(
                 session=session,
                 search_id=search_id,
+                board=Board.HH_RU,
                 url="https://hh.ru/search/vacancy",
                 max_vacancies=10,
                 max_pages=1,

@@ -30,6 +30,7 @@ from otklik_backend.secrets.factory import SecretStoreFactory
 from otklik_backend.secrets.migrator import SecretMigrator
 from otklik_backend.secrets.service import DeploymentSecretsService
 from otklik_backend.secrets.store import SecretStore
+from otklik_backend.sites.habr import HabrParser
 from otklik_backend.sites.hh_ru import HHRUAuthFlow, HHRUParser, HHRUWriter
 from otklik_backend.sources.fetchers import SourceFetcherRegistry
 from otklik_backend.sources.service import ContextSourceService
@@ -98,7 +99,10 @@ class BackendBuilder:
         writer = HHRUWriter(core=browser, min_delay_ms=800, jitter_delay_ms=400)
         search_service = SearchService(
             core=browser,
-            parsers={Board.HH_RU: HHRUParser(core=browser)},
+            parsers={
+                Board.HH_RU: HHRUParser(core=browser),
+                Board.HABR: HabrParser(core=browser),
+            },
             broadcaster=broadcaster,
             session_maker=self._session_maker,
             pause_controller=pause_controller,

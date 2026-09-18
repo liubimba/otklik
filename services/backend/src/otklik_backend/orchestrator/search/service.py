@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from otklik_backend.browser.core import BrowserCore
-from otklik_backend.core.board import Board
+from otklik_backend.core.board import DEFAULT_BOARD, Board
 from otklik_backend.core.site import SiteParser
 from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.log import get_logger
@@ -42,14 +42,14 @@ class SearchService:
         self._filter_session: FilterSession | None = None
         self._search_sessions: dict[Board, SearchSession] = {}
 
-    async def open_filter_session(self) -> str:
+    async def open_filter_session(self, board: Board = DEFAULT_BOARD) -> str:
         if self._filter_session is not None:
             self._log.error(
                 "Filter session already running", id=self._filter_session.id
             )
             raise FilterSessionRunningAlreadyError()
 
-        self._filter_session = await FilterSession.execute(core=self._core)
+        self._filter_session = await FilterSession.execute(core=self._core, board=board)
         await self._core.show_window()
         return self._filter_session.id
 

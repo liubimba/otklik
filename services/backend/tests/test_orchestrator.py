@@ -344,6 +344,58 @@ async def test_consume_submitted_transitions_and_logs(
         await stop_consumer(task)
 
 
+async def test_a_habr_vacancy_is_not_sent_through_the_hh_writer(
+    fake_orchestrator: LetterSendingWorker,
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    from otklik_backend.api.schemas import SearchStatusAPISchema
+    from otklik_backend.core.board import Board
+    from otklik_backend.db.repositories.search_history import SearchHistoryRepository
+
+    app_id = await seed_app_in_letter_sending(
+        session_factory, apply_link="https://career.habr.com/vacancies/1"
+    )
+    async with session_factory() as session:
+        await SearchHistoryRepository.create(
+            session=session,
+            search_id="habr-search",
+            board=Board.HABR,
+            url="https://career.habr.com/vacancies",
+            max_vacancies=10,
+            max_pages=1,
+            search_status=SearchStatusAPISchema.FINISHED,
+        )
+        await VacancyRepository.link_to_search(
+            session=session, search_id="habr-search", vacancy_id=1
+        )
+        await session.commit()
+
+    task = await start_consumer(
+        fake_orchestrator,
+        fake_writer,
+        authenticated_browser,
+        recording_broadcaster,
+        session_factory,
+    )
+    try:
+        await fake_orchestrator.enqueue(application_id=app_id)
+
+        async def status_is_error() -> bool:
+            async with session_factory() as s:
+                app = await ApplicationRepository.get_by_id(
+                    session=s, application_id=app_id
+                )
+                return app is not None and app.status == ProcessingState.ERROR
+
+        await wait_until(status_is_error)
+        assert fake_writer.calls == []
+    finally:
+        await stop_consumer(task)
+
+
 async def _seed_app(
     session_factory: async_sessionmaker[AsyncSession],
     apply_link: str,

@@ -207,6 +207,21 @@ class VacancyRepository:
         return [(row[0], row[1]) for row in rows], total
 
     @classmethod
+    async def board_of_vacancy(
+        cls, session: AsyncSession, vacancy_id: int
+    ) -> Board | None:
+        stmt = (
+            select(SearchHistoryORM.board)
+            .join(
+                search_vacancies_table,
+                SearchHistoryORM.id == search_vacancies_table.c.search_id,
+            )
+            .where(search_vacancies_table.c.vacancy_id == vacancy_id)
+            .limit(1)
+        )
+        return (await session.execute(stmt)).scalar_one_or_none()
+
+    @classmethod
     async def link_to_search(
         cls, session: AsyncSession, search_id: str, vacancy_id: int
     ) -> None:

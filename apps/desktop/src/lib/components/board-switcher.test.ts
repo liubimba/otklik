@@ -21,9 +21,11 @@ describe("<BoardSwitcher>", () => {
 		expect(habr).toHaveAttribute("aria-selected", "false");
 	});
 
-	it("marks the Хабр Карьера board «Скоро»", () => {
+	it("shows no «Скоро» badge while both boards are enabled", () => {
 		render(BoardSwitcher, { active: "hh_ru", onSelect: vi.fn() });
-		expect(screen.getByText(m.board_badge_coming_soon())).toBeInTheDocument();
+		expect(
+			screen.queryByText(m.board_badge_coming_soon()),
+		).not.toBeInTheDocument();
 	});
 
 	it("selecting a board calls onSelect with its kind", async () => {

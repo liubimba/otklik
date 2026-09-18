@@ -68,7 +68,7 @@ export function createSearchFilterActions(
 				if (store.canOpen) {
 					store.opening();
 					store.clearError();
-					return API.search.filter.open();
+					return API.search.filter.open(boardStore.active);
 				}
 				throw new Error("Search filter session cannot be open");
 			},

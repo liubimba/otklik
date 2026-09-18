@@ -26,8 +26,9 @@ parse_router = APIRouter(prefix="/parse", tags=["search-parse"])
 @filter_router.post("/new")
 async def new_filter_session(
     search_service: SearchServiceDep,
+    board: Board = DEFAULT_BOARD,
 ) -> SearchSessionAPISchema:
-    session_id: str = await search_service.open_filter_session()
+    session_id: str = await search_service.open_filter_session(board=board)
     return SearchSessionAPISchema(session_id=session_id)
 
 

@@ -221,8 +221,10 @@ export const API = {
 	},
 	search: {
 		filter: {
-			open: () =>
-				api<NewFilterSession>("search/filter/new", { method: "POST" }),
+			open: (board?: BoardKind) =>
+				api<NewFilterSession>(`search/filter/new${qs({ board })}`, {
+					method: "POST",
+				}),
 			confirm: (sessionId: string) =>
 				api<FilterSessionConfirm>(`search/filter/${sessionId}/confirm`, {
 					method: "POST",

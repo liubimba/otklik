@@ -14,6 +14,7 @@ from otklik_backend.core.events import (
     RateLimitData,
     RateLimitWSEvent,
 )
+from otklik_backend.core.board import Board
 from otklik_backend.core.site import SiteAuthFlow, SiteWriter
 from otklik_backend.core.site.result import SubmissionResult, SubmissionResultType
 from otklik_backend.core.state import ProcessingState
@@ -43,6 +44,7 @@ class LetterSendingWorker(Worker):
         broadcaster: EventBroadcaster,
         pause_controller: PauseController,
         rate_limit_backoff_sec: float = 60,
+        supported_boards: frozenset[Board] = frozenset({Board.HH_RU}),
     ) -> None:
         super().__init__()
         self._pause = pause_controller
@@ -50,6 +52,7 @@ class LetterSendingWorker(Worker):
         self._session_maker = session_maker
         self._auth_flow = auth_flow
         self._writer = writer
+        self._supported_boards = supported_boards
         self._broadcaster = broadcaster
         self._rate_limit_backoff_sec = rate_limit_backoff_sec
         self._resume_event = asyncio.Event()
@@ -238,6 +241,22 @@ class LetterSendingWorker(Worker):
                     application_id=app.id,
                     session=session,
                     reason="missing vacancy",
+                )
+                return False
+
+            board = await VacancyRepository.board_of_vacancy(
+                session=session, vacancy_id=app.vacancy_id
+            )
+            if board is not None and board not in self._supported_boards:
+                self._log.warning(
+                    "Sending not supported for board",
+                    application_id=app.id,
+                    board=board.value,
+                )
+                await self._fail(
+                    application_id=app.id,
+                    session=session,
+                    reason=f"Sending is not supported for {board.value} yet",
                 )
                 return False
 

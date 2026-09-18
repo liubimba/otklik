@@ -7,21 +7,26 @@ from pydantic import HttpUrl, ValidationError
 from otklik_backend.api.schemas import VacanciesStartSearchRequestAPISchema
 from otklik_backend.browser.core import BrowserCore
 from otklik_backend.browser.page import BrowserPage
+from otklik_backend.core.board import DEFAULT_BOARD, Board
 from otklik_backend.log import get_logger
 from otklik_backend.orchestrator.exceptions import (
     FilterSessionClosedError,
     InvalidSearchURLError,
 )
 
-SEARCH_URL = "https://hh.ru/search/vacancy"
+SEARCH_URLS: dict[Board, str] = {
+    Board.HH_RU: "https://hh.ru/search/vacancy",
+    Board.HABR: "https://career.habr.com/vacancies",
+}
 
 
 class FilterSession:
-    def __init__(self, core: BrowserCore, page: BrowserPage) -> None:
+    def __init__(self, core: BrowserCore, page: BrowserPage, board: Board) -> None:
         self._id = str(uuid.uuid4())
         self._log = get_logger(self.__class__.__name__)
         self._core = core
         self._page = page
+        self._board = board
         self._confirmed = False
 
         self._log.info("Issued new filter session", id=self._id)
@@ -44,7 +49,9 @@ class FilterSession:
 
         url = self._page.get_url()
         try:
-            VacanciesStartSearchRequestAPISchema(url=HttpUrl(url=url))
+            VacanciesStartSearchRequestAPISchema(
+                url=HttpUrl(url=url), board=self._board
+            )
             return url
         except ValidationError as exc:
             self._log.error("Invalid browser page URL", error=str(exc))
@@ -64,8 +71,9 @@ class FilterSession:
             self._log.warning("Browser page was already closed")
 
     @classmethod
-    async def execute(cls, core: BrowserCore) -> Self:
-        page: BrowserPage = await core.new_page(SEARCH_URL)
-        host = urlparse(SEARCH_URL).hostname or ""
+    async def execute(cls, core: BrowserCore, board: Board = DEFAULT_BOARD) -> Self:
+        search_url = SEARCH_URLS[board]
+        page: BrowserPage = await core.new_page(search_url)
+        host = urlparse(search_url).hostname or ""
         await core.lock_window(page, host)
-        return cls(core=core, page=page)
+        return cls(core=core, page=page, board=board)

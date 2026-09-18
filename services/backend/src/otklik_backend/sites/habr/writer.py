@@ -1,0 +1,97 @@
+import asyncio
+import random
+
+from otklik_backend.browser.core import BrowserCore
+from otklik_backend.browser.page import BrowserPage
+from otklik_backend.core.site.result import SubmissionResult
+from otklik_backend.log import get_logger
+from otklik_backend.sites.habr.selectors import HABR_SELECTORS, HabrSelectors
+
+RESPOND_BUTTON_MISSING = "Кнопка «Откликнуться» не найдена"
+RESPONSE_NOT_CONFIRMED = "Отклик не подтвердился"
+
+
+class HabrWriter:
+    def __init__(
+        self,
+        core: BrowserCore,
+        min_delay_ms: int,
+        jitter_delay_ms: int,
+        selectors: HabrSelectors = HABR_SELECTORS,
+        timeout: float = 8000,
+    ) -> None:
+        self._logger = get_logger(__name__)
+        self._core = core
+        self._selectors = selectors
+        self._min_delay_ms = min_delay_ms
+        self._jitter_delay_ms = jitter_delay_ms
+        self._timeout = timeout
+
+    async def submit(self, vacancy_url: str, letter_text: str) -> SubmissionResult:
+        self._logger.info("Starting Habr submit", vacancy_url=vacancy_url)
+        response = self._selectors.response
+        page: BrowserPage | None = None
+        try:
+            page = await self._core.open_reusable_page("habr_submit", vacancy_url)
+            await self._human_delay()
+
+            if await self._already_responded(page):
+                self._logger.info("Already responded on Habr — treating as submitted")
+                return SubmissionResult.submitted()
+
+            clicked = await page.click_first_visible(
+                response.respond_button, timeout=self._timeout
+            )
+            if not clicked:
+                return SubmissionResult.failed(reason=RESPOND_BUTTON_MISSING)
+
+            if not await self._response_confirmed(page):
+                return SubmissionResult.failed(reason=RESPONSE_NOT_CONFIRMED)
+
+            if not await self._attach_letter(page, letter_text):
+                self._logger.warning(
+                    "Habr response was sent but the cover letter was not attached"
+                )
+            return SubmissionResult.submitted()
+        except Exception as error:  # noqa: BLE001
+            self._logger.exception("Failed to submit on Habr", error=str(error))
+            return SubmissionResult.failed(reason=str(error))
+
+    async def _already_responded(self, page: BrowserPage) -> bool:
+        return (
+            await page.query_selector(self._selectors.response.already_responded_marker)
+            is not None
+        )
+
+    async def _response_confirmed(self, page: BrowserPage) -> bool:
+        response = self._selectors.response
+        confirmation = (
+            f"{response.success_marker}, "
+            f"{response.letter_textarea}, "
+            f"{response.already_responded_marker}"
+        )
+        try:
+            await page.wait_for_selector(confirmation, timeout=self._timeout)
+            return True
+        except Exception:  # noqa: BLE001
+            self._logger.warning("Habr response confirmation did not appear")
+            return False
+
+    async def _attach_letter(self, page: BrowserPage, letter_text: str) -> bool:
+        response = self._selectors.response
+        try:
+            await page.wait_for_selector(
+                response.letter_textarea, timeout=self._timeout
+            )
+            await page.fill(response.letter_textarea, letter_text)
+            await self._human_delay()
+            return await page.click_first_visible(
+                response.letter_submit_button, timeout=self._timeout
+            )
+        except Exception as error:  # noqa: BLE001
+            self._logger.warning("Failed to attach Habr cover letter", error=str(error))
+            return False
+
+    async def _human_delay(self) -> None:
+        jitter = random.uniform(0, self._jitter_delay_ms)
+        await asyncio.sleep((self._min_delay_ms + jitter) / 1000.0)

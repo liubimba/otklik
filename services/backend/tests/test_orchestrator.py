@@ -396,6 +396,65 @@ async def test_a_habr_vacancy_is_not_sent_through_the_hh_writer(
         await stop_consumer(task)
 
 
+async def test_a_habr_vacancy_is_routed_to_the_habr_writer(
+    fake_state_service: "StateTransitionService",
+    fake_writer: FakeWriter,
+    authenticated_browser: FakeBrowser,
+    recording_broadcaster: RecordingBroadcaster,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    from otklik_backend.api.schemas import SearchStatusAPISchema
+    from otklik_backend.core.board import Board
+    from otklik_backend.db.repositories.search_history import SearchHistoryRepository
+    from otklik_backend.orchestrator.pause import PauseController
+
+    habr_writer = FakeWriter()
+    worker = LetterSendingWorker(
+        state_service=fake_state_service,
+        session_maker=session_factory,
+        auth_flow=authenticated_browser,  # type: ignore[arg-type]
+        writer=fake_writer,  # type: ignore[arg-type]
+        broadcaster=recording_broadcaster,
+        pause_controller=PauseController(),
+        rate_limit_backoff_sec=0.05,
+        writers={Board.HABR: habr_writer},  # type: ignore[dict-item]
+        auth_flows={Board.HABR: authenticated_browser},  # type: ignore[dict-item]
+    )
+
+    app_id = await seed_app_in_letter_sending(
+        session_factory, apply_link="https://career.habr.com/vacancies/9"
+    )
+    async with session_factory() as session:
+        await SearchHistoryRepository.create(
+            session=session,
+            search_id="habr-search",
+            board=Board.HABR,
+            url="https://career.habr.com/vacancies",
+            max_vacancies=10,
+            max_pages=1,
+            search_status=SearchStatusAPISchema.FINISHED,
+        )
+        await VacancyRepository.link_to_search(
+            session=session, search_id="habr-search", vacancy_id=1
+        )
+        await session.commit()
+
+    task = await start_consumer(
+        worker,
+        fake_writer,
+        authenticated_browser,
+        recording_broadcaster,
+        session_factory,
+    )
+    try:
+        await worker.enqueue(application_id=app_id)
+        await wait_until(lambda: len(habr_writer.calls) == 1)
+        assert habr_writer.calls[0]["uri"] == "https://career.habr.com/vacancies/9"
+        assert fake_writer.calls == []
+    finally:
+        await stop_consumer(task)
+
+
 async def _seed_app(
     session_factory: async_sessionmaker[AsyncSession],
     apply_link: str,

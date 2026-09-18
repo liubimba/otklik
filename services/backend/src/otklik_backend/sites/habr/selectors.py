@@ -20,11 +20,20 @@ class HabrSelectors:
         responded_marker: str
 
     @dataclass(frozen=True)
+    class ResponsePage:
+        respond_button: str
+        already_responded_marker: str
+        success_marker: str
+        letter_textarea: str
+        letter_submit_button: str
+
+    @dataclass(frozen=True)
     class Captcha:
         marker: str | None = None
 
     search: SearchPage
     vacancy: VacancyPage
+    response: ResponsePage
     captcha: Captcha
 
 
@@ -42,6 +51,13 @@ HABR_SELECTORS = HabrSelectors(
         section_title=".content-section__title",
         respond_button="button.button-comp--appearance-main",
         responded_marker=".vacancy-responses, .vacancy-response--responded",
+    ),
+    response=HabrSelectors.ResponsePage(
+        respond_button='button:has-text("Откликнуться")',
+        already_responded_marker=".vacancy-response-section",
+        success_marker=".action-result-box--appearance-success",
+        letter_textarea='textarea[name="body"]',
+        letter_submit_button='button[type="submit"]:has-text("Дополнить отклик")',
     ),
     captcha=HabrSelectors.Captcha(marker=None),
 )

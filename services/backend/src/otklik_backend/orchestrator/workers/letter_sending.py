@@ -14,6 +14,8 @@ from otklik_backend.core.events import (
     RateLimitData,
     RateLimitWSEvent,
 )
+from typing import Mapping
+
 from otklik_backend.core.board import Board
 from otklik_backend.core.site import SiteAuthFlow, SiteWriter
 from otklik_backend.core.site.result import SubmissionResult, SubmissionResultType
@@ -44,7 +46,8 @@ class LetterSendingWorker(Worker):
         broadcaster: EventBroadcaster,
         pause_controller: PauseController,
         rate_limit_backoff_sec: float = 60,
-        supported_boards: frozenset[Board] = frozenset({Board.HH_RU}),
+        writers: Mapping[Board, SiteWriter] | None = None,
+        auth_flows: Mapping[Board, SiteAuthFlow] | None = None,
     ) -> None:
         super().__init__()
         self._pause = pause_controller
@@ -52,7 +55,9 @@ class LetterSendingWorker(Worker):
         self._session_maker = session_maker
         self._auth_flow = auth_flow
         self._writer = writer
-        self._supported_boards = supported_boards
+        self._writers: Mapping[Board, SiteWriter] = writers or {}
+        self._auth_flows: Mapping[Board, SiteAuthFlow] = auth_flows or {}
+        self._supported_boards = frozenset({Board.HH_RU}) | frozenset(self._writers)
         self._broadcaster = broadcaster
         self._rate_limit_backoff_sec = rate_limit_backoff_sec
         self._resume_event = asyncio.Event()
@@ -196,7 +201,34 @@ class LetterSendingWorker(Worker):
                     event=ApplicationEvent.START_SENDING,
                 )
 
-            match await auth_gate(auth_flow=self._auth_flow):
+            board = await VacancyRepository.board_of_vacancy(
+                session=session, vacancy_id=app.vacancy_id
+            )
+            if board is not None and board not in self._supported_boards:
+                self._log.warning(
+                    "Sending not supported for board",
+                    application_id=app.id,
+                    board=board.value,
+                )
+                await self._fail(
+                    application_id=app.id,
+                    session=session,
+                    reason=f"Sending is not supported for {board.value} yet",
+                )
+                return False
+
+            auth_flow = (
+                self._auth_flow
+                if board is None
+                else self._auth_flows.get(board, self._auth_flow)
+            )
+            writer = (
+                self._writer
+                if board is None
+                else self._writers.get(board, self._writer)
+            )
+
+            match await auth_gate(auth_flow=auth_flow):
                 case GateResult.NOT_AUTHORIZED:
                     self._log.warning(
                         "Not authorized -- fail. Worker paused; AuthWSEvent(authorized) will resume it automatically",
@@ -244,23 +276,7 @@ class LetterSendingWorker(Worker):
                 )
                 return False
 
-            board = await VacancyRepository.board_of_vacancy(
-                session=session, vacancy_id=app.vacancy_id
-            )
-            if board is not None and board not in self._supported_boards:
-                self._log.warning(
-                    "Sending not supported for board",
-                    application_id=app.id,
-                    board=board.value,
-                )
-                await self._fail(
-                    application_id=app.id,
-                    session=session,
-                    reason=f"Sending is not supported for {board.value} yet",
-                )
-                return False
-
-            result: SubmissionResult = await self._writer.submit(
+            result: SubmissionResult = await writer.submit(
                 vacancy_url=vacancy.apply_link,
                 letter_text=letter.text,
             )

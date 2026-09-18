@@ -101,6 +101,8 @@
 	"queue_board_hh_ru": "hh.ru",
 	"queue_board_habr": "Хабр Карьера",
 	"board_badge_coming_soon": "Скоро",
+	"board_switcher_label": "Площадка",
+	"board_disabled_hint": "Площадка скоро будет доступна",
 	"queue_button_pause_search": "Приостановить поиск",
 	"queue_button_resume_search": "Возобновить поиск",
 	"queue_auto_generate_label": "Автогенерация письма",

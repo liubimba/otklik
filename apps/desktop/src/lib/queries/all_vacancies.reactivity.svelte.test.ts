@@ -27,6 +27,7 @@ describe("createAllVacanciesQuery — reactivity", () => {
 				() => search,
 				() => 50,
 				() => undefined,
+				() => undefined,
 				() => queryClient,
 			);
 		});

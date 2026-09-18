@@ -2,6 +2,7 @@
 import { goto } from "$app/navigation";
 import { createActions } from "$lib/actions";
 import type { SearchHistory, SearchStatus } from "$lib/api/types";
+import BoardSwitcher from "$lib/components/board-switcher.svelte";
 import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ExternalLinkButton from "$lib/components/external-link-button.svelte";
@@ -11,6 +12,7 @@ import { Badge } from "$lib/components/ui/badge";
 import { Button } from "$lib/components/ui/button";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
+import { boardStore } from "$lib/stores/board.svelte";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import HistoryIcon from "@lucide/svelte/icons/history";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
@@ -18,7 +20,7 @@ import { useQueryClient } from "@tanstack/svelte-query";
 import { toast } from "svelte-sonner";
 
 const queryClient = useQueryClient();
-const historyQuery = query.search.history.create();
+const historyQuery = query.search.history.create(() => boardStore.active);
 const currentSearch = query.search.vacancies.create();
 const actions = createActions(queryClient).search.vacancies;
 
@@ -136,6 +138,8 @@ async function confirmReplace() {
 
 <div class="container mx-auto max-w-2xl p-6 space-y-6">
     <h1 class="text-2xl font-semibold">{m.history_title()}</h1>
+
+    <BoardSwitcher active={boardStore.active} onSelect={(b) => boardStore.set(b)} />
 
     {#if historyQuery.isPending}
         <ListSkeleton/>

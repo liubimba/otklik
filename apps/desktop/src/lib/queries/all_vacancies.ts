@@ -1,5 +1,6 @@
 import { API } from "$lib/api/client";
 import type { VacancyListPage, VacancyStatusFilter } from "$lib/api/types";
+import type { BoardKind } from "$lib/boards";
 import {
 	type QueryClient,
 	createQuery,
@@ -13,6 +14,7 @@ export function allVacanciesPageQueryKey(
 	search: string | undefined,
 	limit: number,
 	searchId?: string,
+	board?: BoardKind,
 ) {
 	const sorted = statuses?.length ? [...statuses].sort() : null;
 	return [
@@ -22,6 +24,7 @@ export function allVacanciesPageQueryKey(
 			search: search || null,
 			limit,
 			searchId: searchId ?? null,
+			board: board ?? null,
 		},
 	];
 }
@@ -31,18 +34,21 @@ export function createAllVacanciesQuery(
 	getSearch: () => string | undefined,
 	getLimit: () => number,
 	getSearchId?: () => string | undefined,
+	getBoard?: () => BoardKind | undefined,
 	getQueryClient?: () => QueryClient,
 ) {
 	return createQuery<VacancyListPage>(() => {
 		const search = getSearch()?.trim() || undefined;
 		const statuses = getStatuses()?.length ? getStatuses() : undefined;
 		const searchId = getSearchId?.();
+		const board = getBoard?.();
 		return {
 			queryKey: allVacanciesPageQueryKey(
 				statuses,
 				search,
 				getLimit(),
 				searchId,
+				board,
 			),
 			queryFn: () =>
 				API.vacancies.listAll({
@@ -50,6 +56,7 @@ export function createAllVacanciesQuery(
 					search,
 					limit: getLimit(),
 					searchId,
+					board,
 				}),
 			placeholderData: keepPreviousData,
 			staleTime: 30_000,

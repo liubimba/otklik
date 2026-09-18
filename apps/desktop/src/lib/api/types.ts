@@ -1,3 +1,5 @@
+import type { BoardKind } from "$lib/boards";
+
 export type AuthStatus = {
 	status: "authorized" | "unauthorized" | "authorizing" | "unknown";
 };
@@ -83,6 +85,7 @@ export type VacancyListPage = {
 
 export type SearchData = {
 	search_id: string;
+	board: BoardKind;
 	parsed_vacancies: number;
 	parsed_pages: number;
 	status: SearchStatus;
@@ -90,6 +93,7 @@ export type SearchData = {
 
 export type SearchHistory = {
 	id: string;
+	board: BoardKind;
 	url: string;
 	max_vacancies: number;
 	max_pages: number;

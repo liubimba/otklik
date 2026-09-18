@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { VacancyStatusFilter } from "$lib/api/types";
+import BoardSwitcher from "$lib/components/board-switcher.svelte";
 import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ListSkeleton from "$lib/components/list-skeleton.svelte";
@@ -9,6 +10,7 @@ import VacancyCard from "$lib/components/vacancy-card.svelte";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import { store } from "$lib/stores";
+import { boardStore } from "$lib/stores/board.svelte";
 import Briefcase from "@lucide/svelte/icons/briefcase";
 import Search from "@lucide/svelte/icons/search";
 import SearchX from "@lucide/svelte/icons/search-x";
@@ -50,6 +52,8 @@ const vacanciesQuery = query.all_vacancies.create(
 	() => activeFilters,
 	() => search,
 	() => limit,
+	undefined,
+	() => boardStore.active,
 );
 
 const items = $derived(vacanciesQuery.data?.items ?? []);
@@ -92,6 +96,9 @@ function clearAll() {
             </span>
         {/if}
     </div>
+
+    <BoardSwitcher active={boardStore.active} onSelect={(b) => boardStore.set(b)} />
+
 
     <div class="relative">
         <Search

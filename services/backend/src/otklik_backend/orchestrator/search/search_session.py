@@ -372,6 +372,7 @@ class SearchSession:
             event=SearchWSEvent(
                 data=SearchData(
                     search_id=task.id,
+                    board=self._board,
                     parsed_vacancies=task.parsed_count,
                     parsed_pages=task.parsed_pages,
                     status=task.state_machine.current_state_value,

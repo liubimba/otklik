@@ -31,6 +31,7 @@ describe("createAllVacanciesQuery — filtering while a search streams events", 
 				() => "",
 				() => 50,
 				() => "latest",
+				() => undefined,
 				() => queryClient,
 			);
 		});

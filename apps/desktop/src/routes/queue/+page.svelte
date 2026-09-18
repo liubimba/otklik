@@ -1,11 +1,12 @@
 <script lang="ts">
 import { createActions } from "$lib/actions";
 import type { VacancyStatusFilter } from "$lib/api/types";
+import { BOARDS } from "$lib/boards";
+import BoardSwitcher from "$lib/components/board-switcher.svelte";
 import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
 import ListSkeleton from "$lib/components/list-skeleton.svelte";
 import LiveStatus from "$lib/components/live-status.svelte";
-import NewSearchButton from "$lib/components/new-search-button.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
 import { Button } from "$lib/components/ui/button";
 import { Input } from "$lib/components/ui/input";
@@ -14,6 +15,7 @@ import VacancyCard from "$lib/components/vacancy-card.svelte";
 import * as m from "$lib/paraglide/messages";
 import { query } from "$lib/queries";
 import { store } from "$lib/stores";
+import { boardStore } from "$lib/stores/board.svelte";
 import { letterReview } from "$lib/stores/letter_review.svelte";
 import Inbox from "@lucide/svelte/icons/inbox";
 import Pause from "@lucide/svelte/icons/pause";
@@ -87,6 +89,7 @@ const vacanciesQuery = query.all_vacancies.create(
 	() => search,
 	() => limit,
 	() => "latest",
+	() => boardStore.active,
 );
 const searchQuery = query.search.vacancies.create();
 const restartCountsQuery = query.restart_counts.create();
@@ -104,6 +107,7 @@ const vacanciesFiltered = $derived(
 const model = createSearchPageViewModel(searchQuery);
 const view = createSearchPageView(searchQuery, actions, model);
 
+const boardEnabled = $derived(BOARDS[boardStore.active].enabled);
 const autoGenerate = $derived(settingsQuery.data?.user.auto_generate ?? false);
 const autoSubmit = $derived(settingsQuery.data?.user.auto_submit ?? false);
 const generationCount = $derived(restartCountsQuery.data?.generation ?? 0);
@@ -222,14 +226,18 @@ $effect(() => {
                     {m.queue_button_cancel_search()}
                 </Button>
             {:else}
-                <NewSearchButton
-                        disabled={!model.search.filter.inactive}
-                        onSelect={(kind) =>
-                        kind === "hh_ru" && view.search.filter.start()}
-                />
+                <Button
+                        onclick={view.search.filter.start}
+                        disabled={!model.search.filter.inactive || !boardEnabled}
+                        title={boardEnabled ? undefined : m.board_disabled_hint()}
+                >
+                    {m.queue_button_new_search()}
+                </Button>
             {/if}
         </div>
     </header>
+
+    <BoardSwitcher active={boardStore.active} onSelect={(b) => boardStore.set(b)} />
 
     <section class="bg-card rounded-lg border text-sm">
         <div class="flex items-center justify-between gap-3 px-4 py-3">

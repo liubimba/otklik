@@ -6,6 +6,7 @@ from otklik_backend.api.schemas import (
     AuthStatusAPISchema,
     VacancyAPISchema,
 )
+from otklik_backend.core.board import Board
 from otklik_backend.core.state import ErrorDomain, ProcessingState
 
 
@@ -24,6 +25,7 @@ class ApplicationWSEvent(BaseModel):
 
 class SearchData(BaseModel):
     search_id: str
+    board: Board
     parsed_vacancies: int
     parsed_pages: int
     status: str

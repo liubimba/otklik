@@ -1,3 +1,4 @@
+import type { BoardKind } from "$lib/boards";
 import { getLogger } from "$lib/log";
 import { backendOrigin } from "./backend-address";
 import { APIError } from "./error";
@@ -236,12 +237,14 @@ export const API = {
 				url: string,
 				max_pages?: number | null,
 				max_vacancies?: number | null,
+				board?: BoardKind,
 			) =>
 				api<SearchData>("search/parse/start", {
 					method: "POST",
-					body: JSON.stringify({ url, max_pages, max_vacancies }),
+					body: JSON.stringify({ url, max_pages, max_vacancies, board }),
 				}),
-			current: () => apiNullable204<SearchData>("search/parse/current"),
+			current: (board?: BoardKind) =>
+				apiNullable204<SearchData>(`search/parse/current${qs({ board })}`),
 			cancel: (searchId: string) =>
 				api<APIResponse>(`search/parse/${searchId}`, { method: "DELETE" }),
 			pause: (searchId: string) =>
@@ -250,7 +253,8 @@ export const API = {
 				api<APIResponse>(`search/parse/${searchId}/resume`, { method: "POST" }),
 		},
 		history: {
-			list: () => api<SearchHistory[]>("search/history"),
+			list: (board?: BoardKind) =>
+				api<SearchHistory[]>(`search/history${qs({ board })}`),
 		},
 	},
 	vacancies: {
@@ -262,6 +266,7 @@ export const API = {
 			limit?: number;
 			offset?: number;
 			searchId?: string;
+			board?: BoardKind;
 		}) =>
 			api<VacancyListPage>(
 				`vacancies/all${qs({
@@ -270,6 +275,7 @@ export const API = {
 					limit: opts?.limit,
 					offset: opts?.offset,
 					search_id: opts?.searchId,
+					board: opts?.board,
 				})}`,
 			),
 	},

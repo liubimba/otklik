@@ -2,6 +2,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from otklik_backend.core.board import Board
 from otklik_backend.api.broadcaster import EventBroadcaster
 from otklik_backend.core.events import VacancyWSEvent
 from otklik_backend.api.schemas import ProcessingState, VacancyAPISchema
@@ -149,7 +150,11 @@ async def test_ignores_non_vacancy_events(
     await broadcaster.publish(
         event=SearchWSEvent(
             data=SearchData(
-                search_id="x", parsed_vacancies=1, parsed_pages=0, status="running"
+                search_id="x",
+                board=Board.HH_RU,
+                parsed_vacancies=1,
+                parsed_pages=0,
+                status="running",
             )
         )
     )

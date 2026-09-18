@@ -11,7 +11,7 @@ export const currentSearchQueryKey = ["search", "current"];
 export function createCurrentSearchQuery() {
 	return createQuery<SearchData | null>(() => ({
 		queryKey: currentSearchQueryKey,
-		queryFn: API.search.parse.current,
+		queryFn: () => API.search.parse.current(),
 		staleTime: Number.POSITIVE_INFINITY,
 	}));
 }

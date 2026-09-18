@@ -2,6 +2,7 @@ import { API } from "$lib/api/client";
 import type { SearchData } from "$lib/api/types";
 import { currentSearchQueryKey } from "$lib/queries/search";
 import { vacanciesQueryKey } from "$lib/queries/vacancies";
+import { boardStore } from "$lib/stores/board.svelte";
 import type { SearchFilterStore } from "$lib/stores/search_filter.store.svelte";
 import { type QueryClient, createMutation } from "@tanstack/svelte-query";
 
@@ -17,6 +18,7 @@ export function createSearchVacanciesActions(queryClient: QueryClient) {
 					params.url,
 					params.maxPages,
 					params.maxVacancies,
+					boardStore.active,
 				);
 			},
 			onSuccess(search: SearchData) {

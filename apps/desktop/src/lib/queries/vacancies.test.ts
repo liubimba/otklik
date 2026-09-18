@@ -52,6 +52,7 @@ const searchEvent = (status: SearchEvent["data"]["status"]): SearchEvent => ({
 	type: "search_event",
 	data: {
 		search_id: "s",
+		board: "hh_ru",
 		parsed_pages: 1,
 		parsed_vacancies: 2,
 		status,

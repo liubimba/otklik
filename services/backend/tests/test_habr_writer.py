@@ -39,6 +39,14 @@ class FakePage:
                 return True
         return False
 
+    async def click(self, selector: str, timeout: float | None = None) -> None:
+        for marker in self.clickable:
+            if marker in selector:
+                self.clicks.append(marker)
+                self.present |= self._reveal_on_click.get(marker, set())
+                return
+        raise TimeoutError(f"not clickable: {selector}")
+
     async def fill(
         self, selector: str, text: str, timeout: float | None = None
     ) -> None:

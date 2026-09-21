@@ -57,7 +57,9 @@ HABR_SELECTORS = HabrSelectors(
     ),
     response=HabrSelectors.ResponsePage(
         respond_button='button:has-text("Откликнуться")',
-        already_responded_marker=".vacancy-response-section",
+        already_responded_marker=(
+            '.vacancy-response-section, a[href="#create-vacancy-response"]'
+        ),
         success_marker=".action-result-box--appearance-success",
         letter_textarea='textarea[name="body"]',
         letter_submit_button='button[type="submit"]:has-text("Дополнить отклик")',

@@ -81,28 +81,21 @@ class HabrWriter:
         self, page: BrowserPage, letter_text: str
     ) -> SubmissionResult:
         response = self._selectors.response
-        await page.click_first_visible(
-            response.view_response_button, timeout=self._timeout
-        )
-        await self._human_delay()
-        opened = await page.click_first_visible(
-            response.edit_button, timeout=self._timeout
-        )
-        if not opened:
-            self._logger.warning(
-                "Edit control not found on an already-responded Habr vacancy"
-            )
-            return SubmissionResult.submitted()
         try:
+            await page.click(response.view_response_button, timeout=self._timeout)
+            await self._human_delay()
+        except Exception as error:  # noqa: BLE001
+            self._logger.info("View-response control absent", error=str(error))
+        try:
+            self._logger.info("Opening the Habr response editor")
+            await page.click(response.edit_button, timeout=self._timeout)
             await page.wait_for_selector(
                 response.letter_textarea, timeout=self._timeout
             )
             await page.fill(response.letter_textarea, letter_text)
             await self._human_delay()
-            if not await page.click_first_visible(
-                response.save_button, timeout=self._timeout
-            ):
-                self._logger.warning("Habr letter save button not found")
+            self._logger.info("Saving the edited Habr letter")
+            await page.click(response.save_button, timeout=self._timeout)
         except Exception as error:  # noqa: BLE001
             self._logger.warning("Failed to edit the Habr letter", error=str(error))
         return SubmissionResult.submitted()

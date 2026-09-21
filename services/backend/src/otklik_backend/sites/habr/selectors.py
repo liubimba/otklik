@@ -26,6 +26,9 @@ class HabrSelectors:
         success_marker: str
         letter_textarea: str
         letter_submit_button: str
+        view_response_button: str
+        edit_button: str
+        save_button: str
 
     @dataclass(frozen=True)
     class Captcha:
@@ -58,6 +61,9 @@ HABR_SELECTORS = HabrSelectors(
         success_marker=".action-result-box--appearance-success",
         letter_textarea='textarea[name="body"]',
         letter_submit_button='button[type="submit"]:has-text("Дополнить отклик")',
+        view_response_button='a[href="#create-vacancy-response"]',
+        edit_button='.create-vacancy-response__button:has-text("Редактировать")',
+        save_button='button[type="submit"]:has-text("Сохранить")',
     ),
     captcha=HabrSelectors.Captcha(marker=None),
 )

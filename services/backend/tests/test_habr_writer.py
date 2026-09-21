@@ -74,16 +74,19 @@ async def test_responds_then_attaches_the_cover_letter() -> None:
     assert page.fills == [('textarea[name="body"]', "Моё письмо")]
 
 
-async def test_already_responded_vacancy_is_not_responded_to_again() -> None:
+async def test_already_responded_vacancy_gets_its_letter_edited_in() -> None:
     page = FakePage()
     page.present = {".vacancy-response-section"}
-    page.clickable = {"Откликнуться"}
+    page.clickable = {"#create-vacancy-response", "Редактировать", "Сохранить"}
+    page.reveal_after_click("Редактировать", {'textarea[name="body"]'})
 
-    result = await _writer(page).submit("https://career.habr.com/vacancies/2", "letter")
+    result = await _writer(page).submit("https://career.habr.com/vacancies/2", "Письмо")
 
     assert result.type is SubmissionResultType.SUBMITTED
-    assert page.clicks == []
-    assert page.fills == []
+    assert "Откликнуться" not in page.clicks
+    assert "Редактировать" in page.clicks
+    assert "Сохранить" in page.clicks
+    assert page.fills == [('textarea[name="body"]', "Письмо")]
 
 
 async def test_missing_respond_button_fails_without_sending() -> None:

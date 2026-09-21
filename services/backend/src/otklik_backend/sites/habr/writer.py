@@ -36,8 +36,8 @@ class HabrWriter:
             await self._human_delay()
 
             if await self._already_responded(page):
-                self._logger.info("Already responded on Habr — treating as submitted")
-                return SubmissionResult.submitted()
+                self._logger.info("Already responded on Habr — editing the letter")
+                return await self._edit_letter(page, letter_text)
 
             clicked = await page.click_first_visible(
                 response.respond_button, timeout=self._timeout
@@ -76,6 +76,36 @@ class HabrWriter:
         except Exception:  # noqa: BLE001
             self._logger.warning("Habr response confirmation did not appear")
             return False
+
+    async def _edit_letter(
+        self, page: BrowserPage, letter_text: str
+    ) -> SubmissionResult:
+        response = self._selectors.response
+        await page.click_first_visible(
+            response.view_response_button, timeout=self._timeout
+        )
+        await self._human_delay()
+        opened = await page.click_first_visible(
+            response.edit_button, timeout=self._timeout
+        )
+        if not opened:
+            self._logger.warning(
+                "Edit control not found on an already-responded Habr vacancy"
+            )
+            return SubmissionResult.submitted()
+        try:
+            await page.wait_for_selector(
+                response.letter_textarea, timeout=self._timeout
+            )
+            await page.fill(response.letter_textarea, letter_text)
+            await self._human_delay()
+            if not await page.click_first_visible(
+                response.save_button, timeout=self._timeout
+            ):
+                self._logger.warning("Habr letter save button not found")
+        except Exception as error:  # noqa: BLE001
+            self._logger.warning("Failed to edit the Habr letter", error=str(error))
+        return SubmissionResult.submitted()
 
     async def _attach_letter(self, page: BrowserPage, letter_text: str) -> bool:
         response = self._selectors.response

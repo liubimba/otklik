@@ -105,40 +105,50 @@ class KworkWriter:
         self._logger.info("Chosen Kwork price", price=price, low=low, high=high)
         return price
 
+    async def _project_title(self, page: BrowserPage) -> str | None:
+        for handle in await page.query_selector_all("h1"):
+            text = ((await handle.text_content()) or "").strip()
+            if text and "Предложить услугу" not in text:
+                return text
+        return None
+
     async def _fill_order_name(self, page: BrowserPage) -> None:
         try:
-            title = await page.text_content("h1")
-            name = (title or "").strip()[:ORDER_NAME_LIMIT]
-            if name:
+            title = await self._project_title(page)
+            if title:
                 await page.fill(
-                    self._selectors.order_name_editor, name, timeout=self._timeout
+                    self._selectors.order_name_editor,
+                    title[:ORDER_NAME_LIMIT],
+                    timeout=self._timeout,
                 )
         except Exception as error:  # noqa: BLE001
             self._logger.info("Skipping Kwork order name", error=str(error))
 
     async def _fill_delivery(self, page: BrowserPage, days: int) -> None:
         try:
-            await page.fill(
-                self._selectors.delivery_input, str(days), timeout=self._timeout
-            )
+            await page.click(self._selectors.delivery_toggle, timeout=self._timeout)
             await self._human_delay()
-            if not await page.click_first_visible(
-                self._selectors.delivery_option, timeout=self._timeout
-            ):
-                await page.raw_page.keyboard.press("Enter")
+            input_handle = await page.query_selector(self._selectors.delivery_input)
+            if input_handle is None:
+                self._logger.warning("Kwork delivery input not found")
+                return
+            await input_handle.type(str(days), delay=60)
+            await self._human_delay()
+            await page.raw_page.keyboard.press("Enter")
         except Exception as error:  # noqa: BLE001
             self._logger.warning("Failed to set Kwork delivery", error=str(error))
 
     async def _confirmed(self, page: BrowserPage) -> bool:
-        await self._human_delay()
-        try:
-            await page.wait_for_selector(
-                self._selectors.already_responded_marker, timeout=self._timeout
-            )
-            return True
-        except Exception:  # noqa: BLE001
-            gone = await page.query_selector(self._selectors.form_marker) is None
-            return gone
+        for _ in range(4):
+            await self._human_delay()
+            handle = await page.query_selector(self._selectors.error_message)
+            error = (await handle.text_content()) if handle is not None else None
+            if error and error.strip():
+                self._logger.warning("Kwork offer rejected", error=error.strip())
+                return False
+            if await page.query_selector(self._selectors.form_marker) is None:
+                return True
+        return False
 
     async def _human_delay(self) -> None:
         jitter = random.uniform(0, self._jitter_delay_ms)

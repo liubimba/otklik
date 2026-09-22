@@ -80,9 +80,16 @@ class KworkWriter:
         price = await self._pick_price(page)
         await page.fill(selectors.price_input, str(price), timeout=self._timeout)
 
+        await self._select_payment_type(page)
         await self._fill_order_name(page)
         await self._fill_delivery(page, DEFAULT_DELIVERY_DAYS)
         return None
+
+    async def _select_payment_type(self, page: BrowserPage) -> None:
+        if await page.click_first_visible(
+            self._selectors.payment_type_option, timeout=self._timeout
+        ):
+            self._logger.info("Selected the Kwork payment order (whole)")
 
     async def _pick_price(self, page: BrowserPage) -> int:
         placeholder_nums: list[int] = []
@@ -114,6 +121,9 @@ class KworkWriter:
 
     async def _fill_order_name(self, page: BrowserPage) -> None:
         try:
+            handle = await page.query_selector(self._selectors.order_name_editor)
+            if handle is None or not await handle.is_visible():
+                return
             title = await self._project_title(page)
             if title:
                 await page.fill(

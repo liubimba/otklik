@@ -8,6 +8,7 @@ class KworkResponseSelectors:
     message_editor: str
     price_input: str
     order_name_editor: str
+    payment_type_option: str
     buyer_budget: str
     delivery_toggle: str
     delivery_input: str
@@ -23,6 +24,7 @@ KWORK_RESPONSE = KworkResponseSelectors(
     message_editor=".modal-individual-offer__desc .trumbowyg-editor",
     price_input="#offer-custom-price",
     order_name_editor=".modal-individual-offer__name .trumbowyg-editor",
+    payment_type_option=".offer-payment-type__item",
     buyer_budget=".offer-individual__higher-price",
     delivery_toggle=".duration-select .vs__dropdown-toggle",
     delivery_input=".duration-select input.vs__search",

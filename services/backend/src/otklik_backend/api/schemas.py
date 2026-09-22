@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, HttpUrl, model_validator
 from otklik_backend.ai.deployment import LLMDeployment
 
 from otklik_backend.core.board import Board, DEFAULT_BOARD
+from otklik_backend.core.board_prompt import BoardPromptMode
 from otklik_backend.core.context_source import ContextSourceKind, ContextSourceStatus
 from otklik_backend.core.state import ErrorDomain as ErrorDomain
 from otklik_backend.core.state import ProcessingState as ProcessingState
@@ -299,6 +300,15 @@ class SettingsWriteAPISchema(BaseModel):
     notifications: NotificationsSettingsAPISchema = Field(
         default_factory=NotificationsSettingsAPISchema
     )
+
+
+class BoardPromptAPISchema(BaseModel):
+    mode: BoardPromptMode = BoardPromptMode.APPEND
+    text: str = ""
+
+
+class BoardPromptsAPISchema(BaseModel):
+    prompts: dict[Board, BoardPromptAPISchema] = Field(default_factory=dict)
 
 
 class SecretStorageAPISchema(BaseModel):

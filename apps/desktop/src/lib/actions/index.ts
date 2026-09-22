@@ -1,5 +1,6 @@
 import { createAICoverLetterActions } from "$lib/actions/ai";
 import { createApplicationsActions } from "$lib/actions/applications";
+import { createBoardPromptsActions } from "$lib/actions/board-prompts";
 import { createLetterReviewActions } from "$lib/actions/letter-review";
 import { createPreviewActions } from "$lib/actions/preview";
 import { createSettingsActions } from "$lib/actions/settings";
@@ -32,6 +33,7 @@ export function createActions(queryClient: QueryClient) {
 		sources: createSourcesActions(queryClient),
 		preview: createPreviewActions(queryClient),
 		settings: createSettingsActions(queryClient),
+		board_prompts: createBoardPromptsActions(queryClient),
 		applications: createApplicationsActions(queryClient),
 	};
 }

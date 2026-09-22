@@ -279,6 +279,17 @@ export type LLMSettingsWrite = Omit<LLMSettings, "deployments"> & {
 };
 export type SettingsWrite = Omit<Settings, "llm"> & { llm: LLMSettingsWrite };
 
+export type BoardPromptMode = "append" | "replace";
+
+export type BoardPrompt = {
+	mode: BoardPromptMode;
+	text: string;
+};
+
+export type BoardPrompts = {
+	prompts: Partial<Record<BoardKind, BoardPrompt>>;
+};
+
 export type CoverLetter = {
 	text: string;
 	version: number;

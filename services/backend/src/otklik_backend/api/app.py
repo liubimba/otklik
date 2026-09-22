@@ -11,6 +11,7 @@ from otklik_backend.api.routes import (
     ai,
     application,
     auth,
+    board_prompts,
     context_sources,
     search,
     settings,
@@ -102,6 +103,7 @@ router.include_router(ai.ai_router)
 router.include_router(application.application_router)
 router.include_router(application.applications_router)
 router.include_router(auth.auth_router)
+router.include_router(board_prompts.board_prompts_router)
 router.include_router(context_sources.context_sources_router)
 router.include_router(search.search_router)
 router.include_router(settings.settings_router)

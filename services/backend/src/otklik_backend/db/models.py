@@ -112,6 +112,10 @@ class SettingsORM(Base):
     llm_system_prompt: Mapped[str | None] = mapped_column(default=None)
     llm_proxy_url: Mapped[str | None] = mapped_column(default=None)
 
+    board_prompts: Mapped[dict[str, dict[str, str]]] = mapped_column(
+        JSON, default=dict, server_default=text("'{}'")
+    )
+
 
 class VacancyORM(Base):
     __tablename__ = "vacancies"

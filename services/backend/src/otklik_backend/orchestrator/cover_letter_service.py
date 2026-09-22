@@ -1,7 +1,9 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from otklik_backend.ai.layer import AILayer
+from otklik_backend.ai.prompts import compose_board_system_prompt
 from otklik_backend.ai.result import AICoverLetterResult
+from otklik_backend.core.board_prompt import BoardPrompt
 from otklik_backend.db.converters import vacancy_to_schema
 from otklik_backend.db.models import ApplicationORM, SettingsORM, VacancyORM
 from otklik_backend.db.repositories.applications import ApplicationRepository
@@ -45,12 +47,23 @@ class CoverLetterService:
                 raise ApplicationNotFoundError()
             settings: SettingsORM = await SettingsRepository.get(session=session)
             sources = await self._context_source_service.list_ok_for_llm()
+            board = await VacancyRepository.board_of_vacancy(
+                session=session, vacancy_id=vacancy_id
+            )
+            board_prompt = (
+                BoardPrompt.from_stored(settings.board_prompts.get(board.value))
+                if board is not None
+                else None
+            )
+            system_prompt = compose_board_system_prompt(
+                settings.llm_system_prompt, board_prompt
+            )
             cover_result: AICoverLetterResult = (
                 await self._ai_layer.generate_cover_letter(
                     vacancy_model=vacancy_to_schema(vacancy_orm),
                     resume=settings.resume_text,
                     style=settings.letter_style,
-                    system_prompt=settings.llm_system_prompt,
+                    system_prompt=system_prompt,
                     sources=sources,
                 )
             )

@@ -10,6 +10,8 @@ import type {
 	ApplicationsSummary,
 	AuthStatus,
 	BenchmarkResult,
+	BoardPrompt,
+	BoardPrompts,
 	ChatMessage,
 	ChatStreamEvent,
 	ClaudeSetupState,
@@ -328,6 +330,14 @@ export const API = {
 		get: () => api<Settings>("settings"),
 		update: (body: SettingsWrite) =>
 			api<Settings>("settings", {
+				method: "PUT",
+				body: JSON.stringify(body),
+			}),
+	},
+	boardPrompts: {
+		get: () => api<BoardPrompts>("board-prompts"),
+		set: (board: BoardKind, body: BoardPrompt) =>
+			api<BoardPrompts>(`board-prompts/${board}`, {
 				method: "PUT",
 				body: JSON.stringify(body),
 			}),

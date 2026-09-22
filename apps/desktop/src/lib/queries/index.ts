@@ -16,6 +16,10 @@ import {
 	createAuthQuery,
 } from "$lib/queries/auth";
 import {
+	boardPromptsQueryKey,
+	createBoardPromptsQuery,
+} from "$lib/queries/board_prompts";
+import {
 	createRestartCountsQuery,
 	restartCountsQueryKey,
 } from "$lib/queries/restart_counts";
@@ -70,6 +74,10 @@ export const query = {
 	settings: {
 		key: settingsQueryKey,
 		create: createSettingsQuery,
+	},
+	board_prompts: {
+		key: boardPromptsQueryKey,
+		create: createBoardPromptsQuery,
 	},
 	restart_counts: {
 		key: restartCountsQueryKey,

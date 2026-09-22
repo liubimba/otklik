@@ -1,7 +1,8 @@
 <script lang="ts">
 import { createActions } from "$lib/actions";
-import type { VacancyStatusFilter } from "$lib/api/types";
+import type { BoardPrompt, VacancyStatusFilter } from "$lib/api/types";
 import { BOARDS } from "$lib/boards";
+import BoardPromptPanel from "$lib/components/board-prompt-panel.svelte";
 import BoardSwitcher from "$lib/components/board-switcher.svelte";
 import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
@@ -84,6 +85,7 @@ function clearSearch() {
 }
 
 const settingsQuery = query.settings.create();
+const boardPromptsQuery = query.board_prompts.create();
 const vacanciesQuery = query.all_vacancies.create(
 	() => activeFilters,
 	() => search,
@@ -108,6 +110,21 @@ const model = createSearchPageViewModel(searchQuery);
 const view = createSearchPageView(searchQuery, actions, model);
 
 const boardEnabled = $derived(BOARDS[boardStore.active].enabled);
+const boardPrompt = $derived(
+	boardPromptsQuery.data?.prompts[boardStore.active],
+);
+const savingBoardPrompt = $derived(actions.board_prompts.save.isPending);
+
+function saveBoardPrompt(prompt: BoardPrompt) {
+	actions.board_prompts.save.mutate(
+		{ board: boardStore.active, prompt },
+		{
+			onSuccess: () => toast.success(m.queue_board_prompt_saved()),
+			onError: (error) =>
+				toast.error(m.queue_board_prompt_save_failed({ error: error.message })),
+		},
+	);
+}
 const autoGenerate = $derived(settingsQuery.data?.user.auto_generate ?? false);
 const autoSubmit = $derived(settingsQuery.data?.user.auto_submit ?? false);
 const generationCount = $derived(restartCountsQuery.data?.generation ?? 0);
@@ -238,6 +255,13 @@ $effect(() => {
     </header>
 
     <BoardSwitcher active={boardStore.active} onSelect={(b) => boardStore.set(b)} />
+
+    <BoardPromptPanel
+            active={boardStore.active}
+            value={boardPrompt}
+            pending={savingBoardPrompt}
+            onSave={saveBoardPrompt}
+    />
 
     <section class="bg-card rounded-lg border text-sm">
         <div class="flex items-center justify-between gap-3 px-4 py-3">

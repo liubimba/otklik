@@ -1,6 +1,8 @@
 import { API } from "$lib/api/client";
 import type { SearchData } from "$lib/api/types";
+import { allVacanciesQueryKey } from "$lib/queries/all_vacancies";
 import { currentSearchQueryKey } from "$lib/queries/search";
+import { summaryQueryKey } from "$lib/queries/summary";
 import { vacanciesQueryKey } from "$lib/queries/vacancies";
 import { boardStore } from "$lib/stores/board.svelte";
 import type { SearchFilterStore } from "$lib/stores/search_filter.store.svelte";
@@ -24,6 +26,8 @@ export function createSearchVacanciesActions(queryClient: QueryClient) {
 			onSuccess(search: SearchData) {
 				queryClient.setQueryData(currentSearchQueryKey, search);
 				queryClient.invalidateQueries({ queryKey: vacanciesQueryKey });
+				queryClient.invalidateQueries({ queryKey: allVacanciesQueryKey });
+				queryClient.invalidateQueries({ queryKey: summaryQueryKey });
 			},
 		})),
 		cancel: createMutation(() => ({

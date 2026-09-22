@@ -138,6 +138,7 @@ class AIHealthStatusAPISchema(BaseModel):
 _BOARD_HOST_SUFFIX: dict[Board, str] = {
     Board.HH_RU: "hh.ru",
     Board.HABR: "career.habr.com",
+    Board.KWORK: "kwork.ru",
 }
 
 

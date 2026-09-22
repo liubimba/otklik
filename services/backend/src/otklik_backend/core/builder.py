@@ -31,6 +31,7 @@ from otklik_backend.secrets.migrator import SecretMigrator
 from otklik_backend.secrets.service import DeploymentSecretsService
 from otklik_backend.secrets.store import SecretStore
 from otklik_backend.sites.habr import HabrAuthFlow, HabrParser, HabrWriter
+from otklik_backend.sites.kwork import KworkAuthFlow, KworkParser
 from otklik_backend.sites.hh_ru import HHRUAuthFlow, HHRUParser, HHRUWriter
 from otklik_backend.sources.fetchers import SourceFetcherRegistry
 from otklik_backend.sources.service import ContextSourceService
@@ -94,6 +95,7 @@ class BackendBuilder:
         browser = BrowserCore()
         auth_flow = HHRUAuthFlow(browser=browser)
         habr_auth_flow = HabrAuthFlow(browser=browser)
+        kwork_auth_flow = KworkAuthFlow(browser=browser)
         broadcaster = EventBroadcaster()
         state_service = StateTransitionService(broadcaster=broadcaster)
         pause_controller = PauseController()
@@ -104,6 +106,7 @@ class BackendBuilder:
             parsers={
                 Board.HH_RU: HHRUParser(core=browser),
                 Board.HABR: HabrParser(core=browser),
+                Board.KWORK: KworkParser(core=browser),
             },
             broadcaster=broadcaster,
             session_maker=self._session_maker,
@@ -155,7 +158,11 @@ class BackendBuilder:
         )
         authorization_service = AuthorizationService(
             broadcaster=broadcaster,
-            auth_flows={Board.HH_RU: auth_flow, Board.HABR: habr_auth_flow},
+            auth_flows={
+                Board.HH_RU: auth_flow,
+                Board.HABR: habr_auth_flow,
+                Board.KWORK: kwork_auth_flow,
+            },
         )
         auto_apply_canceller = AutoApplyCanceller(
             letter_pending_worker=letter_pending_worker,

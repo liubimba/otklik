@@ -17,6 +17,7 @@ from otklik_backend.orchestrator.exceptions import (
 SEARCH_URLS: dict[Board, str] = {
     Board.HH_RU: "https://hh.ru/search/vacancy",
     Board.HABR: "https://career.habr.com/vacancies",
+    Board.KWORK: "https://kwork.ru/projects",
 }
 
 

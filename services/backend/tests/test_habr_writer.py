@@ -1,5 +1,6 @@
 from otklik_backend.core.site.result import SubmissionResultType
 from otklik_backend.sites.habr.writer import (
+    LETTER_NOT_SAVED,
     RESPOND_BUTTON_MISSING,
     HabrWriter,
 )
@@ -51,6 +52,9 @@ class FakePage:
         self, selector: str, text: str, timeout: float | None = None
     ) -> None:
         self.fills.append((selector, text))
+
+    async def content(self) -> str:
+        return " ".join(text for _, text in self.fills)
 
 
 class FakeCore:
@@ -107,13 +111,15 @@ async def test_missing_respond_button_fails_without_sending() -> None:
     assert page.fills == []
 
 
-async def test_response_still_submitted_when_letter_cannot_attach() -> None:
+async def test_response_fails_when_the_letter_cannot_be_saved() -> None:
     page = FakePage()
     page.clickable = {"Откликнуться"}
     page.reveal_after_click("Откликнуться", {"action-result-box--appearance-success"})
 
-    result = await _writer(page).submit("https://career.habr.com/vacancies/4", "letter")
+    result = await _writer(page).submit(
+        "https://career.habr.com/vacancies/4", "Моё письмо"
+    )
 
-    assert result.type is SubmissionResultType.SUBMITTED
-    assert page.clicks == ["Откликнуться"]
+    assert result.type is SubmissionResultType.FAILED
+    assert result.reason == LETTER_NOT_SAVED
     assert page.fills == []

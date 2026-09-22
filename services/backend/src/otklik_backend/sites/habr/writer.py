@@ -9,6 +9,7 @@ from otklik_backend.sites.habr.selectors import HABR_SELECTORS, HabrSelectors
 
 RESPOND_BUTTON_MISSING = "Кнопка «Откликнуться» не найдена"
 RESPONSE_NOT_CONFIRMED = "Отклик не подтвердился"
+LETTER_NOT_SAVED = "Сопроводительное письмо не сохранилось"
 
 
 class HabrWriter:
@@ -48,10 +49,10 @@ class HabrWriter:
             if not await self._response_confirmed(page):
                 return SubmissionResult.failed(reason=RESPONSE_NOT_CONFIRMED)
 
-            if not await self._attach_letter(page, letter_text):
-                self._logger.warning(
-                    "Habr response was sent but the cover letter was not attached"
-                )
+            await self._attach_letter(page, letter_text)
+            if not await self._letter_visible(page, letter_text):
+                self._logger.warning("Habr response sent but the letter did not save")
+                return SubmissionResult.failed(reason=LETTER_NOT_SAVED)
             return SubmissionResult.submitted()
         except Exception as error:  # noqa: BLE001
             self._logger.exception("Failed to submit on Habr", error=str(error))
@@ -98,6 +99,8 @@ class HabrWriter:
             await page.click(response.save_button, timeout=self._timeout)
         except Exception as error:  # noqa: BLE001
             self._logger.warning("Failed to edit the Habr letter", error=str(error))
+        if not await self._letter_visible(page, letter_text):
+            return SubmissionResult.failed(reason=LETTER_NOT_SAVED)
         return SubmissionResult.submitted()
 
     async def _attach_letter(self, page: BrowserPage, letter_text: str) -> bool:
@@ -114,6 +117,14 @@ class HabrWriter:
         except Exception as error:  # noqa: BLE001
             self._logger.warning("Failed to attach Habr cover letter", error=str(error))
             return False
+
+    async def _letter_visible(self, page: BrowserPage, letter_text: str) -> bool:
+        await self._human_delay()
+        probe = " ".join(letter_text.split())[:40]
+        if not probe:
+            return True
+        content = " ".join((await page.content()).split())
+        return probe in content
 
     async def _human_delay(self) -> None:
         jitter = random.uniform(0, self._jitter_delay_ms)

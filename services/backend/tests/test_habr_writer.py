@@ -53,8 +53,14 @@ class FakePage:
     ) -> None:
         self.fills.append((selector, text))
 
-    async def content(self) -> str:
+    async def text_content(self, selector: str) -> str:
         return " ".join(text for _, text in self.fills)
+
+    def get_url(self) -> str:
+        return "https://career.habr.com/vacancies/1"
+
+    async def goto(self, url: str, timeout: float | None = None) -> None:
+        return None
 
 
 class FakeCore:

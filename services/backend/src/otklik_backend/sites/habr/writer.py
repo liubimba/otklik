@@ -119,12 +119,29 @@ class HabrWriter:
             return False
 
     async def _letter_visible(self, page: BrowserPage, letter_text: str) -> bool:
-        await self._human_delay()
-        probe = " ".join(letter_text.split())[:40]
+        probe = "".join(letter_text.split())[:40]
         if not probe:
             return True
-        content = " ".join((await page.content()).split())
-        return probe in content
+        url = page.get_url()
+        for attempt in range(4):
+            await self._human_delay()
+            if probe in await self._page_text(page):
+                return True
+            if attempt < 3:
+                try:
+                    await page.goto(url)
+                except Exception as error:  # noqa: BLE001
+                    self._logger.info(
+                        "Reload during letter check failed", error=str(error)
+                    )
+        return False
+
+    async def _page_text(self, page: BrowserPage) -> str:
+        try:
+            raw = await page.text_content("body")
+        except Exception:  # noqa: BLE001
+            raw = None
+        return "".join((raw or "").split())
 
     async def _human_delay(self) -> None:
         jitter = random.uniform(0, self._jitter_delay_ms)

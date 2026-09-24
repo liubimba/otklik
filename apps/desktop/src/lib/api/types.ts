@@ -264,6 +264,7 @@ export type NotificationsSettings = {
 export type Settings = {
 	search: { max_pages: number; max_vacancies: number };
 	user: { auto_generate: boolean; auto_submit: boolean };
+	kwork: { price_percent: number };
 	rate_limits: {
 		daily_limit: number;
 		hourly_limit: number;

@@ -101,7 +101,12 @@ class BackendBuilder:
         pause_controller = PauseController()
         writer = HHRUWriter(core=browser, min_delay_ms=800, jitter_delay_ms=400)
         habr_writer = HabrWriter(core=browser, min_delay_ms=800, jitter_delay_ms=400)
-        kwork_writer = KworkWriter(core=browser, min_delay_ms=800, jitter_delay_ms=400)
+        kwork_writer = KworkWriter(
+            core=browser,
+            min_delay_ms=800,
+            jitter_delay_ms=400,
+            session_maker=self._session_maker,
+        )
         search_service = SearchService(
             core=browser,
             parsers={

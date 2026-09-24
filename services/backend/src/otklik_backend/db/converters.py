@@ -21,6 +21,7 @@ from otklik_backend.api.schemas import (
     SettingsWriteAPISchema,
     RateLimitsAPISchema,
     UserSettingsAPISchema,
+    KworkSettingsAPISchema,
     ApplicationAPISchema,
     CoverLetterAPISchema,
     ContextSourceAPISchema,
@@ -43,6 +44,7 @@ def settings_to_orm(
         llm_proxy_url=schema.llm.proxy_url,
         auto_generate=schema.user.auto_generate,
         auto_submit=schema.user.auto_submit,
+        kwork_price_percent=schema.kwork.price_percent,
         notifications=schema.notifications.model_dump(),
         max_vacancies=schema.search.max_vacancies,
         max_pages=schema.search.max_pages,
@@ -67,6 +69,7 @@ def settings_to_schema(orm: SettingsORM) -> SettingsAPISchema:
         user=UserSettingsAPISchema(
             auto_generate=orm.auto_generate, auto_submit=orm.auto_submit
         ),
+        kwork=KworkSettingsAPISchema(price_percent=orm.kwork_price_percent),
         search=SearchSettingsAPISchema(
             max_pages=orm.max_pages,
             max_vacancies=orm.max_vacancies,

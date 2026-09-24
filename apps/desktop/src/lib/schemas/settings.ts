@@ -27,6 +27,11 @@ export const settingsFormSchema = z.object({
 		auto_generate: z.boolean().default(false),
 		auto_submit: z.boolean().default(false),
 	}),
+	kwork: z
+		.object({
+			price_percent: z.coerce.number().int().min(0).max(100).default(0),
+		})
+		.default(() => ({ price_percent: 0 })),
 	rate_limits: z.object({
 		daily_limit: positiveInt.default(30),
 		hourly_limit: positiveInt.default(5),
@@ -98,6 +103,7 @@ export function settingsToWrite(settings: Settings): SettingsWrite {
 	return {
 		search: settings.search,
 		user: settings.user,
+		kwork: settings.kwork,
 		rate_limits: settings.rate_limits,
 		notifications: settings.notifications,
 		llm: {

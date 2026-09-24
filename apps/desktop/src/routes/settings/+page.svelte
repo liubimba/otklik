@@ -37,6 +37,7 @@ const form = superForm(defaults(zod4(zform.settings.schema)), {
 			const saved = await API.settings.update({
 				search: form.data.search,
 				user: form.data.user,
+				kwork: form.data.kwork,
 				rate_limits: form.data.rate_limits,
 				notifications: form.data.notifications,
 				llm: {
@@ -86,6 +87,7 @@ $effect(() => {
 	formData.set({
 		search: settings.data.search,
 		user: settings.data.user,
+		kwork: settings.data.kwork,
 		rate_limits: settings.data.rate_limits,
 		notifications: settings.data.notifications,
 		llm: {

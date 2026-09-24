@@ -264,6 +264,10 @@ class UserSettingsAPISchema(BaseModel):
     auto_submit: bool = False
 
 
+class KworkSettingsAPISchema(BaseModel):
+    price_percent: int = Field(default=0, ge=0, le=100)
+
+
 class SearchSettingsAPISchema(BaseModel):
     max_pages: int = 5
     max_vacancies: int = 50
@@ -285,6 +289,7 @@ class NotificationsSettingsAPISchema(BaseModel):
 class SettingsAPISchema(BaseModel):
     search: SearchSettingsAPISchema = Field(default_factory=SearchSettingsAPISchema)
     user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
+    kwork: KworkSettingsAPISchema = Field(default_factory=KworkSettingsAPISchema)
     llm: LLMSettingsAPISchema = Field(default_factory=LLMSettingsAPISchema)
     rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
     notifications: NotificationsSettingsAPISchema = Field(
@@ -295,6 +300,7 @@ class SettingsAPISchema(BaseModel):
 class SettingsWriteAPISchema(BaseModel):
     search: SearchSettingsAPISchema = Field(default_factory=SearchSettingsAPISchema)
     user: UserSettingsAPISchema = Field(default_factory=UserSettingsAPISchema)
+    kwork: KworkSettingsAPISchema = Field(default_factory=KworkSettingsAPISchema)
     llm: LLMSettingsWriteAPISchema = Field(default_factory=LLMSettingsWriteAPISchema)
     rate_limits: RateLimitsAPISchema = Field(default_factory=RateLimitsAPISchema)
     notifications: NotificationsSettingsAPISchema = Field(

@@ -43,6 +43,26 @@ def test_settings_auto_generate_roundtrips(client):
     assert got.user.auto_submit is False
 
 
+def test_settings_kwork_price_percent_roundtrips(client):
+    body = SettingsAPISchema.model_validate(
+        client.get("/api/v1/settings").json()
+    ).model_dump(mode="json")
+    assert body["kwork"]["price_percent"] == 0
+    body["kwork"]["price_percent"] = 60
+    assert client.put("/api/v1/settings", json=body).status_code == 200
+
+    got = SettingsAPISchema.model_validate(client.get("/api/v1/settings").json())
+    assert got.kwork.price_percent == 60
+
+
+def test_settings_kwork_price_percent_rejects_out_of_range(client):
+    body = SettingsAPISchema.model_validate(
+        client.get("/api/v1/settings").json()
+    ).model_dump(mode="json")
+    body["kwork"]["price_percent"] = 150
+    assert client.put("/api/v1/settings", json=body).status_code == 422
+
+
 def test_settings_update(client):
     response: Response = client.get("/api/v1/settings")
     assert response.status_code == 200

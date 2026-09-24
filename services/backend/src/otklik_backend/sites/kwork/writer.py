@@ -2,9 +2,12 @@ import asyncio
 import random
 import re
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
 from otklik_backend.browser.core import BrowserCore
 from otklik_backend.browser.page import BrowserPage
 from otklik_backend.core.site.result import SubmissionResult
+from otklik_backend.db.repositories.settings import SettingsRepository
 from otklik_backend.log import get_logger
 from otklik_backend.sites.kwork.selectors import KWORK_RESPONSE, KworkResponseSelectors
 
@@ -31,6 +34,7 @@ class KworkWriter:
         jitter_delay_ms: int,
         selectors: KworkResponseSelectors = KWORK_RESPONSE,
         timeout: float = 10000,
+        session_maker: async_sessionmaker[AsyncSession] | None = None,
     ) -> None:
         self._logger = get_logger(__name__)
         self._core = core
@@ -38,6 +42,7 @@ class KworkWriter:
         self._min_delay_ms = min_delay_ms
         self._jitter_delay_ms = jitter_delay_ms
         self._timeout = timeout
+        self._session_maker = session_maker
 
     async def submit(self, vacancy_url: str, letter_text: str) -> SubmissionResult:
         self._logger.info("Starting Kwork offer", vacancy_url=vacancy_url)
@@ -77,7 +82,8 @@ class KworkWriter:
         await page.fill(selectors.message_editor, letter_text, timeout=self._timeout)
         await self._human_delay()
 
-        price = await self._pick_price(page)
+        percent = await self._current_price_percent()
+        price = await self._pick_price(page, percent)
         await page.fill(selectors.price_input, str(price), timeout=self._timeout)
 
         await self._select_payment_type(page)
@@ -91,7 +97,20 @@ class KworkWriter:
         ):
             self._logger.info("Selected the Kwork payment order (whole)")
 
-    async def _pick_price(self, page: BrowserPage) -> int:
+    async def _current_price_percent(self) -> int:
+        if self._session_maker is None:
+            return 0
+        try:
+            async with self._session_maker() as session:
+                settings = await SettingsRepository.get(session=session)
+            return settings.kwork_price_percent
+        except Exception as error:  # noqa: BLE001
+            self._logger.warning(
+                "Failed to read the Kwork price percent", error=str(error)
+            )
+            return 0
+
+    async def _pick_price(self, page: BrowserPage, percent: int = 0) -> int:
         placeholder_nums: list[int] = []
         handle = await page.query_selector(self._selectors.price_input)
         if handle is not None:
@@ -100,16 +119,26 @@ class KworkWriter:
         low = placeholder_nums[0] if placeholder_nums else 0
         high = placeholder_nums[-1] if len(placeholder_nums) >= 2 else 0
 
-        desired = low
-        budget = await page.text_content(self._selectors.buyer_budget)
-        budget_nums = _numbers(budget)
-        if budget_nums:
-            desired = budget_nums[0]
+        budget_nums = _numbers(await page.text_content(self._selectors.buyer_budget))
+        desired = budget_nums[0] if budget_nums else low
+        ceiling = budget_nums[1] if len(budget_nums) >= 2 else high
+        if ceiling < desired:
+            ceiling = desired
 
-        price = max(low, desired)
+        ratio = min(100, max(0, percent)) / 100.0
+        price = round(desired + (ceiling - desired) * ratio)
+        price = max(price, low)
         if high:
             price = min(price, high)
-        self._logger.info("Chosen Kwork price", price=price, low=low, high=high)
+        self._logger.info(
+            "Chosen Kwork price",
+            price=price,
+            low=low,
+            high=high,
+            desired=desired,
+            ceiling=ceiling,
+            percent=percent,
+        )
         return price
 
     async def _project_title(self, page: BrowserPage) -> str | None:

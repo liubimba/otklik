@@ -78,6 +78,30 @@ async def test_price_is_capped_at_the_form_maximum() -> None:
     assert await _writer()._pick_price(page) == 12000  # type: ignore[arg-type]
 
 
+async def test_price_at_100_percent_reaches_the_acceptable_budget() -> None:
+    page = FakePage(
+        price_placeholder="800 - 12 000",
+        budget="Желаемый бюджет: до 4000 ₽ Допустимый: до 12000 ₽",
+    )
+    assert await _writer()._pick_price(page, 100) == 12000  # type: ignore[arg-type]
+
+
+async def test_price_at_50_percent_lands_between_desired_and_acceptable() -> None:
+    page = FakePage(
+        price_placeholder="800 - 12 000",
+        budget="Желаемый бюджет: до 4000 ₽ Допустимый: до 12000 ₽",
+    )
+    assert await _writer()._pick_price(page, 50) == 8000  # type: ignore[arg-type]
+
+
+async def test_price_percent_is_clamped_to_the_form_maximum() -> None:
+    page = FakePage(
+        price_placeholder="800 - 12 000",
+        budget="Желаемый бюджет: до 4000 ₽ Допустимый: до 20000 ₽",
+    )
+    assert await _writer()._pick_price(page, 100) == 12000  # type: ignore[arg-type]
+
+
 async def test_project_title_skips_the_offer_button_heading() -> None:
     page = FakePage(
         h1s=[FakeHandle("Предложить услугу"), FakeHandle("Снять разметку ВК")]

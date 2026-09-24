@@ -22,5 +22,21 @@ export function createSettingsActions(queryClient: QueryClient) {
 				queryClient.setQueryData(settingsQueryKey, saved);
 			},
 		})),
+		updateKwork: createMutation(() => ({
+			mutationFn: async (params: { kwork: Partial<Settings["kwork"]> }) => {
+				const current = queryClient.getQueryData<Settings>(settingsQueryKey);
+				if (!current) {
+					throw new Error("Settings not loaded");
+				}
+				const write = settingsToWrite(current);
+				return API.settings.update({
+					...write,
+					kwork: { ...write.kwork, ...params.kwork },
+				});
+			},
+			onSuccess(saved) {
+				queryClient.setQueryData(settingsQueryKey, saved);
+			},
+		})),
 	};
 }

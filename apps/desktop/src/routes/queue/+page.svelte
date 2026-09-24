@@ -6,6 +6,7 @@ import BoardPromptPanel from "$lib/components/board-prompt-panel.svelte";
 import BoardSwitcher from "$lib/components/board-switcher.svelte";
 import EmptyState from "$lib/components/empty-state.svelte";
 import ErrorState from "$lib/components/error-state.svelte";
+import KworkPricePanel from "$lib/components/kwork-price-panel.svelte";
 import ListSkeleton from "$lib/components/list-skeleton.svelte";
 import LiveStatus from "$lib/components/live-status.svelte";
 import * as AlertDialog from "$lib/components/ui/alert-dialog";
@@ -122,6 +123,22 @@ function saveBoardPrompt(prompt: BoardPrompt) {
 			onSuccess: () => toast.success(m.queue_board_prompt_saved()),
 			onError: (error) =>
 				toast.error(m.queue_board_prompt_save_failed({ error: error.message })),
+		},
+	);
+}
+
+const kworkPricePercent = $derived(
+	settingsQuery.data?.kwork.price_percent ?? 0,
+);
+const savingKworkPrice = $derived(actions.settings.updateKwork.isPending);
+
+function saveKworkPrice(price_percent: number) {
+	actions.settings.updateKwork.mutate(
+		{ kwork: { price_percent } },
+		{
+			onSuccess: () => toast.success(m.queue_kwork_price_saved()),
+			onError: (error) =>
+				toast.error(m.queue_kwork_price_save_failed({ error: error.message })),
 		},
 	);
 }
@@ -262,6 +279,14 @@ $effect(() => {
             pending={savingBoardPrompt}
             onSave={saveBoardPrompt}
     />
+
+    {#if boardStore.active === "kwork"}
+        <KworkPricePanel
+                percent={kworkPricePercent}
+                pending={savingKworkPrice}
+                onSave={saveKworkPrice}
+        />
+    {/if}
 
     <section class="bg-card rounded-lg border text-sm">
         <div class="flex items-center justify-between gap-3 px-4 py-3">

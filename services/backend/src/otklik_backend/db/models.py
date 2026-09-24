@@ -102,6 +102,10 @@ class SettingsORM(Base):
     auto_generate: Mapped[bool] = mapped_column(default=False)
     auto_submit: Mapped[bool] = mapped_column(default=False)
 
+    kwork_price_percent: Mapped[int] = mapped_column(
+        default=0, server_default=text("0")
+    )
+
     notifications: Mapped[dict[str, bool]] = mapped_column(
         JSON, default=dict, server_default=text("'{}'")
     )

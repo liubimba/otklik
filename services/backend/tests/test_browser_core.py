@@ -64,6 +64,9 @@ class FakePage:
     async def close(self) -> None:
         self.closed = True
 
+    def is_closed(self) -> bool:
+        return self.closed
+
 
 class FakeContext:
     def __init__(self, failures: list[Exception | None]) -> None:
@@ -178,3 +181,52 @@ async def test_cookies_returns_empty_and_nulls_context_when_browser_dead(tmp_pat
 
     assert result == []
     assert core._context is None
+
+
+async def test_prewarm_fills_the_tab_pool(core) -> None:
+    core._context = FakeContext([None] * 50)  # type: ignore[assignment]
+    await core._prewarm_pool()
+    assert len(core._pool_available) == core_module.TAB_POOL_SIZE
+    assert len(core._context.pages) == core_module.TAB_POOL_SIZE
+
+
+async def test_acquire_reuses_a_pooled_tab_without_opening_a_new_one(core) -> None:
+    core._context = FakeContext([None] * 50)  # type: ignore[assignment]
+    await core._prewarm_pool()
+    created = len(core._context.pages)
+
+    page = await core.acquire()
+    assert len(core._context.pages) == created
+    assert len(core._pool_available) == core_module.TAB_POOL_SIZE - 1
+
+    await core.release(page)
+    assert len(core._pool_available) == core_module.TAB_POOL_SIZE
+
+
+async def test_acquire_opens_an_extra_tab_when_the_pool_is_empty(core) -> None:
+    core._context = FakeContext([None] * 50)  # type: ignore[assignment]
+    await core.acquire()
+    await core.acquire()
+    assert len(core._context.pages) == 2
+
+
+async def test_release_does_not_double_add_the_same_tab(core) -> None:
+    core._context = FakeContext([None] * 50)  # type: ignore[assignment]
+    await core._prewarm_pool()
+    page = await core.acquire()
+    await core.release(page)
+    await core.release(page)
+    assert core._pool_available.count(page) == 1
+
+
+async def test_open_reusable_page_draws_from_the_pool_and_reuses_by_key(core) -> None:
+    core._context = FakeContext([None] * 50)  # type: ignore[assignment]
+    await core._prewarm_pool()
+    created = len(core._context.pages)
+
+    first = await core.open_reusable_page("submit", "https://a")
+    second = await core.open_reusable_page("submit", "https://b")
+
+    assert first is second
+    assert len(core._context.pages) == created
+    assert len(core._pool_available) == core_module.TAB_POOL_SIZE - 1

@@ -23,6 +23,7 @@ from otklik_backend.paths import AppPaths
 
 MAX_ATTEMPTS = 3
 RETRY_DELAY = 1
+TAB_POOL_SIZE = 15
 
 CHROMIUM_ARGS = [
     "--ozone-platform=x11",
@@ -50,6 +51,8 @@ class BrowserCore:
         self._guard: SinglePageGuard | None = None
         self._guard_tasks: set[asyncio.Task[None]] = set()
         self._reusable_pages: dict[str, BrowserPage] = {}
+        self._pool_available: list[BrowserPage] = []
+        self._pool_lock = asyncio.Lock()
         self._start_lock = asyncio.Lock()
         self._window = window or CDPWindowController(self._open_cdp_session)
 
@@ -78,6 +81,7 @@ class BrowserCore:
         self._context.on("close", self._on_context_closed)
         self._context.on("page", self._on_new_page)
         await self._window.hide()
+        await self._prewarm_pool()
 
     def _on_context_closed(self, *_: object) -> None:
         self.logger.info("Browser context closed")
@@ -85,14 +89,57 @@ class BrowserCore:
         self._cdp = None
         self._guard = None
         self._reusable_pages.clear()
+        self._pool_available.clear()
+
+    async def _prewarm_pool(self) -> None:
+        if self._context is None:
+            return
+        for _ in range(TAB_POOL_SIZE):
+            try:
+                raw = await self._context.new_page()
+            except Error as exc:
+                self.logger.warning("Failed to prewarm a browser tab", error=str(exc))
+                break
+            self._pool_available.append(BrowserPage(raw))
+        self.logger.info("Prewarmed browser tab pool", size=len(self._pool_available))
+
+    async def acquire(self) -> BrowserPage:
+        await self.ensure_started()
+        if self._context is None:
+            raise RuntimeError("BrowserCore is not started")
+        async with self._pool_lock:
+            while self._pool_available:
+                page = self._pool_available.pop()
+                if not page.is_closed():
+                    return page
+        self.logger.info("Tab pool exhausted, opening an extra tab")
+        raw = await self._context.new_page()
+        return BrowserPage(raw)
+
+    async def release(self, page: BrowserPage) -> None:
+        if page.is_closed():
+            return
+        async with self._pool_lock:
+            if page not in self._pool_available:
+                self._pool_available.append(page)
+
+    async def lease_page(self, url: str) -> BrowserPage:
+        page = await self.acquire()
+        try:
+            await self._navigate_with_retry(page, url)
+        except Exception:
+            await self.release(page)
+            raise
+        return page
 
     async def open_reusable_page(self, key: str, url: str) -> BrowserPage:
         existing = self._reusable_pages.get(key)
         if existing is not None and not existing.is_closed():
-            await existing.goto(url)
+            await self._navigate_with_retry(existing, url)
             return existing
-        page = await self.new_page(url)
+        page = await self.acquire()
         self._reusable_pages[key] = page
+        await self._navigate_with_retry(page, url)
         return page
 
     async def _open_cdp_session(self) -> CDPSession | None:
@@ -164,6 +211,24 @@ class BrowserCore:
             await self._playwright.stop()
         self._context = None
         self._playwright = None
+
+    async def _navigate_with_retry(self, page: BrowserPage, url: str) -> None:
+        raw = page.raw_page
+        for attempt in range(MAX_ATTEMPTS):
+            try:
+                self.logger.info("Navigating page", url=url, attempt=attempt)
+                await raw.goto(url)
+                return
+            except Exception as e:
+                if not isinstance(e, Error):
+                    raise
+                self.logger.error(
+                    "Failed to navigate page", url=url, attempt=attempt, error=str(e)
+                )
+                if attempt == MAX_ATTEMPTS - 1:
+                    raise BrowserNetworkError() from e
+                self.logger.info("Sleep before next retry", url=url, delay=RETRY_DELAY)
+                await asyncio.sleep(RETRY_DELAY)
 
     async def new_page(self, url: str) -> BrowserPage:
         await self.ensure_started()

@@ -47,6 +47,7 @@ class FakeBrowserCore:
     def __init__(self) -> None:
         self.opened_urls: list[str] = []
         self.pages: list[FakeBrowserPage] = []
+        self.released: list[FakeBrowserPage] = []
         self.hide_calls = 0
         self.show_calls = 0
 
@@ -55,6 +56,12 @@ class FakeBrowserCore:
         page = FakeBrowserPage(url)
         self.pages.append(page)
         return page
+
+    async def lease_page(self, url: str) -> FakeBrowserPage:
+        return await self.new_page(url)
+
+    async def release(self, page: FakeBrowserPage) -> None:
+        self.released.append(page)
 
     async def hide_window(self) -> None:
         self.hide_calls += 1
@@ -72,6 +79,12 @@ class UnreachableBrowserCore:
     async def new_page(self, url: str) -> FakeBrowserPage:
         self.calls += 1
         raise BrowserNetworkError()
+
+    async def lease_page(self, url: str) -> FakeBrowserPage:
+        return await self.new_page(url)
+
+    async def release(self, page: FakeBrowserPage) -> None:
+        return None
 
     async def hide_window(self) -> None:
         self.hide_calls += 1

@@ -241,7 +241,7 @@ class SearchSession:
         try:
             await self._update_search_history(task)
             await self._publish_search_event(task)
-            search_page = await self._core.new_page(url=url)
+            search_page = await self._core.lease_page(url=url)
             await self._search_loop(task, search_page)
         except asyncio.CancelledError as exc:
             self._log.info("Search cancelled", search_id=self._id, reason=str(exc))
@@ -252,7 +252,7 @@ class SearchSession:
             task.state_machine.send(SearchStateEvent.FAILED.value)
         finally:
             if search_page is not None:
-                await search_page.close()
+                await self._core.release(search_page)
             await self._safe_hide_window()
 
         if task.is_active:

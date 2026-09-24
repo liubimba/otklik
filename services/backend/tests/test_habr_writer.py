@@ -66,9 +66,13 @@ class FakePage:
 class FakeCore:
     def __init__(self, page: FakePage) -> None:
         self._page = page
+        self.hide_calls = 0
 
     async def open_reusable_page(self, key: str, url: str) -> FakePage:
         return self._page
+
+    async def hide_window(self) -> None:
+        self.hide_calls += 1
 
 
 def _writer(page: FakePage) -> HabrWriter:

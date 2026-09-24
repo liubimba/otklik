@@ -33,6 +33,7 @@ class HabrWriter:
         response = self._selectors.response
         page: BrowserPage | None = None
         try:
+            await self._core.hide_window()
             page = await self._core.open_reusable_page("habr_submit", vacancy_url)
             await self._human_delay()
 
@@ -122,19 +123,16 @@ class HabrWriter:
         probe = "".join(letter_text.split())[:40]
         if not probe:
             return True
-        url = page.get_url()
-        for attempt in range(4):
+        for _ in range(3):
             await self._human_delay()
             if probe in await self._page_text(page):
                 return True
-            if attempt < 3:
-                try:
-                    await page.goto(url)
-                except Exception as error:  # noqa: BLE001
-                    self._logger.info(
-                        "Reload during letter check failed", error=str(error)
-                    )
-        return False
+        try:
+            await page.goto(page.get_url())
+        except Exception as error:  # noqa: BLE001
+            self._logger.info("Reload during letter check failed", error=str(error))
+        await self._human_delay()
+        return probe in await self._page_text(page)
 
     async def _page_text(self, page: BrowserPage) -> str:
         try:

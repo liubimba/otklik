@@ -61,6 +61,7 @@ async def test_recover_parks_in_flight_as_interrupted(
                 ProcessingState.LETTER_PENDING,
                 ProcessingState.LETTER_QUEUED,
                 ProcessingState.LETTER_SENDING,
+                ProcessingState.LETTER_READY,
             ):
                 parked_ids.append(app.id)
             else:

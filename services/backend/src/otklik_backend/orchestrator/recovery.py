@@ -7,6 +7,7 @@ from otklik_backend.orchestrator.state_service import StateTransitionService
 
 IN_FLIGHT_STATES = (
     ProcessingState.LETTER_PENDING,
+    ProcessingState.LETTER_READY,
     ProcessingState.LETTER_QUEUED,
     ProcessingState.LETTER_SENDING,
 )

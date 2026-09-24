@@ -76,6 +76,7 @@ class ProcessingStateMachine(StateMachine):
     )
     interrupt = (
         _.LETTER_PENDING.to(_.INTERRUPTED)
+        | _.LETTER_READY.to(_.INTERRUPTED)
         | _.LETTER_QUEUED.to(_.INTERRUPTED)
         | _.LETTER_SENDING.to(_.INTERRUPTED)
     )

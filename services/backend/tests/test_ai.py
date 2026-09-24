@@ -295,3 +295,30 @@ async def test_no_sources_keeps_single_shot(
     assert layer._router.acompletion.await_count == 1
     call = layer._router.acompletion.await_args_list[0]
     assert "tools" not in call.kwargs
+
+
+async def test_estimate_delivery_days_parses_the_integer(make_ai_layer) -> None:
+    layer: AILayer = make_ai_layer([_resolved()])
+    layer._router.acompletion.return_value = _fake_model_response(content="5 дней")
+    assert await layer.estimate_delivery_days(title="Бот", description="aiogram") == 5
+
+
+async def test_estimate_delivery_days_without_deployments_returns_none(
+    make_ai_layer,
+) -> None:
+    layer: AILayer = make_ai_layer()
+    assert await layer.estimate_delivery_days(title="Бот", description="x") is None
+
+
+async def test_estimate_delivery_days_returns_none_without_a_number(
+    make_ai_layer,
+) -> None:
+    layer: AILayer = make_ai_layer([_resolved()])
+    layer._router.acompletion.return_value = _fake_model_response(content="не знаю")
+    assert await layer.estimate_delivery_days(title="Бот", description="x") is None
+
+
+async def test_estimate_delivery_days_returns_none_on_error(make_ai_layer) -> None:
+    layer: AILayer = make_ai_layer([_resolved()])
+    layer._router.acompletion.side_effect = Exception("model exploded")
+    assert await layer.estimate_delivery_days(title="Бот", description="x") is None

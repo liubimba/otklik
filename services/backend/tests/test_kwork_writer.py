@@ -125,3 +125,72 @@ async def test_order_name_is_filled_with_the_title_when_visible() -> None:
     )
     await _writer()._fill_order_name(page)  # type: ignore[arg-type]
     assert page.filled == [(KWORK_RESPONSE.order_name_editor, "Снять разметку ВК")]
+
+
+class _FakeVacancy:
+    title = "Телеграм-бот"
+    description = "aiogram, вебхуки"
+
+
+class _FakeAI:
+    def __init__(self, days: int | None) -> None:
+        self._days = days
+
+    async def estimate_delivery_days(self, title: str, description: str) -> int | None:
+        return self._days
+
+
+class _FakeSession:
+    async def __aenter__(self) -> "_FakeSession":
+        return self
+
+    async def __aexit__(self, *args: object) -> bool:
+        return False
+
+
+def _fake_session_maker() -> _FakeSession:
+    return _FakeSession()
+
+
+def _writer_with_ai(days: int | None) -> KworkWriter:
+    return KworkWriter(
+        core=None,  # type: ignore[arg-type]
+        min_delay_ms=0,
+        jitter_delay_ms=0,
+        session_maker=_fake_session_maker,  # type: ignore[arg-type]
+        ai_layer=_FakeAI(days),  # type: ignore[arg-type]
+    )
+
+
+async def test_delivery_days_default_without_ai_layer() -> None:
+    assert await _writer()._estimate_delivery_days("https://kwork.ru/projects/1") == 3
+
+
+async def test_delivery_days_uses_the_estimate(monkeypatch) -> None:
+    from otklik_backend.db.repositories.vacancies import VacancyRepository
+
+    async def fake_get(cls, session, apply_link):  # type: ignore[no-untyped-def]
+        return _FakeVacancy()
+
+    monkeypatch.setattr(VacancyRepository, "get_by_apply_link", classmethod(fake_get))
+    assert await _writer_with_ai(7)._estimate_delivery_days("url") == 7
+
+
+async def test_delivery_days_are_clamped_to_the_maximum(monkeypatch) -> None:
+    from otklik_backend.db.repositories.vacancies import VacancyRepository
+
+    async def fake_get(cls, session, apply_link):  # type: ignore[no-untyped-def]
+        return _FakeVacancy()
+
+    monkeypatch.setattr(VacancyRepository, "get_by_apply_link", classmethod(fake_get))
+    assert await _writer_with_ai(999)._estimate_delivery_days("url") == 30
+
+
+async def test_delivery_days_fall_back_when_estimate_is_none(monkeypatch) -> None:
+    from otklik_backend.db.repositories.vacancies import VacancyRepository
+
+    async def fake_get(cls, session, apply_link):  # type: ignore[no-untyped-def]
+        return _FakeVacancy()
+
+    monkeypatch.setattr(VacancyRepository, "get_by_apply_link", classmethod(fake_get))
+    assert await _writer_with_ai(None)._estimate_delivery_days("url") == 3

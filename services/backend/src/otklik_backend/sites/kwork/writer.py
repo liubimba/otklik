@@ -4,10 +4,12 @@ import re
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from otklik_backend.ai.layer import AILayer
 from otklik_backend.browser.core import BrowserCore
 from otklik_backend.browser.page import BrowserPage
 from otklik_backend.core.site.result import SubmissionResult
 from otklik_backend.db.repositories.settings import SettingsRepository
+from otklik_backend.db.repositories.vacancies import VacancyRepository
 from otklik_backend.log import get_logger
 from otklik_backend.sites.kwork.selectors import KWORK_RESPONSE, KworkResponseSelectors
 
@@ -16,6 +18,8 @@ OFFER_FORM_MISSING = "Форма отклика не открылась"
 OFFER_NOT_CONFIRMED = "Отклик не подтвердился"
 
 DEFAULT_DELIVERY_DAYS = 3
+MIN_DELIVERY_DAYS = 1
+MAX_DELIVERY_DAYS = 30
 ORDER_NAME_LIMIT = 70
 
 
@@ -35,6 +39,7 @@ class KworkWriter:
         selectors: KworkResponseSelectors = KWORK_RESPONSE,
         timeout: float = 10000,
         session_maker: async_sessionmaker[AsyncSession] | None = None,
+        ai_layer: AILayer | None = None,
     ) -> None:
         self._logger = get_logger(__name__)
         self._core = core
@@ -43,13 +48,14 @@ class KworkWriter:
         self._jitter_delay_ms = jitter_delay_ms
         self._timeout = timeout
         self._session_maker = session_maker
+        self._ai_layer = ai_layer
 
     async def submit(self, vacancy_url: str, letter_text: str) -> SubmissionResult:
         self._logger.info("Starting Kwork offer", vacancy_url=vacancy_url)
         try:
             page = await self._core.open_reusable_page("kwork_submit", vacancy_url)
             await self._human_delay()
-            filled = await self.fill_offer(page, letter_text)
+            filled = await self.fill_offer(page, letter_text, vacancy_url)
             if filled is not None:
                 return filled
             self._logger.info("Submitting the Kwork offer")
@@ -62,7 +68,7 @@ class KworkWriter:
             return SubmissionResult.failed(reason=str(error))
 
     async def fill_offer(
-        self, page: BrowserPage, letter_text: str
+        self, page: BrowserPage, letter_text: str, vacancy_url: str = ""
     ) -> SubmissionResult | None:
         selectors = self._selectors
         if await page.query_selector(selectors.already_responded_marker) is not None:
@@ -88,8 +94,33 @@ class KworkWriter:
 
         await self._select_payment_type(page)
         await self._fill_order_name(page)
-        await self._fill_delivery(page, DEFAULT_DELIVERY_DAYS)
+        days = await self._estimate_delivery_days(vacancy_url)
+        await self._fill_delivery(page, days)
         return None
+
+    async def _estimate_delivery_days(self, vacancy_url: str) -> int:
+        if self._ai_layer is None or self._session_maker is None or not vacancy_url:
+            return DEFAULT_DELIVERY_DAYS
+        try:
+            async with self._session_maker() as session:
+                vacancy = await VacancyRepository.get_by_apply_link(
+                    session=session, apply_link=vacancy_url
+                )
+            if vacancy is None:
+                return DEFAULT_DELIVERY_DAYS
+            days = await self._ai_layer.estimate_delivery_days(
+                title=vacancy.title, description=vacancy.description
+            )
+            if days is None:
+                return DEFAULT_DELIVERY_DAYS
+            chosen = max(MIN_DELIVERY_DAYS, min(days, MAX_DELIVERY_DAYS))
+            self._logger.info("Estimated Kwork delivery days", days=chosen)
+            return chosen
+        except Exception as error:  # noqa: BLE001
+            self._logger.warning(
+                "Failed to estimate Kwork delivery days", error=str(error)
+            )
+            return DEFAULT_DELIVERY_DAYS
 
     async def _select_payment_type(self, page: BrowserPage) -> None:
         if await page.click_first_visible(

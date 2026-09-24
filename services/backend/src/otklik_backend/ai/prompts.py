@@ -226,3 +226,24 @@ class PromptBuilder:
                 content=[ChatCompletionTextObject(type="text", text="ping")],
             )
         ]
+
+    __delivery_estimate_system_prompt: str = (
+        "Ты оцениваешь, за сколько рабочих дней один исполнитель реально сделает "
+        "задачу с фриланс-биржи под ключ, с запасом на правки. Учитывай объём и "
+        "сложность из описания. Ответь строго одним целым числом дней, без слов, "
+        "без диапазона, без единиц измерения."
+    )
+
+    def build_delivery_estimate_prompt(
+        self, title: str, description: str
+    ) -> List[AllMessageValues]:
+        user_text = f"# Задача\n{title}\n\n# Описание\n{description}\n\nСколько дней?"
+        return [
+            ChatCompletionSystemMessage(
+                role="system", content=self.__delivery_estimate_system_prompt
+            ),
+            ChatCompletionUserMessage(
+                role="user",
+                content=[ChatCompletionTextObject(type="text", text=user_text)],
+            ),
+        ]

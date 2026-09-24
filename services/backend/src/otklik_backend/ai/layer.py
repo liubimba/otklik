@@ -1,3 +1,4 @@
+import re
 from collections.abc import AsyncIterator, Sequence
 from typing import cast
 
@@ -296,6 +297,25 @@ class AILayer:
             delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
+
+    async def estimate_delivery_days(self, title: str, description: str) -> int | None:
+        if len(self._deployments) == 0:
+            return None
+        try:
+            response: ModelResponse = await self._router.acompletion(
+                model=self._get_primary_llm().deployment.model,
+                messages=self._prompt_builder.build_delivery_estimate_prompt(
+                    title=title, description=description
+                ),
+            )
+            content = response.choices[0].message.content or ""
+            match = re.search(r"\d+", content)
+            if match is None:
+                return None
+            return int(match.group())
+        except Exception as e:
+            self._log.warning("Delivery day estimate failed", error=str(e))
+            return None
 
     async def get_health_status(self) -> AILayerHealthStatus:
         self._log.info("Check health status...")

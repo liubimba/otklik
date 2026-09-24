@@ -102,11 +102,13 @@ class BackendBuilder:
         pause_controller = PauseController()
         writer = HHRUWriter(core=browser, min_delay_ms=800, jitter_delay_ms=400)
         habr_writer = HabrWriter(core=browser, min_delay_ms=800, jitter_delay_ms=400)
+        ai_layer = await self._bootstrap_ai_layer(secret_store=secret_store)
         kwork_writer = KworkWriter(
             core=browser,
             min_delay_ms=800,
             jitter_delay_ms=400,
             session_maker=self._session_maker,
+            ai_layer=ai_layer,
         )
         search_service = SearchService(
             core=browser,
@@ -129,7 +131,6 @@ class BackendBuilder:
             writers={Board.HABR: habr_writer, Board.KWORK: kwork_writer},
             auth_flows={Board.HABR: habr_auth_flow, Board.KWORK: kwork_auth_flow},
         )
-        ai_layer = await self._bootstrap_ai_layer(secret_store=secret_store)
         context_source_service = ContextSourceService(
             session_maker=self._session_maker,
             registry=SourceFetcherRegistry(client=httpx.AsyncClient()),

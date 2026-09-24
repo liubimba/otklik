@@ -291,6 +291,11 @@ export type BoardPrompts = {
 	prompts: Partial<Record<BoardKind, BoardPrompt>>;
 };
 
+export type ProcessingStatus = {
+	paused: boolean;
+	in_flight: number;
+};
+
 export type CoverLetter = {
 	text: string;
 	version: number;

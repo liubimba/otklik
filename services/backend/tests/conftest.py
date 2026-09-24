@@ -23,6 +23,7 @@ from otklik_backend.api.dependencies import (
     get_writer,
     get_search_service,
     get_auto_apply_canceller,
+    get_pause_controller,
 )
 from otklik_backend.orchestrator.auto_apply_canceller import AutoApplyCanceller
 from otklik_backend.api.broadcaster import EventBroadcaster
@@ -391,6 +392,8 @@ async def client(
         session_maker=session_factory,
     )
     app.dependency_overrides[get_auto_apply_canceller] = lambda: auto_apply_canceller
+    pause_controller = PauseController()
+    app.dependency_overrides[get_pause_controller] = lambda: pause_controller
     app.dependency_overrides[get_ai_layer] = lambda: ai_layer_with_router
     app.dependency_overrides[get_authorization_service] = lambda: authorization_service
     app.dependency_overrides[get_cover_letter_service] = lambda: cover_letter_service

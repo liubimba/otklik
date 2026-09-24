@@ -25,6 +25,7 @@ import type {
 	NewFilterSession,
 	OrchestratorStatus,
 	PreviewCoverLetterRequest,
+	ProcessingStatus,
 	PullProgress,
 	RateLimitsBudget,
 	RestartCounts,
@@ -341,6 +342,13 @@ export const API = {
 				method: "PUT",
 				body: JSON.stringify(body),
 			}),
+	},
+	processing: {
+		status: () => api<ProcessingStatus>("processing/status"),
+		pause: () => api<void>("processing/pause", { method: "POST" }),
+		resume: () => api<void>("processing/resume", { method: "POST" }),
+		cancel: () =>
+			api<ProcessingStatus>("processing/cancel", { method: "POST" }),
 	},
 	system: {
 		rateLimits: () => api<RateLimitsBudget>("system/rate-limits"),

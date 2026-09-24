@@ -12,6 +12,7 @@ from otklik_backend.orchestrator.auto_apply_canceller import AutoApplyCanceller
 from otklik_backend.orchestrator.authorization_service import AuthorizationService
 from otklik_backend.orchestrator.cover_letter_service import CoverLetterService
 from otklik_backend.orchestrator.letter_chat_service import LetterChatService
+from otklik_backend.orchestrator.pause import PauseController
 from otklik_backend.orchestrator.search import SearchService
 from otklik_backend.orchestrator.state_service import StateTransitionService
 from otklik_backend.orchestrator.workers.letter_sending import LetterSendingWorker
@@ -54,6 +55,10 @@ def get_search_service(request: HTTPConnection) -> SearchService:
 
 def get_auto_apply_canceller(request: HTTPConnection) -> AutoApplyCanceller:
     return request.app.state.auto_apply_canceller  # type: ignore[no-any-return]
+
+
+def get_pause_controller(request: HTTPConnection) -> PauseController:
+    return request.app.state.pause_controller  # type: ignore[no-any-return]
 
 
 def get_ai_layer(request: HTTPConnection) -> AILayer:
@@ -119,6 +124,7 @@ WriterDep = Annotated[HHRUWriter, Depends(get_writer)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]
 AutoApplyCancellerDep = Annotated[AutoApplyCanceller, Depends(get_auto_apply_canceller)]
+PauseControllerDep = Annotated[PauseController, Depends(get_pause_controller)]
 AILayerDep = Annotated[AILayer, Depends(get_ai_layer)]
 CoverLetterServiceDep = Annotated[CoverLetterService, Depends(get_cover_letter_service)]
 LetterChatServiceDep = Annotated[LetterChatService, Depends(get_letter_chat_service)]

@@ -208,6 +208,11 @@ class ApplicationsSummaryAPISchema(BaseModel):
     needs_attention: int
 
 
+class ProcessingStatusAPISchema(BaseModel):
+    paused: bool
+    in_flight: int
+
+
 class RestartResultAPISchema(BaseModel):
     restarted: int
 

@@ -116,6 +116,20 @@ class ApplicationRepository:
         return result.scalars().all()
 
     @classmethod
+    async def count_in_states(
+        cls, session: AsyncSession, states: Sequence[ProcessingState]
+    ) -> int:
+        if not states:
+            return 0
+        stmt = (
+            select(func.count())
+            .select_from(ApplicationORM)
+            .where(ApplicationORM.status.in_(states))
+        )
+        result = await session.execute(stmt)
+        return int(result.scalar_one())
+
+    @classmethod
     async def count_needs_attention(
         cls, session: AsyncSession, search_id: str | None = None
     ) -> int:

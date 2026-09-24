@@ -95,6 +95,7 @@ const vacanciesQuery = query.all_vacancies.create(
 	() => boardStore.active,
 );
 const searchQuery = query.search.vacancies.create();
+const processingQuery = query.processing.create();
 const restartCountsQuery = query.restart_counts.create();
 
 const vacancyItems = $derived(vacanciesQuery.data?.items ?? []);
@@ -108,7 +109,14 @@ const vacanciesFiltered = $derived(
 );
 
 const model = createSearchPageViewModel(searchQuery);
-const view = createSearchPageView(searchQuery, actions, model);
+const view = createSearchPageView(searchQuery, actions, model, processingQuery);
+
+const processingInFlight = $derived(processingQuery.data?.in_flight ?? 0);
+const processingPaused = $derived(processingQuery.data?.paused ?? false);
+const runBusy = $derived(
+	model.search.vacancies.inFlight || processingInFlight > 0,
+);
+const runPaused = $derived(model.search.vacancies.paused || processingPaused);
 
 const boardEnabled = $derived(BOARDS[boardStore.active].enabled);
 const boardPrompt = $derived(
@@ -155,7 +163,9 @@ const restartingSubmission = $derived(
 );
 const togglingSearch = $derived(
 	actions.search.vacancies.pause.isPending ||
-		actions.search.vacancies.resume.isPending,
+		actions.search.vacancies.resume.isPending ||
+		actions.processing.pause.isPending ||
+		actions.processing.resume.isPending,
 );
 
 const liveStatus = $derived.by(() => {
@@ -194,16 +204,24 @@ $effect(() => {
         <AlertDialog.Header>
             <AlertDialog.Title>{m.dialog_replace_title()}</AlertDialog.Title>
             <AlertDialog.Description>
-                {m.dialog_replace_description()}
+                {#if !model.search.vacancies.inFlight && processingInFlight > 0}
+                    {m.dialog_cancel_processing_description({
+                        count: processingInFlight,
+                    })}
+                {:else}
+                    {m.dialog_replace_description()}
+                {/if}
             </AlertDialog.Description>
         </AlertDialog.Header>
         <AlertDialog.Footer>
             <AlertDialog.Cancel>{m.dialog_replace_cancel()}</AlertDialog.Cancel>
             <AlertDialog.Action
                     onclick={view.search.filter.dialog.replace}
-                    disabled={actions.search.filter.cancel.isPending}
+                    disabled={actions.search.filter.cancel.isPending ||
+                    actions.processing.cancel.isPending}
             >
-                {actions.search.filter.cancel.isPending
+                {actions.search.filter.cancel.isPending ||
+                actions.processing.cancel.isPending
                     ? m.dialog_replace_confirming()
                     : m.dialog_replace_confirm()}
             </AlertDialog.Action>
@@ -232,20 +250,25 @@ $effect(() => {
                 })}</span
                 >
             {/if}
-            {#if model.search.vacancies.inFlight}
+            {#if !model.search.vacancies.inFlight && processingInFlight > 0}
+                <span class="text-muted-foreground font-mono text-xs">
+                    {m.queue_processing_in_flight({ count: processingInFlight })}
+                </span>
+            {/if}
+            {#if runBusy}
                 <Button
                         variant="outline"
                         size="icon"
                         onclick={view.search.vacancies.pauseResume}
                         disabled={togglingSearch}
-                        aria-label={model.search.vacancies.paused
+                        aria-label={runPaused
                         ? m.queue_button_resume_search()
                         : m.queue_button_pause_search()}
-                        title={model.search.vacancies.paused
+                        title={runPaused
                         ? m.queue_button_resume_search()
                         : m.queue_button_pause_search()}
                 >
-                    {#if model.search.vacancies.paused}
+                    {#if runPaused}
                         <Play class="size-4"/>
                     {:else}
                         <Pause class="size-4"/>

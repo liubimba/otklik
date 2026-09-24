@@ -24,6 +24,7 @@ export function createEventSync(queryClient: QueryClient): EventSync {
 				case "search_event":
 					query.search.vacancies.apply(queryClient, event);
 					query.search.history.apply(queryClient, event);
+					queryClient.invalidateQueries({ queryKey: query.processing.key });
 					if (event.data.search_id !== lastSearchId) {
 						lastSearchId = event.data.search_id;
 						query.summary.invalidate(queryClient);
@@ -38,6 +39,9 @@ export function createEventSync(queryClient: QueryClient): EventSync {
 					query.summary.invalidate(queryClient);
 					queryClient.invalidateQueries({
 						queryKey: query.restart_counts.key,
+					});
+					queryClient.invalidateQueries({
+						queryKey: query.processing.key,
 					});
 			}
 		});

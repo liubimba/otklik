@@ -59,6 +59,7 @@ class AppContext:
     auto_apply_canceller: AutoApplyCanceller
     context_source_service: ContextSourceService
     in_flight_recovery: InFlightRecovery
+    pause_controller: PauseController
 
     def runnables(self) -> list[Runnable]:
         return [self.letter_sending_worker, self.letter_pending_worker]
@@ -196,6 +197,7 @@ class BackendBuilder:
             auto_apply_canceller=auto_apply_canceller,
             context_source_service=context_source_service,
             in_flight_recovery=in_flight_recovery,
+            pause_controller=pause_controller,
         )
 
     async def _bootstrap_ai_layer(self, secret_store: SecretStore) -> AILayer:

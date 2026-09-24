@@ -186,6 +186,8 @@
 	"picker_button_dismiss": "Закрыть",
 	"dialog_replace_title": "Запустить новый поиск?",
 	"dialog_replace_description": "Текущий поиск будет отменён. Уже спарсенные вакансии останутся в очереди.",
+	"dialog_cancel_processing_description": "Ещё {count} писем в обработке. Отменить остаток и начать новый поиск?",
+	"queue_processing_in_flight": "{count} в обработке",
 	"dialog_replace_cancel": "Не отменять",
 	"dialog_replace_confirm": "Отменить и запустить новый",
 	"dialog_replace_confirming": "Отменяем…",

@@ -20,6 +20,10 @@ import {
 	createBoardPromptsQuery,
 } from "$lib/queries/board_prompts";
 import {
+	createProcessingQuery,
+	processingQueryKey,
+} from "$lib/queries/processing";
+import {
 	createRestartCountsQuery,
 	restartCountsQueryKey,
 } from "$lib/queries/restart_counts";
@@ -78,6 +82,10 @@ export const query = {
 	board_prompts: {
 		key: boardPromptsQueryKey,
 		create: createBoardPromptsQuery,
+	},
+	processing: {
+		key: processingQueryKey,
+		create: createProcessingQuery,
 	},
 	restart_counts: {
 		key: restartCountsQueryKey,

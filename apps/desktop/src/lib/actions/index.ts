@@ -3,6 +3,7 @@ import { createApplicationsActions } from "$lib/actions/applications";
 import { createBoardPromptsActions } from "$lib/actions/board-prompts";
 import { createLetterReviewActions } from "$lib/actions/letter-review";
 import { createPreviewActions } from "$lib/actions/preview";
+import { createProcessingActions } from "$lib/actions/processing";
 import { createSettingsActions } from "$lib/actions/settings";
 import { createSourcesActions } from "$lib/actions/sources";
 import { createVacanciesActions } from "$lib/actions/vacancies";
@@ -34,6 +35,7 @@ export function createActions(queryClient: QueryClient) {
 		preview: createPreviewActions(queryClient),
 		settings: createSettingsActions(queryClient),
 		board_prompts: createBoardPromptsActions(queryClient),
+		processing: createProcessingActions(queryClient),
 		applications: createApplicationsActions(queryClient),
 	};
 }

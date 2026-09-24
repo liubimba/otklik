@@ -13,28 +13,54 @@ function describeError(error: unknown): string {
 type SearchQuery = ReturnType<typeof query.search.vacancies.create>;
 type Actions = ReturnType<typeof createActions>;
 
+type ProcessingQuery = ReturnType<typeof query.processing.create>;
+
 export function createSearchPageView(
 	searchQuery: SearchQuery,
 	actions: Actions,
 	model: SearchPageViewModel,
+	processingQuery: ProcessingQuery,
 ) {
+	function isProcessingBusy(): boolean {
+		return (processingQuery.data?.in_flight ?? 0) > 0;
+	}
+
 	return {
 		search: {
 			vacancies: {
 				pauseResume: () => {
 					const data = searchQuery.data;
-					if (!data) return;
-					if (model.search.vacancies.paused) {
-						actions.search.vacancies.resume
-							.mutateAsync({ searchId: data.search_id })
+					if (data) {
+						if (model.search.vacancies.paused) {
+							actions.search.vacancies.resume
+								.mutateAsync({ searchId: data.search_id })
+								.catch((error) =>
+									toast.error(
+										m.queue_resume_failed({ error: describeError(error) }),
+									),
+								);
+						} else {
+							actions.search.vacancies.pause
+								.mutateAsync({ searchId: data.search_id })
+								.catch((error) =>
+									toast.error(
+										m.queue_pause_failed({ error: describeError(error) }),
+									),
+								);
+						}
+						return;
+					}
+					if (processingQuery.data?.paused) {
+						actions.processing.resume
+							.mutateAsync()
 							.catch((error) =>
 								toast.error(
 									m.queue_resume_failed({ error: describeError(error) }),
 								),
 							);
 					} else {
-						actions.search.vacancies.pause
-							.mutateAsync({ searchId: data.search_id })
+						actions.processing.pause
+							.mutateAsync()
 							.catch((error) =>
 								toast.error(
 									m.queue_pause_failed({ error: describeError(error) }),
@@ -45,7 +71,7 @@ export function createSearchPageView(
 			},
 			filter: {
 				start: () => {
-					if (searchQuery.data) {
+					if (searchQuery.data || isProcessingBusy()) {
 						model.dialog.search.filter.active = true;
 						return;
 					}
@@ -90,14 +116,14 @@ export function createSearchPageView(
 				},
 				dialog: {
 					replace: async () => {
-						if (!searchQuery.data) {
-							model.dialog.search.filter.active = false;
-							return;
-						}
 						try {
-							await actions.search.vacancies.cancel.mutateAsync({
-								searchId: searchQuery.data.search_id,
-							});
+							if (searchQuery.data) {
+								await actions.search.vacancies.cancel.mutateAsync({
+									searchId: searchQuery.data.search_id,
+								});
+							} else if (isProcessingBusy()) {
+								await actions.processing.cancel.mutateAsync();
+							}
 							await actions.search.filter.open.mutateAsync();
 						} catch (error) {}
 						model.dialog.search.filter.active = false;

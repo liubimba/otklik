@@ -59,22 +59,19 @@ class FilterSession:
             raise InvalidSearchURLError() from exc
         finally:
             await self._core.unlock_window()
-            self._log.info("Closing browser page")
-            await self._page.close()
+            self._log.info("Releasing browser page back to the pool")
+            await self._core.release(self._page)
 
     async def cancel(self) -> None:
         self._log.info("Cancelling filter session")
         await self._core.unlock_window()
-        if not self._page.is_closed():
-            self._log.info("Closing browser page")
-            await self._page.close()
-        else:
-            self._log.warning("Browser page was already closed")
+        self._log.info("Releasing browser page back to the pool")
+        await self._core.release(self._page)
 
     @classmethod
     async def execute(cls, core: BrowserCore, board: Board = DEFAULT_BOARD) -> Self:
         search_url = SEARCH_URLS[board]
-        page: BrowserPage = await core.new_page(search_url)
+        page: BrowserPage = await core.lease_page(search_url)
         host = urlparse(search_url).hostname or ""
         await core.lock_window(page, host)
         return cls(core=core, page=page, board=board)

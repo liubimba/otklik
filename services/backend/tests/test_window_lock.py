@@ -45,10 +45,17 @@ class RecordingCore:
     def __init__(self) -> None:
         self.locked_host: str | None = None
         self.unlocked = 0
+        self.released = 0
         self.page = FakeBrowserPage()
 
     async def new_page(self, url: str) -> "FakeBrowserPage":
         return self.page
+
+    async def lease_page(self, url: str) -> "FakeBrowserPage":
+        return self.page
+
+    async def release(self, page: Any) -> None:
+        self.released += 1
 
     async def lock_window(self, page: Any, allowed_host: str) -> None:
         self.locked_host = allowed_host

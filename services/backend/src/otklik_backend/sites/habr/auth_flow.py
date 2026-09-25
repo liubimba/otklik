@@ -29,7 +29,7 @@ class HabrAuthFlow:
 
     async def wait_for_login(self, poll_interval: float = 1.5) -> None:
         self._log.info("Waiting for user to log in to Habr")
-        page: BrowserPage = await self._browser.new_page(LOGIN_URL)
+        page: BrowserPage = await self._browser.lease_page(LOGIN_URL)
         await self._browser.show_window()
         await page.bring_to_front()
         self._auth_status = AuthStatusAPISchema.authorizing()
@@ -52,7 +52,7 @@ class HabrAuthFlow:
                 if logged_in
                 else AuthStatusAPISchema.unauthorized()
             )
-            await self._safe_close_page(page)
+            await self._safe_release_page(page)
             await self._safe_hide_window()
 
     async def unauthorize(self) -> None:
@@ -61,14 +61,14 @@ class HabrAuthFlow:
 
     async def _is_authorized(self) -> bool:
         try:
-            page = await self._browser.new_page(BASE_URL)
+            page = await self._browser.lease_page(BASE_URL)
         except Exception as error:  # noqa: BLE001
             self._log.warning("Habr auth probe failed", error=str(error))
             return False
         try:
             authenticated = await self._page_shows_authenticated(page)
         finally:
-            await self._safe_close_page(page)
+            await self._safe_release_page(page)
             await self._safe_hide_window()
         return authenticated
 
@@ -78,11 +78,11 @@ class HabrAuthFlow:
             return False
         return await page.query_selector(SIGN_IN_MARKER) is None
 
-    async def _safe_close_page(self, page: BrowserPage) -> None:
+    async def _safe_release_page(self, page: BrowserPage) -> None:
         try:
-            await page.close()
+            await self._browser.release(page)
         except Exception as error:  # noqa: BLE001
-            self._log.warning("Failed to close Habr auth page", error=str(error))
+            self._log.warning("Failed to release Habr auth page", error=str(error))
 
     async def _safe_hide_window(self) -> None:
         try:

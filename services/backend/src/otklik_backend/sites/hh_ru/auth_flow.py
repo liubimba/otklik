@@ -35,11 +35,11 @@ class HHRUAuthFlow:
     async def _prime_from_hh(self) -> None:
         self._log.info("Priming auth check with a hidden hh.ru navigation")
         try:
-            page = await self._browser.new_page(BASE_URL)
+            page = await self._browser.lease_page(BASE_URL)
         except Exception as error:  # noqa: BLE001
             self._log.warning("Auth priming navigation failed", error=str(error))
             return
-        await self._safe_close_page(page)
+        await self._safe_release_page(page)
         await self._safe_hide_window()
 
     async def wait_for_login(self, poll_interval: float = 1.0) -> None:
@@ -48,7 +48,7 @@ class HHRUAuthFlow:
             self._log.info("User is already authenticated")
             self._auth_status = AuthStatusAPISchema.authorized()
             return
-        page: BrowserPage = await self._browser.new_page(f"{BASE_URL}/login")
+        page: BrowserPage = await self._browser.lease_page(f"{BASE_URL}/login")
         await self._browser.show_window()
         await page.bring_to_front()
         self._auth_status = AuthStatusAPISchema.authorizing()
@@ -71,18 +71,18 @@ class HHRUAuthFlow:
                 if logged_in
                 else AuthStatusAPISchema.unauthorized()
             )
-            await self._safe_close_page(page)
+            await self._safe_release_page(page)
             await self._safe_hide_window()
 
     async def unauthorize(self) -> None:
         await self._browser.clear_cookies()
         self._auth_status = AuthStatusAPISchema.unauthorized()
 
-    async def _safe_close_page(self, page: BrowserPage) -> None:
+    async def _safe_release_page(self, page: BrowserPage) -> None:
         try:
-            await page.close()
+            await self._browser.release(page)
         except Exception as error:  # noqa: BLE001
-            self._log.warning("Failed to close login page", error=str(error))
+            self._log.warning("Failed to release login page", error=str(error))
 
     async def _safe_hide_window(self) -> None:
         try:

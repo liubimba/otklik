@@ -28,7 +28,8 @@ class _FakeBrowser:
         self.raise_on_cookies = raise_on_cookies
         self.authorize_on_call = authorize_on_call
         self.page = _FakePage(closed=page_closed)
-        self.new_page_calls = 0
+        self.lease_calls = 0
+        self.released = 0
         self.hidden = False
         self.cleared = False
         self._cookie_calls = 0
@@ -44,9 +45,12 @@ class _FakeBrowser:
             return [{"name": "hhrole", "value": "applicant"}]
         return self._cookies
 
-    async def new_page(self, url: str) -> _FakePage:
-        self.new_page_calls += 1
+    async def lease_page(self, url: str) -> _FakePage:
+        self.lease_calls += 1
         return self.page
+
+    async def release(self, page: _FakePage) -> None:
+        self.released += 1
 
     async def show_window(self) -> None:
         pass
@@ -65,7 +69,7 @@ def _flow(browser: _FakeBrowser) -> HHRUAuthFlow:
 class _ColdProfileBrowser(_FakeBrowser):
     async def cookies(self, base_url: str) -> list[dict[str, str]]:
         self._cookie_calls += 1
-        if self.new_page_calls > 0:
+        if self.lease_calls > 0:
             return [{"name": "hhrole", "value": "applicant"}]
         return []
 
@@ -79,7 +83,7 @@ async def test_get_auth_status_primes_hh_navigation_for_a_logged_in_cold_profile
     status = await flow.get_auth_status()
 
     assert status.status == "authorized"
-    assert browser.new_page_calls == 1
+    assert browser.lease_calls == 1
     assert browser.hidden is True
 
 
@@ -92,7 +96,7 @@ async def test_get_auth_status_primes_only_once_when_really_logged_out() -> None
 
     assert first.status == "unauthorized"
     assert second.status == "unauthorized"
-    assert browser.new_page_calls == 1
+    assert browser.lease_calls == 1
 
 
 async def test_get_auth_status_skips_priming_when_cookie_already_shows_auth() -> None:
@@ -102,7 +106,7 @@ async def test_get_auth_status_skips_priming_when_cookie_already_shows_auth() ->
     status = await flow.get_auth_status()
 
     assert status.status == "authorized"
-    assert browser.new_page_calls == 0
+    assert browser.lease_calls == 0
 
 
 async def test_get_auth_status_is_unauthorized_when_browser_is_dead() -> None:
@@ -123,7 +127,7 @@ async def test_wait_for_login_treats_closed_window_as_cancel() -> None:
     await flow.wait_for_login(poll_interval=0)
 
     assert flow._auth_status.status == "unauthorized"
-    assert browser.new_page_calls == 1
+    assert browser.lease_calls == 1
     assert browser.hidden is True
 
 

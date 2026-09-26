@@ -5,6 +5,7 @@ class Board(str, Enum):
     HH_RU = "hh_ru"
     HABR = "habr"
     KWORK = "kwork"
+    HIRIFY = "hirify"
 
 
 DEFAULT_BOARD = Board.HH_RU

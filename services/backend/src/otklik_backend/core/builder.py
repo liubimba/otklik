@@ -31,6 +31,7 @@ from otklik_backend.secrets.migrator import SecretMigrator
 from otklik_backend.secrets.service import DeploymentSecretsService
 from otklik_backend.secrets.store import SecretStore
 from otklik_backend.sites.habr import HabrAuthFlow, HabrParser, HabrWriter
+from otklik_backend.sites.hirify import HirifyAuthFlow, HirifyParser
 from otklik_backend.sites.kwork import KworkAuthFlow, KworkParser, KworkWriter
 from otklik_backend.sites.hh_ru import HHRUAuthFlow, HHRUParser, HHRUWriter
 from otklik_backend.sources.fetchers import SourceFetcherRegistry
@@ -97,6 +98,7 @@ class BackendBuilder:
         auth_flow = HHRUAuthFlow(browser=browser)
         habr_auth_flow = HabrAuthFlow(browser=browser)
         kwork_auth_flow = KworkAuthFlow(browser=browser)
+        hirify_auth_flow = HirifyAuthFlow(browser=browser)
         broadcaster = EventBroadcaster()
         state_service = StateTransitionService(broadcaster=broadcaster)
         pause_controller = PauseController()
@@ -116,6 +118,7 @@ class BackendBuilder:
                 Board.HH_RU: HHRUParser(core=browser),
                 Board.HABR: HabrParser(core=browser),
                 Board.KWORK: KworkParser(core=browser),
+                Board.HIRIFY: HirifyParser(core=browser),
             },
             broadcaster=broadcaster,
             session_maker=self._session_maker,
@@ -170,6 +173,7 @@ class BackendBuilder:
                 Board.HH_RU: auth_flow,
                 Board.HABR: habr_auth_flow,
                 Board.KWORK: kwork_auth_flow,
+                Board.HIRIFY: hirify_auth_flow,
             },
         )
         auto_apply_canceller = AutoApplyCanceller(

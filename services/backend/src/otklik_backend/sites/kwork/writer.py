@@ -150,7 +150,11 @@ class KworkWriter:
         low = placeholder_nums[0] if placeholder_nums else 0
         high = placeholder_nums[-1] if len(placeholder_nums) >= 2 else 0
 
-        budget_nums = _numbers(await page.text_content(self._selectors.buyer_budget))
+        budget_handle = await page.query_selector(self._selectors.buyer_budget)
+        budget_text = (
+            await budget_handle.text_content() if budget_handle is not None else None
+        )
+        budget_nums = _numbers(budget_text)
         desired = budget_nums[0] if budget_nums else low
         ceiling = budget_nums[1] if len(budget_nums) >= 2 else high
         if ceiling < desired:

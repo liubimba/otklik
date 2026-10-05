@@ -40,6 +40,8 @@ class FakePage:
     async def query_selector(self, selector: str) -> FakeHandle | None:
         if selector == KWORK_RESPONSE.price_input:
             return FakeHandle(placeholder=self._price_placeholder)
+        if selector == KWORK_RESPONSE.buyer_budget:
+            return FakeHandle(text=self._budget) if self._budget else None
         if selector == KWORK_RESPONSE.order_name_editor:
             return self._order_name_handle
         return None
